@@ -8,8 +8,10 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Empty base → the browser calls the gateway same-origin (Caddy proxies /v1). No domain baked in.
-ENV NEXT_PUBLIC_API_BASE_URL=""
+# Public API base is baked at build time (NEXT_PUBLIC_*). CI passes the prod gateway URL,
+# e.g. https://api.auto-garaj.com. Empty default = same-origin (dev/local).
+ARG NEXT_PUBLIC_API_BASE_URL=""
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
