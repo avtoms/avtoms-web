@@ -5,6 +5,7 @@ import { Icon } from "./icons";
 import { api } from "@/lib/api";
 import type { CarMake, CarModel } from "@/lib/types";
 import { isValidPlate, formatPlate, sanitizePlateInput, PLATE_HINT } from "@/lib/plate";
+import { isValidUzPhone, formatPhone, PHONE_HINT } from "@/lib/phone";
 
 // MakeModelPicker renders Make → Model dropdowns sourced from the admin-managed catalog.
 // It emits make/model as NAMES (vehicles store strings). If the catalog is empty it falls
@@ -71,6 +72,31 @@ export function PlateField({ value, onChange, label }: { value: string; onChange
           onChange={(e) => onChange(sanitizePlateInput(e.target.value))}
           onBlur={(e) => onChange(formatPlate(e.target.value))}
           placeholder={PLATE_HINT}
+          style={{ fontFamily: "var(--font-mono)", borderColor: show ? (valid ? "var(--ok)" : "var(--danger)") : undefined, paddingRight: 34 }}
+        />
+        {show && valid && (
+          <span style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", color: "var(--ok)" }}><Icon name="check" size={16} /></span>
+        )}
+      </div>
+    </Field>
+  );
+}
+
+// PhoneField validates an Uzbek mobile number live and auto-prettifies whatever the
+// user types/pastes into the canonical "+998 90 123 45 67" form: colors the border,
+// shows a check when valid and a hint when not. `hint` is shown while it's still valid
+// (e.g. "SMS"); `invalidHint` replaces it once the number is complete-but-wrong.
+export function PhoneField({ value, onChange, label, hint, invalidHint }: { value: string; onChange: (v: string) => void; label: string; hint?: string; invalidHint?: string }) {
+  const show = value.trim().length > 0;
+  const valid = isValidUzPhone(value);
+  return (
+    <Field label={label} hint={show && !valid ? (invalidHint || `Noto'g'ri telefon raqam — masalan: ${PHONE_HINT}`) : hint}>
+      <div style={{ position: "relative" }}>
+        <TextInput
+          value={value}
+          onChange={(e) => onChange(formatPhone(e.target.value))}
+          placeholder={PHONE_HINT}
+          inputMode="tel"
           style={{ fontFamily: "var(--font-mono)", borderColor: show ? (valid ? "var(--ok)" : "var(--danger)") : undefined, paddingRight: 34 }}
         />
         {show && valid && (

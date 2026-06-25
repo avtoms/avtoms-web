@@ -10,8 +10,9 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
 import type { Vehicle } from "@/lib/types";
-import { MakeModelPicker, PlateField } from "@/components/catalog-fields";
+import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
 import { isValidPlate } from "@/lib/plate";
+import { isValidUzPhone, toE164 } from "@/lib/phone";
 
 export function CreateWOModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session } = useAuth();
@@ -65,10 +66,11 @@ export function CreateWOModal({ open, onClose }: { open: boolean; onClose: () =>
   const createNew = async () => {
     if (busy) return;
     if (!cf.phone.trim() || !vf.plate.trim()) { toast(t("error"), { icon: "alert", tone: "danger" }); return; }
+    if (!isValidUzPhone(cf.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     if (!isValidPlate(vf.plate)) { toast("Noto'g'ri davlat raqami", { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      const cust = await api.createCustomer(shopId, { phone: cf.phone.trim(), name: cf.name.trim(), language: cf.language, telegramHandle: cf.telegram.trim(), walkIn: false });
+      const cust = await api.createCustomer(shopId, { phone: toE164(cf.phone), name: cf.name.trim(), language: cf.language, telegramHandle: cf.telegram.trim(), walkIn: false });
       const veh = await api.createVehicle({ customerId: cust.id, plate: vf.plate.trim(), vin: vf.vin.trim(), make: vf.make.trim(), model: vf.model.trim(), year: parseInt(vf.year, 10) || 0, mileage: parseInt(vf.mileage, 10) || 0 });
       await createFor(veh.id);
     } catch (e) {
@@ -109,7 +111,7 @@ export function CreateWOModal({ open, onClose }: { open: boolean; onClose: () =>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label={t("name")}><TextInput value={cf.name} onChange={(e) => setCf({ ...cf, name: e.target.value })} /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label={t("phone")}><TextInput value={cf.phone} onChange={(e) => setCf({ ...cf, phone: e.target.value })} placeholder="+998 90 123 45 67" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+            <PhoneField label={t("phone")} value={cf.phone} onChange={(p) => setCf({ ...cf, phone: p })} invalidHint={t("bad_phone")} />
             <Field label={t("language")}><SelectInput value={cf.language} onChange={(e) => setCf({ ...cf, language: e.target.value as Lang })}>{LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</SelectInput></Field>
           </div>
           <div style={{ height: 1, background: "var(--line)", margin: "2px 0" }} />

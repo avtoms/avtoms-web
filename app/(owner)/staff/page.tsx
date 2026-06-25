@@ -7,6 +7,8 @@ import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { roleFromProto } from "@/lib/enums";
+import { PhoneField } from "@/components/catalog-fields";
+import { isValidUzPhone, toE164 } from "@/lib/phone";
 import type { Staff } from "@/lib/types";
 
 export default function StaffPage() {
@@ -68,9 +70,10 @@ function InviteModal({ open, onClose, shopId, onCreated }: { open: boolean; onCl
 
   const save = async () => {
     if (!f.phone.trim() || busy) return;
+    if (!isValidUzPhone(f.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      await api.inviteMechanic(shopId, f.phone.trim(), f.name.trim());
+      await api.inviteMechanic(shopId, toE164(f.phone), f.name.trim());
       toast(t("invite") + " · SMS", { icon: "send" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -81,7 +84,7 @@ function InviteModal({ open, onClose, shopId, onCreated }: { open: boolean; onCl
       footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" icon="send" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("invite")}</Btn></>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label={t("phone")} hint="SMS"><TextInput value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+998 90 123 45 67" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+        <PhoneField label={t("phone")} hint="SMS" value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
       </div>
     </Modal>
   );

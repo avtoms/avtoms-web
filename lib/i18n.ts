@@ -196,6 +196,7 @@ export const STR: Record<string, Triple> = {
   empty: ["Ma'lumot yo'q", "Маълумот йўқ", "Нет данных"],
   loading: ["Yuklanmoqda…", "Юкланмоқда…", "Загрузка…"],
   error: ["Xatolik yuz berdi", "Хатолик юз берди", "Произошла ошибка"],
+  bad_phone: ["Noto'g'ri telefon raqam — masalan: +998 90 123 45 67", "Нотўғри телефон рақам — масалан: +998 90 123 45 67", "Неверный номер телефона — например: +998 90 123 45 67"],
 };
 
 export function translate(lang: Lang, key: string): string {

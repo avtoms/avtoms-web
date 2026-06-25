@@ -5,6 +5,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { Btn, Field, Badge, LangSwitcher, Logo, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
+import { formatNational, isValidUzPhone, toE164 } from "@/lib/phone";
 
 function OtpBoxes({ value, onChange, onComplete }: { value: string; onChange: (v: string) => void; onComplete: (v: string) => void }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
@@ -51,11 +52,10 @@ export default function LoginPage() {
   }, [step]);
 
   const sendCode = async () => {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 9) { toast(t("phone"), { icon: "alert", tone: "danger" }); return; }
+    if (!isValidUzPhone(phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      const r = await api.requestOtp("+998" + digits.replace(/^998/, ""));
+      const r = await api.requestOtp(toE164(phone));
       setChallengeId(r.challengeId);
       setStep("otp");
       setOtp("");
@@ -125,7 +125,7 @@ export default function LoginPage() {
             <Field label={t("phone")}>
               <div style={{ display: "flex", alignItems: "stretch", border: "1px solid var(--line-2)", borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--surface)" }}>
                 <span style={{ display: "flex", alignItems: "center", padding: "0 13px", fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--ink-2)", borderRight: "1px solid var(--line)", background: "var(--surface-2)" }}>+998</span>
-                <input value={phone.replace(/^\+?998\s?/, "")} onChange={(e) => setPhone(e.target.value.replace(/[^\d ]/g, ""))}
+                <input value={formatNational(phone)} onChange={(e) => setPhone(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") sendCode(); }} placeholder="90 123 45 67" inputMode="tel" className="an-input"
                   style={{ flex: 1, border: "none", outline: "none", padding: "12px 13px", fontSize: "calc(15.5px * var(--scale))", fontFamily: "var(--font-mono)", background: "transparent", color: "var(--ink)" }} />
               </div>
@@ -143,7 +143,7 @@ export default function LoginPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               <h1 style={{ margin: 0, fontSize: "calc(27px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.03em" }}>{t("otp_title")}</h1>
               <p style={{ margin: 0, fontSize: "calc(15px * var(--scale))", color: "var(--ink-2)" }}>{t("otp_sub")}</p>
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--ink)", fontSize: 15 }}>+998 {phone}</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--ink)", fontSize: 15 }}>+998 {formatNational(phone)}</span>
             </div>
             <OtpBoxes value={otp} onChange={setOtp} onComplete={verify} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>

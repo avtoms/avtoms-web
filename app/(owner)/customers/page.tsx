@@ -9,8 +9,9 @@ import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
 import type { Customer } from "@/lib/types";
 import { SecTitle } from "../_shared";
-import { MakeModelPicker, PlateField } from "@/components/catalog-fields";
+import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
 import { isValidPlate } from "@/lib/plate";
+import { isValidUzPhone, toE164 } from "@/lib/phone";
 
 export default function CustomersPage() {
   const { session } = useAuth();
@@ -72,9 +73,10 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
 
   const save = async () => {
     if (!f.phone.trim() || busy) return;
+    if (!isValidUzPhone(f.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      await api.createCustomer(shopId, { phone: f.phone.trim(), name: f.name.trim(), language: f.language, telegramHandle: f.telegram.trim(), walkIn: f.walkIn });
+      await api.createCustomer(shopId, { phone: toE164(f.phone), name: f.name.trim(), language: f.language, telegramHandle: f.telegram.trim(), walkIn: f.walkIn });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -85,7 +87,7 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
       footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label={t("phone")}><TextInput value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+998 90 123 45 67" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+        <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label={t("telegram")}><TextInput value={f.telegram} onChange={(e) => setF({ ...f, telegram: e.target.value })} placeholder="@username" /></Field>
           <Field label={t("language")}><SelectInput value={f.language} onChange={(e) => setF({ ...f, language: e.target.value as Lang })}>{LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</SelectInput></Field>
