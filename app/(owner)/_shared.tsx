@@ -1,5 +1,5 @@
 "use client";
-// Shared owner-console building blocks ported from the AvtoNazorat prototype
+// Shared owner-console building blocks ported from the Auto-Garaj prototype
 // (flows.jsx SecTitle/Row, owner.jsx StatCard/WORow). Wired to live types.
 import React from "react";
 import Link from "next/link";

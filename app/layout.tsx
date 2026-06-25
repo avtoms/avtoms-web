@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "AvtoNazorat — Avtoservis boshqaruvi",
+  title: "Auto-Garaj — Avtoservis boshqaruvi",
   description: "Auto-shop management for Uzbekistan",
 };
 

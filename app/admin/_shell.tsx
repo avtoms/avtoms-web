@@ -25,7 +25,7 @@ function SidebarInner({ name, phone }: { name: string; phone: string }) {
         </div>
         <div>
           <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: 16, letterSpacing: "-0.02em" }}>Admin konsoli</div>
-          <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontWeight: 500 }}>AvtoNazorat</div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontWeight: 500 }}>Auto-Garaj</div>
         </div>
       </div>
 

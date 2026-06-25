@@ -1,4 +1,4 @@
-// Trilingual dictionary ported from the AvtoNazorat prototype. Order: [uz, uzc, ru].
+// Trilingual dictionary ported from the Auto-Garaj prototype. Order: [uz, uzc, ru].
 export type Lang = "uz" | "uzc" | "ru";
 
 export const LANGS: { code: Lang; label: string; short: string }[] = [
@@ -12,7 +12,7 @@ const LANG_INDEX: Record<Lang, number> = { uz: 0, uzc: 1, ru: 2 };
 type Triple = [string, string, string];
 
 export const STR: Record<string, Triple> = {
-  app_name: ["AvtoNazorat", "АвтоНазорат", "АвтоНазорат"],
+  app_name: ["Auto-Garaj", "Auto-Garaj", "Auto-Garaj"],
   tagline: ["Avtoservis boshqaruvi", "Автосервис бошқаруви", "Управление автосервисом"],
   login_phone_title: ["Tizimga kirish", "Тизимга кириш", "Вход в систему"],
   login_phone_sub: ["Telefon raqamingizni kiriting", "Телефон рақамингизни киритинг", "Введите номер телефона"],
