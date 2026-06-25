@@ -1,7 +1,7 @@
 name: build-and-push
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - id: owner
         run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
