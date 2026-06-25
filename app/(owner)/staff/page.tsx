@@ -1,0 +1,88 @@
+"use client";
+// Staff (owner-pages.jsx StaffPage): list staff, invite-mechanic modal, deactivate.
+// Wired to api.listStaff / inviteMechanic / deactivateStaff.
+import React, { useCallback, useEffect, useState } from "react";
+import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { useAuth, useLang, useToast } from "@/components/providers";
+import { api, ApiError } from "@/lib/api";
+import { roleFromProto } from "@/lib/enums";
+import type { Staff } from "@/lib/types";
+
+export default function StaffPage() {
+  const { session } = useAuth();
+  const shopId = session!.staff.shopId;
+  const { t } = useLang();
+  const { toast } = useToast();
+
+  const [list, setList] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [inviting, setInviting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setList(await api.listStaff(shopId)); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setLoading(false); }
+  }, [shopId, t, toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const deactivate = async (s: Staff) => {
+    try { await api.deactivateStaff(s.id); toast(t("deactivate"), { icon: "check" }); load(); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn variant="primary" icon="plus" onClick={() => setInviting(true)}>{t("invite_mechanic")}</Btn></div>
+      <Card pad={0}>
+        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+          : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="team" /></div>
+          : list.map((s) => {
+            const role = roleFromProto(s.role);
+            return (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)" }}>
+                <Avatar name={s.name} size={40} color={role === "mechanic" ? "var(--info)" : undefined} />
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{s.name}</div><div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{s.phone}</div></div>
+                <Badge tone={role === "owner" ? "accent" : "neutral"}>{t(role === "owner" ? "role_owner" : "role_mechanic")}</Badge>
+                <Badge tone={s.active ? "ok" : "danger"} dot>{s.active ? t("active") : t("inactive")}</Badge>
+                {role !== "owner" && s.active && (
+                  <button onClick={() => deactivate(s)} className="an-btn an-hide-sm" style={{ border: "none", background: "transparent", color: "var(--danger)", cursor: "pointer", padding: 4, display: "flex" }}><Icon name="trash" size={16} /></button>
+                )}
+              </div>
+            );
+          })}
+      </Card>
+      <InviteModal open={inviting} onClose={() => setInviting(false)} shopId={shopId} onCreated={() => load()} />
+    </div>
+  );
+}
+
+function InviteModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [f, setF] = useState({ name: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) setF({ name: "", phone: "" }); }, [open]);
+
+  const save = async () => {
+    if (!f.phone.trim() || busy) return;
+    setBusy(true);
+    try {
+      await api.inviteMechanic(shopId, f.phone.trim(), f.name.trim());
+      toast(t("invite") + " · SMS", { icon: "send" }); onClose(); onCreated();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={t("invite_mechanic")} maxWidth={400}
+      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" icon="send" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("invite")}</Btn></>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <Field label={t("phone")} hint="SMS"><TextInput value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+998 90 123 45 67" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+      </div>
+    </Modal>
+  );
+}

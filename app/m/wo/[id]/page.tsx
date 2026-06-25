@@ -1,0 +1,349 @@
+"use client";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth, useLang, useToast } from "@/components/providers";
+import {
+  Btn, IconBtn, Card, StateBadge, Badge, Field, TextInput, TextArea, Segmented, Modal, Empty, Spinner, useIsMobile,
+} from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { api, ApiError } from "@/lib/api";
+import { woStateFromProto, kindFromProto, type WoState, type LineItemKind } from "@/lib/enums";
+import { money, num, durationFmt, minutesBetween } from "@/lib/format";
+import type { WorkOrder, MenuItem } from "@/lib/types";
+
+const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
+
+function SecTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <h3 style={{ margin: 0, fontSize: "calc(13px * var(--scale))", fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{children}</h3>
+      {right}
+    </div>
+  );
+}
+
+function Row({ label, value, mono, strong }: { label: string; value: React.ReactNode; mono?: boolean; strong?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, padding: "3px 0" }}>
+      <span style={{ color: "var(--ink-2)", fontSize: "calc(14px * var(--scale))", fontWeight: strong ? 700 : 500 }}>{label}</span>
+      <span style={{ color: "var(--ink)", fontSize: `calc(${strong ? 17 : 14.5}px * var(--scale))`, fontWeight: strong ? 800 : 600, fontFamily: mono ? "var(--font-mono)" : "var(--font-sans)", letterSpacing: strong ? "-0.02em" : 0 }}>{value}</span>
+    </div>
+  );
+}
+
+/* ── live ticking elapsed for a running timer ── */
+function useElapsed(startedAt: string | null) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!startedAt) return;
+    const iv = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(iv);
+  }, [startedAt]);
+  return startedAt ? minutesBetween(startedAt, undefined) : 0;
+}
+
+function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
+  open: boolean;
+  onClose: () => void;
+  shopId: string;
+  onAdd: (item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) => Promise<void>;
+  t: (k: string) => string;
+}) {
+  const { lang } = useLang();
+  const [mode, setMode] = useState<"menu" | "custom">("menu");
+  const [kind, setKind] = useState<LineItemKind>("labor");
+  const [desc, setDesc] = useState("");
+  const [price, setPrice] = useState("");
+  const [qty, setQty] = useState("1");
+  const [menu, setMenu] = useState<MenuItem[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setMode("menu"); setKind("labor"); setDesc(""); setPrice(""); setQty("1");
+    api.listMenuItems(shopId).then((items) => setMenu(items.filter((m) => m.active))).catch(() => setMenu([]));
+  }, [open, shopId]);
+
+  const menuName = (m: MenuItem) => (lang === "ru" ? m.nameRu : lang === "uzc" ? m.nameUzCyrl : m.nameUzLatn) || m.nameUzLatn;
+
+  const pickMenu = async (m: MenuItem) => {
+    setSaving(true);
+    try {
+      await onAdd({ kind: "labor", description: menuName(m), unitPrice: num(m.defaultPrice), quantity: 1 });
+      onClose();
+    } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
+  };
+
+  const addCustom = async () => {
+    if (!desc.trim() || !price) return;
+    setSaving(true);
+    try {
+      await onAdd({ kind, description: desc.trim(), unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1 });
+      onClose();
+    } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t("add_item")}
+      maxWidth={460}
+      footer={mode === "custom" ? (
+        <>
+          <Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn>
+          <Btn variant="primary" icon="plus" disabled={saving} onClick={() => void addCustom()}>{t("add")}</Btn>
+        </>
+      ) : null}
+    >
+      <Segmented options={[{ value: "menu", label: t("from_menu") }, { value: "custom", label: t("custom_item") }]} value={mode} onChange={(v) => setMode(v as "menu" | "custom")} style={{ marginBottom: 16, width: "100%" }} />
+      {mode === "menu" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 360, overflowY: "auto" }}>
+          {menu === null && <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner /></div>}
+          {menu !== null && menu.length === 0 && <Empty icon="list" text={t("empty")} />}
+          {menu?.map((m) => (
+            <button key={m.id} onClick={() => void pickMenu(m)} disabled={saving} className="an-row-btn" style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px",
+              border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer",
+              fontFamily: "var(--font-sans)", textAlign: "left",
+            }}>
+              <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{menuName(m)}</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 14 }}>{money(m.defaultPrice)}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Segmented options={[{ value: "labor", label: t("labor") }, { value: "part", label: t("part") }]} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
+          <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 12 }}>
+            <Field label={`${t("unit_price")} (${t("soum")})`}><TextInput value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+            <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export default function MechanicWoDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { session } = useAuth();
+  const { t } = useLang();
+  const { toast } = useToast();
+  const isMobile = useIsMobile();
+
+  const woId = String(params.id);
+  const mechanicId = session?.staff.id ?? "";
+  const shopId = session?.staff.shopId ?? "";
+
+  const [wo, setWo] = useState<WorkOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+
+  // running timer: track the started_at returned by start/stop so we can tick live elapsed.
+  const [runningSince, setRunningSince] = useState<string | null>(null);
+  const liveMins = useElapsed(runningSince);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.getWorkOrder(woId);
+      setWo(data);
+      // restore a running timer (e.g. after a page reload) from the work order itself
+      setRunningSince(data.activeTimerStartedAt || null);
+    } catch (e) {
+      toast(errMsg(e), { tone: "danger", icon: "alert" });
+    } finally {
+      setLoading(false);
+    }
+  }, [woId, toast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const state: WoState = wo ? woStateFromProto(wo.state) : "draft";
+  const items = wo?.lineItems || [];
+  const subtotal = useMemo(() => items.reduce((s, i) => s + num(i.unitPrice) * (i.quantity || 0), 0), [items]);
+  const total = wo?.total !== undefined ? num(wo.total) : subtotal;
+
+  const startTimer = async () => {
+    if (!wo) return;
+    setBusy(true);
+    try {
+      const r = await api.startTimer(wo.id, mechanicId);
+      setRunningSince(r.startedAt || new Date().toISOString());
+      toast(t("start_timer"), { icon: "play" });
+    } catch (e) {
+      toast(errMsg(e), { tone: "danger", icon: "alert" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const stopTimer = async () => {
+    if (!wo) return;
+    setBusy(true);
+    try {
+      await api.stopTimer(wo.id, mechanicId);
+      setRunningSince(null);
+      toast(t("stop_timer"), { icon: "stop" });
+      await load();
+    } catch (e) {
+      toast(errMsg(e), { tone: "danger", icon: "alert" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doTransition = async (target: WoState, label: string) => {
+    if (!wo) return;
+    setBusy(true);
+    try {
+      if (target === "in_progress") {
+        await api.transition(wo.id, "in_progress");
+        const r = await api.startTimer(wo.id, mechanicId);
+        setRunningSince(r.startedAt || new Date().toISOString());
+      } else if (target === "ready") {
+        try { await api.stopTimer(wo.id, mechanicId); } catch { /* may not be running */ }
+        setRunningSince(null);
+        await api.transition(wo.id, "ready");
+      } else {
+        await api.transition(wo.id, target);
+      }
+      toast(label, { icon: "check" });
+      await load();
+    } catch (e) {
+      toast(errMsg(e), { tone: "danger", icon: "alert" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addLineItem = async (item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) => {
+    if (!wo) return;
+    try {
+      const updated = await api.addLineItem(wo.id, item);
+      setWo(updated);
+      toast(t("add_item"), { icon: "plus" });
+    } catch (e) {
+      toast(errMsg(e), { tone: "danger", icon: "alert" });
+      throw e;
+    }
+  };
+
+  if (loading) {
+    return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner size={28} /></div>;
+  }
+  if (!wo) {
+    return <Empty icon="clipboard" text={t("error")} />;
+  }
+
+  // mechanic state actions
+  const actions: { label: string; icon: string; on: () => void }[] = [];
+  if (state === "approved") actions.push({ label: t("start_work"), icon: "play", on: () => void doTransition("in_progress", t("start_work")) });
+  if (state === "in_progress") actions.push({ label: t("mark_ready"), icon: "check", on: () => void doTransition("ready", t("mark_ready")) });
+
+  const canControlTimer = state === "approved" || state === "in_progress";
+  const running = !!runningSince;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: actions.length ? 90 : 16 }}>
+      {/* header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <IconBtn icon="arrowL" onClick={() => router.push("/m")} aria-label={t("back")} />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h1 style={{ margin: 0, fontSize: "calc(22px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.02em", fontFamily: "var(--font-mono)" }}>{wo.id}</h1>
+          <StateBadge state={state} />
+        </div>
+      </div>
+
+      {/* vehicle / wo summary */}
+      <Card pad={16}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name="car" size={24} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{t("work_order")}</div>
+            <div style={{ fontSize: 13, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{wo.vehicleId}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("total")}</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 800, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{money(total)} {t("soum")}</div>
+          </div>
+        </div>
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr", gap: 16, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* line items (read-only list, mechanic may add) */}
+          <Card pad={0}>
+            <div style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)" }}>
+              <SecTitle>{t("line_items")}</SecTitle>
+              <Btn variant="soft" size="sm" icon="plus" onClick={() => setAddOpen(true)}>{t("add_item")}</Btn>
+            </div>
+            <div>
+              {items.length === 0 && <div style={{ padding: 20 }}><Empty icon="list" text={t("empty")} /></div>}
+              {items.map((it, i) => (
+                <div key={it.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
+                  <Badge tone={kindFromProto(it.kind) === "part" ? "info" : "neutral"}>{t(kindFromProto(it.kind) === "part" ? "part" : "labor")}</Badge>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{it.description}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{money(it.unitPrice)} × {it.quantity}</div>
+                  </div>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "14px 18px", background: "var(--surface-2)" }}>
+              <Row label={t("subtotal")} value={`${money(wo.subtotal !== undefined ? num(wo.subtotal) : subtotal)} ${t("soum")}`} mono />
+              {wo.vat !== undefined && <Row label={t("vat")} value={`${money(wo.vat)} ${t("soum")}`} mono />}
+              <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
+              <Row label={t("total")} value={`${money(total)} ${t("soum")}`} mono strong />
+            </div>
+          </Card>
+
+          {wo.notes ? (
+            <Card pad={16}>
+              <SecTitle>{t("notes")}</SecTitle>
+              <div style={{ fontSize: "calc(14px * var(--scale))", color: "var(--ink-2)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{wo.notes}</div>
+            </Card>
+          ) : null}
+        </div>
+
+        {/* timer panel */}
+        <Card pad={16}>
+          <SecTitle right={
+            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: "calc(18px * var(--scale))", color: running ? "var(--accent-2)" : "var(--ink)" }}>
+              {running ? durationFmt(liveMins) : "—"}
+            </span>
+          }>{t("total_time")}</SecTitle>
+
+          {running ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+              <span className="an-pulse" style={{ width: 9, height: 9, borderRadius: 99, background: "var(--accent)" }} />
+              <span style={{ fontWeight: 600, color: "var(--ink-2)", fontSize: 14, flex: 1 }}>{t("timer_running")}</span>
+              <Btn variant="danger" size="md" icon="stop" disabled={busy} onClick={() => void stopTimer()}>{t("stop_timer")}</Btn>
+            </div>
+          ) : canControlTimer ? (
+            <Btn variant="primary" full size="lg" icon="play" disabled={busy} onClick={() => void startTimer()}>{t("start_timer")}</Btn>
+          ) : null}
+        </Card>
+      </div>
+
+      {/* sticky action bar */}
+      {actions.length > 0 && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, padding: 14, background: "color-mix(in oklch, var(--bg), transparent 8%)", borderTop: "1px solid var(--line)", backdropFilter: "blur(8px)" }}>
+          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            {actions.map((a, i) => (
+              <Btn key={i} variant="primary" size="lg" icon={a.icon} disabled={busy} onClick={a.on} style={{ flex: isMobile ? 1 : "0 0 auto" }}>{a.label}</Btn>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <AddLineItemModal open={addOpen} onClose={() => setAddOpen(false)} shopId={shopId} onAdd={addLineItem} t={t} />
+    </div>
+  );
+}
