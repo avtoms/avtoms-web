@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -170,6 +170,18 @@ export const api = {
     }),
   setReminderState: (id: string, state: string) =>
     call<ServiceReminder>("POST", `/v1/reminders/${id}/state`, { state }),
+
+  // ── shop expenses + P&L ──
+  listExpenses: (shopId: string, from?: string, to?: string) =>
+    call<{ expenses?: ShopExpense[] }>("GET", "/v1/expenses" + qs({ shopId, from, to })).then((r) => r.expenses ?? []),
+  createExpense: (shopId: string, e: { category: string; amount: number; incurredOn?: string; note?: string }) =>
+    call<ShopExpense>("POST", "/v1/expenses", {
+      shopId, category: e.category, amount: String(e.amount),
+      incurredOn: e.incurredOn ?? "", note: e.note ?? "",
+    }),
+  deleteExpense: (id: string) => call<{ deleted?: boolean }>("DELETE", `/v1/expenses/${id}`),
+  getProfitLoss: (shopId: string, from?: string, to?: string) =>
+    call<ProfitAndLoss>("GET", "/v1/profit-loss" + qs({ shopId, from, to })),
 
   // ── parts inventory ──
   listParts: (shopId: string) =>

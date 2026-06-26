@@ -139,6 +139,34 @@ export interface Appointment {
   notes?: string;
 }
 
+export interface ShopExpense {
+  id: string;
+  shopId: string;
+  category: string; // rent, salary, utilities, supplies, tax, other
+  amount: number | string; // tiyin
+  incurredOn: string; // RFC3339
+  note?: string;
+  createdAt: string;
+}
+
+export interface ExpenseBucket {
+  category: string;
+  amount: number | string;
+}
+
+export interface ProfitAndLoss {
+  shopId: string;
+  from?: string;
+  to?: string;
+  revenue: number | string;
+  costOfGoods: number | string;
+  grossMargin: number | string;
+  overhead: number | string;
+  netProfit: number | string;
+  workOrderCount?: number;
+  byCategory?: ExpenseBucket[];
+}
+
 export interface ServiceReminder {
   id: string;
   shopId: string;
