@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -144,6 +144,18 @@ export const api = {
         name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
       })),
     }),
+
+  // ── appointments ──
+  listAppointments: (shopId: string, from?: string, to?: string) =>
+    call<{ appointments?: Appointment[] }>("GET", "/v1/appointments" + qs({ shopId, from, to })).then((r) => r.appointments ?? []),
+  createAppointment: (shopId: string, a: { title: string; customerName?: string; phone?: string; vehicleId?: string; plate?: string; mechanicId?: string; scheduledAt: string; durationMinutes?: number; notes?: string }) =>
+    call<Appointment>("POST", "/v1/appointments", {
+      shopId, title: a.title, customerName: a.customerName ?? "", phone: a.phone ?? "",
+      vehicleId: a.vehicleId ?? "", plate: a.plate ?? "", mechanicId: a.mechanicId ?? "",
+      scheduledAt: a.scheduledAt, durationMinutes: a.durationMinutes ?? 0, notes: a.notes ?? "",
+    }),
+  setAppointmentState: (id: string, state: string) =>
+    call<Appointment>("POST", `/v1/appointments/${id}/state`, { state }),
 
   // ── parts inventory ──
   listParts: (shopId: string) =>

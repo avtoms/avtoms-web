@@ -124,6 +124,21 @@ export interface MenuItem {
   materials?: MenuMaterial[]; // parts/materials this service is expected to need
 }
 
+export interface Appointment {
+  id: string;
+  shopId: string;
+  title?: string;
+  customerName?: string;
+  phone?: string;
+  vehicleId?: string;
+  plate?: string;
+  mechanicId?: string;
+  scheduledAt: string; // RFC3339
+  durationMinutes?: number;
+  state: string; // APPOINTMENT_STATE_*
+  notes?: string;
+}
+
 export interface Part {
   id: string;
   shopId: string;

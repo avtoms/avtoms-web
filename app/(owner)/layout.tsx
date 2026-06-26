@@ -13,6 +13,7 @@ type NavItem = { key: string; route: string; icon: string; labelKey: string };
 const ITEMS: NavItem[] = [
   { key: "dashboard", route: "/dashboard", icon: "dashboard", labelKey: "nav_dashboard" },
   { key: "workorders", route: "/work-orders", icon: "clipboard", labelKey: "nav_workorders" },
+  { key: "schedule", route: "/schedule", icon: "clock", labelKey: "nav_schedule" },
   { key: "customers", route: "/customers", icon: "users", labelKey: "nav_customers" },
   { key: "invoices", route: "/invoices", icon: "receipt", labelKey: "nav_invoices" },
   { key: "reports", route: "/reports", icon: "chart", labelKey: "nav_reports" },

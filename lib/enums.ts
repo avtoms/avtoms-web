@@ -81,6 +81,15 @@ export const kindFromProto = (s?: string): LineItemKind => {
 // Materials/parts are stock-like (info tone); services/labor are work (neutral tone).
 export const kindIsMaterial = (k: LineItemKind): boolean => k === "material" || k === "part";
 
+// Appointment states (mirror avtoms.workorder.v1.AppointmentState).
+export type ApptState = "scheduled" | "done" | "canceled";
+const APPT_PREFIX = "APPOINTMENT_STATE_";
+export const apptStateToProto = (s: ApptState): string => APPT_PREFIX + s.toUpperCase();
+export const apptStateFromProto = (s?: string): ApptState => {
+  const k = (s || "").replace(APPT_PREFIX, "").toLowerCase();
+  return (["scheduled", "done", "canceled"] as string[]).includes(k) ? (k as ApptState) : "scheduled";
+};
+
 // Uzbek number-plate categories (mirrors avtoms.customer.v1.PlateType).
 export type PlateType = "standard" | "electric" | "foreign" | "moped";
 export const PLATE_TYPES: PlateType[] = ["standard", "electric", "foreign", "moped"];
