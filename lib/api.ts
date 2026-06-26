@@ -176,6 +176,8 @@ export const api = {
     call<Integration>("GET", `/v1/admin/integrations/${provider}`),
   updateIntegration: (provider: string, values: Record<string, string>) =>
     call<Integration>("POST", `/v1/admin/integrations/${provider}`, { values }),
+  sendTestSms: (phone: string) =>
+    call<{ delivered?: boolean; detail?: string }>("POST", "/v1/admin/sms/test", { phone }),
 
   // ── car catalog (read: any role; create: admin only) ──
   listCarMakes: () =>

@@ -39,6 +39,20 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
   const [configured, setConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null);
+
+  const sendTest = async () => {
+    if (!testPhone.trim() || testing) return;
+    setTesting(true); setTestResult(null);
+    try {
+      const r = await api.sendTestSms(testPhone.trim());
+      setTestResult({ ok: !!r.delivered, detail: r.detail || (r.delivered ? "Sent" : "Failed") });
+    } catch (e) {
+      setTestResult({ ok: false, detail: e instanceof ApiError ? e.message : "Xatolik" });
+    } finally { setTesting(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +107,21 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
             </Field>
           ))}
           <div><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : "Saqlash"}</Btn></div>
+
+          {provider === "playmobile" && (
+            <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-3)" }}>Sinov SMS (test)</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <TextInput value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+998901234567" inputMode="tel" style={{ fontFamily: "var(--font-mono)", flex: 1, minWidth: 180 }} />
+                <Btn variant="soft" icon="send" disabled={testing} onClick={sendTest}>{testing ? <Spinner /> : "Yuborish"}</Btn>
+              </div>
+              {testResult && (
+                <div style={{ fontSize: 12.5, padding: "8px 11px", borderRadius: "var(--radius-sm)", background: testResult.ok ? "var(--ok-soft)" : "var(--danger-soft)", color: testResult.ok ? "var(--ok)" : "var(--danger)", fontFamily: "var(--font-mono)", wordBreak: "break-word" }}>
+                  {testResult.ok ? "✓ " : "✗ "}{testResult.detail}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </Card>
