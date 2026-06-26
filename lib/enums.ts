@@ -6,7 +6,11 @@ export type WoState = "draft" | "estimated" | "approved" | "in_progress" | "read
 export type Role = "owner" | "mechanic" | "admin";
 export type FiscalStatus = "pending" | "fiscalized" | "failed" | "voided";
 export type PaymentMethod = "cash" | "other";
-export type LineItemKind = "labor" | "part";
+// "service" and "material" are the current kinds; "labor"/"part" are legacy aliases
+// still returned for older line items.
+export type LineItemKind = "service" | "material" | "labor" | "part";
+// Kinds offered when adding a new line item.
+export const LINE_ITEM_KINDS: LineItemKind[] = ["service", "material"];
 
 export const WO_STATES: WoState[] = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed", "canceled"];
 
@@ -15,13 +19,15 @@ export const STATE_LABEL: Record<WoState, string> = {
   ready: "st_ready", invoiced: "st_invoiced", closed: "st_closed", canceled: "st_canceled",
 };
 
-// Allowed forward transitions used by the action bar (mirrors backend state machine intent).
+// Allowed forward transitions used by the action bar. Mirrors the backend state machine
+// in avtoms-workorder (service.go allowedTransitions) exactly, so the UI never offers a
+// transition the server will reject.
 export const TRANSITIONS: Record<WoState, WoState[]> = {
   draft: ["estimated", "canceled"],
   estimated: ["approved", "draft", "canceled"],
-  approved: ["in_progress", "draft", "canceled"],
+  approved: ["in_progress", "canceled"],
   in_progress: ["ready", "canceled"],
-  ready: ["invoiced", "canceled"],
+  ready: ["invoiced", "in_progress", "canceled"],
   invoiced: ["closed"],
   closed: [],
   canceled: [],
@@ -56,8 +62,24 @@ export const fiscalFromProto = (s?: string): FiscalStatus => {
 export const paymentToProto = (m: PaymentMethod): string => (m === "cash" ? "PAYMENT_METHOD_CASH" : "PAYMENT_METHOD_OTHER");
 export const paymentFromProto = (s?: string): PaymentMethod => (s === "PAYMENT_METHOD_OTHER" ? "other" : "cash");
 
-export const kindToProto = (k: LineItemKind): string => (k === "part" ? "LINE_ITEM_KIND_PART" : "LINE_ITEM_KIND_LABOR");
-export const kindFromProto = (s?: string): LineItemKind => (s === "LINE_ITEM_KIND_PART" ? "part" : "labor");
+export const kindToProto = (k: LineItemKind): string => {
+  switch (k) {
+    case "material": return "LINE_ITEM_KIND_MATERIAL";
+    case "part": return "LINE_ITEM_KIND_PART";
+    case "labor": return "LINE_ITEM_KIND_LABOR";
+    default: return "LINE_ITEM_KIND_SERVICE";
+  }
+};
+export const kindFromProto = (s?: string): LineItemKind => {
+  switch (s) {
+    case "LINE_ITEM_KIND_MATERIAL": return "material";
+    case "LINE_ITEM_KIND_PART": return "part";
+    case "LINE_ITEM_KIND_LABOR": return "labor";
+    default: return "service";
+  }
+};
+// Materials/parts are stock-like (info tone); services/labor are work (neutral tone).
+export const kindIsMaterial = (k: LineItemKind): boolean => k === "material" || k === "part";
 
 const LANG_PROTO: Record<Lang, string> = { uz: "LANGUAGE_UZ_LATN", uzc: "LANGUAGE_UZ_CYRL", ru: "LANGUAGE_RU" };
 export const langToProto = (l: Lang): string => LANG_PROTO[l] || "LANGUAGE_UZ_LATN";

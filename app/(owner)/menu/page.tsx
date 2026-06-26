@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Card, Badge, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money, num } from "@/lib/format";
 import type { MenuItem } from "@/lib/types";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -47,7 +47,10 @@ export default function MenuPage() {
                 <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{menuName(m, lang)}</div>
                 <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{m.nameUzLatn} · {m.nameUzCyrl} · {m.nameRu}</div>
               </div>
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(m.defaultPrice)}</span>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(m.defaultPrice)}</div>
+                {num(m.defaultCost) > 0 && <div style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--ink-3)" }}>{t("cost")}: {money(m.defaultCost!)}</div>}
+              </div>
               <Badge tone={m.active ? "ok" : "neutral"} dot>{m.active ? t("active") : t("inactive")}</Badge>
             </div>
           ))}
@@ -60,15 +63,15 @@ export default function MenuPage() {
 function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [f, setF] = useState({ uz: "", uzc: "", ru: "", price: "" });
+  const [f, setF] = useState({ uz: "", uzc: "", ru: "", price: "", cost: "" });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ uz: "", uzc: "", ru: "", price: "" }); }, [open]);
+  useEffect(() => { if (open) setF({ uz: "", uzc: "", ru: "", price: "", cost: "" }); }, [open]);
 
   const save = async () => {
     if (!f.uz.trim() || !f.price || busy) return;
     setBusy(true);
     try {
-      await api.createMenuItem(shopId, { nameUzLatn: f.uz.trim(), nameUzCyrl: f.uzc.trim(), nameRu: f.ru.trim(), defaultPrice: parseInt(f.price, 10) || 0 });
+      await api.createMenuItem(shopId, { nameUzLatn: f.uz.trim(), nameUzCyrl: f.uzc.trim(), nameRu: f.ru.trim(), defaultPrice: parseInt(f.price, 10) || 0, defaultCost: parseInt(f.cost, 10) || 0 });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -81,7 +84,10 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
         <Field label="O'zbekcha (Latin)"><TextInput value={f.uz} onChange={(e) => setF({ ...f, uz: e.target.value })} /></Field>
         <Field label="Ўзбекча (Кирилл)"><TextInput value={f.uzc} onChange={(e) => setF({ ...f, uzc: e.target.value })} /></Field>
         <Field label="Русский"><TextInput value={f.ru} onChange={(e) => setF({ ...f, ru: e.target.value })} /></Field>
-        <Field label={t("default_price") + " (" + t("soum") + ")"}><TextInput value={f.price} onChange={(e) => setF({ ...f, price: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label={t("default_price") + " (" + t("soum") + ")"}><TextInput value={f.price} onChange={(e) => setF({ ...f, price: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <Field label={t("default_cost") + " (" + t("soum") + ")"}><TextInput value={f.cost} onChange={(e) => setF({ ...f, cost: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+        </div>
       </div>
     </Modal>
   );

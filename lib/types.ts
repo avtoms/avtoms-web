@@ -62,10 +62,13 @@ export interface Vehicle {
 
 export interface LineItem {
   id?: string;
-  kind: string; // LINE_ITEM_KIND_LABOR | LINE_ITEM_KIND_PART
+  kind: string; // LINE_ITEM_KIND_SERVICE | LINE_ITEM_KIND_MATERIAL | (legacy) LABOR | PART
   description: string;
-  unitPrice: string;
+  unitPrice: string; // agreed/negotiated sell price per unit (tiyin)
   quantity: number;
+  cost?: string; // shop expense (buy price) per unit (tiyin)
+  menuItemId?: string; // source menu item, when added from the price list
+  defaultPrice?: string; // menu price snapshot at add time, for discount audit (tiyin)
 }
 
 export interface TimeEntry {
@@ -86,6 +89,8 @@ export interface WorkOrder {
   subtotal?: string;
   vat?: string;
   total?: string;
+  totalCost?: string; // shop's total expense on this order (tiyin)
+  totalMargin?: string; // gross margin before VAT: subtotal - totalCost (tiyin)
   notes?: string;
   createdAt?: string;
   activeTimerStartedAt?: string; // set when a timer is currently running
@@ -103,6 +108,7 @@ export interface MenuItem {
   nameUzCyrl: string;
   nameRu: string;
   defaultPrice: string;
+  defaultCost?: string; // optional default shop expense per unit (tiyin)
   active: boolean;
 }
 

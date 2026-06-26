@@ -13,8 +13,8 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, vatBreakdown } from "@/lib/format";
 import {
-  woStateFromProto, kindFromProto, fiscalFromProto,
-  TRANSITIONS, STATE_LABEL, type WoState, type LineItemKind, type PaymentMethod,
+  woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto,
+  TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem } from "@/lib/types";
 import { SecTitle, Row } from "../../_shared";
@@ -22,6 +22,13 @@ import { SecTitle, Row } from "../../_shared";
 function menuName(m: MenuItem, lang: string): string {
   return lang === "uzc" ? m.nameUzCyrl : lang === "ru" ? m.nameRu : m.nameUzLatn;
 }
+
+// Payload for adding a line item: unitPrice is the agreed (negotiated) price, cost is the
+// shop expense, and defaultPrice/menuItemId capture the price-list origin for the discount audit.
+type LineItemInput = {
+  kind: LineItemKind; description: string; unitPrice: number; quantity: number;
+  cost?: number; menuItemId?: string; defaultPrice?: number;
+};
 
 export default function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -64,7 +71,7 @@ export default function WorkOrderDetailPage() {
     try { setWo(await api.assignMechanic(id, mechanicId)); setAssigning(false); toast(t("assign"), { icon: "check" }); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
-  const doAddItem = async (item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) => {
+  const doAddItem = async (item: LineItemInput) => {
     setBusy(true);
     try { setWo(await api.addLineItem(id, item)); setAddItem(false); toast(t("add_item"), { icon: "check" }); }
     catch (e) { err(e); } finally { setBusy(false); }
@@ -79,7 +86,10 @@ export default function WorkOrderDetailPage() {
   const subtotal = wo.subtotal != null ? num(wo.subtotal) : computed.subtotal;
   const vat = wo.vat != null ? num(wo.vat) : computed.vat;
   const total = wo.total != null ? num(wo.total) : computed.total;
-  const editable = ["draft", "estimated", "approved"].includes(state);
+  const totalCost = num(wo.totalCost);
+  const totalMargin = wo.totalMargin != null ? num(wo.totalMargin) : subtotal - totalCost;
+  // Line items can be added while the order is still open (matches the backend state guard).
+  const editable = ["draft", "estimated", "approved", "in_progress", "ready"].includes(state);
   const mech = mechanics.find((m) => m.id === wo.assignedMechanicId);
 
   // contextual actions from the allowed forward transitions
@@ -124,14 +134,22 @@ export default function WorkOrderDetailPage() {
               {items.length === 0 && <div style={{ padding: 20 }}><Empty icon="list" text={t("empty")} /></div>}
               {items.map((it, i) => {
                 const kind = kindFromProto(it.kind);
+                const defPrice = num(it.defaultPrice);
+                const discount = defPrice > num(it.unitPrice) ? (defPrice - num(it.unitPrice)) * (it.quantity || 0) : 0;
                 return (
                   <div key={it.id ?? i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
-                    <Badge tone={kind === "part" ? "info" : "neutral"}>{t(kind)}</Badge>
+                    <Badge tone={kindIsMaterial(kind) ? "info" : "neutral"}>{t(kind)}</Badge>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{it.description}</div>
-                      <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{money(it.unitPrice)} × {it.quantity}</div>
+                      <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>
+                        {money(it.unitPrice)} × {it.quantity}
+                        {discount > 0 && <span style={{ color: "var(--ink-3)", textDecoration: "line-through", marginLeft: 6 }}>{money(defPrice)}</span>}
+                      </div>
                     </div>
-                    <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>
+                      {discount > 0 && <div style={{ fontSize: 11, color: "var(--ok, var(--accent-2))", fontFamily: "var(--font-mono)" }}>−{money(discount)} {t("discount").toLowerCase()}</div>}
+                    </div>
                   </div>
                 );
               })}
@@ -141,6 +159,13 @@ export default function WorkOrderDetailPage() {
               <Row label={t("vat")} value={money(vat)} mono />
               <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
               <Row label={t("total")} value={money(total) + " " + t("soum")} mono strong />
+              {totalCost > 0 && (
+                <>
+                  <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
+                  <Row label={t("expense")} value={money(totalCost)} mono />
+                  <Row label={t("margin")} value={money(totalMargin)} mono />
+                </>
+              )}
             </div>
           </Card>
 
@@ -192,32 +217,56 @@ export default function WorkOrderDetailPage() {
 
 /* ── add line item ── */
 function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
-  open: boolean; onClose: () => void; onAdd: (i: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) => void; shopId: string; lang: string; busy: boolean;
+  open: boolean; onClose: () => void; onAdd: (i: LineItemInput) => void; shopId: string; lang: string; busy: boolean;
 }) {
   const { t } = useLang();
   const [mode, setMode] = useState<"menu" | "custom">("menu");
-  const [kind, setKind] = useState<LineItemKind>("labor");
+  const [kind, setKind] = useState<LineItemKind>("service");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("");
+  const [cost, setCost] = useState("");
   const [qty, setQty] = useState("1");
+  // Captures the price-list origin so a negotiated price can be audited against the menu price.
+  const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
   const [menu, setMenu] = useState<MenuItem[]>([]);
+
+  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); };
 
   useEffect(() => {
     if (!open) return;
-    setMode("menu"); setKind("labor"); setDesc(""); setPrice(""); setQty("1");
+    setMode("menu"); reset();
     api.listMenuItems(shopId).then((m) => setMenu(m.filter((x) => x.active))).catch(() => {});
   }, [open, shopId]);
 
-  const pickMenu = (m: MenuItem) => onAdd({ kind: "labor", description: menuName(m, lang), unitPrice: num(m.defaultPrice), quantity: 1 });
+  // Picking from the price list prefills the editor (instead of adding immediately) so the
+  // owner can negotiate the price before confirming — the menu price is kept as the snapshot.
+  const pickMenu = (m: MenuItem) => {
+    setKind("service");
+    setDesc(menuName(m, lang));
+    setPrice(String(num(m.defaultPrice)));
+    setCost(String(num(m.defaultCost)));
+    setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) });
+    setMode("custom");
+  };
   const addCustom = () => {
     if (!desc.trim() || !price) return;
-    onAdd({ kind, description: desc.trim(), unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1 });
+    onAdd({
+      kind, description: desc.trim(),
+      unitPrice: parseInt(price, 10) || 0,
+      quantity: parseInt(qty, 10) || 1,
+      cost: parseInt(cost, 10) || 0,
+      menuItemId: from.menuItemId || undefined,
+      defaultPrice: from.defaultPrice || undefined,
+    });
   };
+
+  const agreed = parseInt(price, 10) || 0;
+  const discount = from.defaultPrice > agreed ? from.defaultPrice - agreed : 0;
 
   return (
     <Modal open={open} onClose={onClose} title={t("add_item")} maxWidth={460}
       footer={mode === "custom" ? <><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" icon="plus" disabled={busy} onClick={addCustom}>{t("add")}</Btn></> : undefined}>
-      <Segmented options={[{ value: "menu", label: t("from_menu") }, { value: "custom", label: t("custom_item") }]} value={mode} onChange={(v) => setMode(v as "menu" | "custom")} style={{ marginBottom: 16, width: "100%" }} />
+      <Segmented options={[{ value: "menu", label: t("from_menu") }, { value: "custom", label: t("custom_item") }]} value={mode} onChange={(v) => { const nv = v as "menu" | "custom"; if (nv === "custom" && mode === "menu") reset(); setMode(nv); }} style={{ marginBottom: 16, width: "100%" }} />
       {mode === "menu" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 360, overflowY: "auto" }}>
           {menu.length === 0 && <Empty icon="list" text={t("empty")} />}
@@ -230,12 +279,19 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Segmented options={[{ value: "labor", label: t("labor") }, { value: "part", label: t("part") }]} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
+          <Segmented options={LINE_ITEM_KINDS.map((k) => ({ value: k, label: t(k) }))} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
           <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 12 }}>
-            <Field label={t("unit_price") + " (" + t("soum") + ")"}><TextInput value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 76px", gap: 10 }}>
+            <Field label={t("agreed_price")}><TextInput value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+            <Field label={t("unit_cost")}><TextInput value={cost} onChange={(e) => setCost(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
             <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
           </div>
+          {from.defaultPrice > 0 && (
+            <div style={{ fontSize: 12.5, color: "var(--ink-3)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <span>{t("menu_price")}: <span style={{ fontFamily: "var(--font-mono)" }}>{money(from.defaultPrice)}</span></span>
+              {discount > 0 && <span style={{ color: "var(--accent-2)" }}>{t("discount")}: −{money(discount)}</span>}
+            </div>
+          )}
         </div>
       )}
     </Modal>

@@ -7,11 +7,17 @@ import {
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
-import { woStateFromProto, kindFromProto, type WoState, type LineItemKind } from "@/lib/enums";
+import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, type WoState, type LineItemKind } from "@/lib/enums";
 import { money, num, durationFmt, minutesBetween } from "@/lib/format";
 import type { WorkOrder, MenuItem } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
+
+// Payload for adding a line item (agreed price + optional shop cost + price-list origin).
+type LineItemInput = {
+  kind: LineItemKind; description: string; unitPrice: number; quantity: number;
+  cost?: number; menuItemId?: string; defaultPrice?: number;
+};
 
 function SecTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
@@ -46,42 +52,58 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
   open: boolean;
   onClose: () => void;
   shopId: string;
-  onAdd: (item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) => Promise<void>;
+  onAdd: (item: LineItemInput) => Promise<void>;
   t: (k: string) => string;
 }) {
   const { lang } = useLang();
   const [mode, setMode] = useState<"menu" | "custom">("menu");
-  const [kind, setKind] = useState<LineItemKind>("labor");
+  const [kind, setKind] = useState<LineItemKind>("service");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("");
+  const [cost, setCost] = useState("");
   const [qty, setQty] = useState("1");
+  const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
   const [menu, setMenu] = useState<MenuItem[] | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); };
+
   useEffect(() => {
     if (!open) return;
-    setMode("menu"); setKind("labor"); setDesc(""); setPrice(""); setQty("1");
+    setMode("menu"); reset();
     api.listMenuItems(shopId).then((items) => setMenu(items.filter((m) => m.active))).catch(() => setMenu([]));
   }, [open, shopId]);
 
   const menuName = (m: MenuItem) => (lang === "ru" ? m.nameRu : lang === "uzc" ? m.nameUzCyrl : m.nameUzLatn) || m.nameUzLatn;
 
-  const pickMenu = async (m: MenuItem) => {
-    setSaving(true);
-    try {
-      await onAdd({ kind: "labor", description: menuName(m), unitPrice: num(m.defaultPrice), quantity: 1 });
-      onClose();
-    } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
+  // Prefill the editor from a price-list item so the price can be negotiated before adding.
+  const pickMenu = (m: MenuItem) => {
+    setKind("service");
+    setDesc(menuName(m));
+    setPrice(String(num(m.defaultPrice)));
+    setCost(String(num(m.defaultCost)));
+    setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) });
+    setMode("custom");
   };
 
   const addCustom = async () => {
     if (!desc.trim() || !price) return;
     setSaving(true);
     try {
-      await onAdd({ kind, description: desc.trim(), unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1 });
+      await onAdd({
+        kind, description: desc.trim(),
+        unitPrice: parseInt(price, 10) || 0,
+        quantity: parseInt(qty, 10) || 1,
+        cost: parseInt(cost, 10) || 0,
+        menuItemId: from.menuItemId || undefined,
+        defaultPrice: from.defaultPrice || undefined,
+      });
       onClose();
     } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
   };
+
+  const agreed = parseInt(price, 10) || 0;
+  const discount = from.defaultPrice > agreed ? from.defaultPrice - agreed : 0;
 
   return (
     <Modal
@@ -96,13 +118,13 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
         </>
       ) : null}
     >
-      <Segmented options={[{ value: "menu", label: t("from_menu") }, { value: "custom", label: t("custom_item") }]} value={mode} onChange={(v) => setMode(v as "menu" | "custom")} style={{ marginBottom: 16, width: "100%" }} />
+      <Segmented options={[{ value: "menu", label: t("from_menu") }, { value: "custom", label: t("custom_item") }]} value={mode} onChange={(v) => { const nv = v as "menu" | "custom"; if (nv === "custom" && mode === "menu") reset(); setMode(nv); }} style={{ marginBottom: 16, width: "100%" }} />
       {mode === "menu" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 360, overflowY: "auto" }}>
           {menu === null && <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner /></div>}
           {menu !== null && menu.length === 0 && <Empty icon="list" text={t("empty")} />}
           {menu?.map((m) => (
-            <button key={m.id} onClick={() => void pickMenu(m)} disabled={saving} className="an-row-btn" style={{
+            <button key={m.id} onClick={() => pickMenu(m)} disabled={saving} className="an-row-btn" style={{
               display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px",
               border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer",
               fontFamily: "var(--font-sans)", textAlign: "left",
@@ -114,12 +136,19 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Segmented options={[{ value: "labor", label: t("labor") }, { value: "part", label: t("part") }]} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
+          <Segmented options={LINE_ITEM_KINDS.map((k) => ({ value: k, label: t(k) }))} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
           <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 12 }}>
-            <Field label={`${t("unit_price")} (${t("soum")})`}><TextInput value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 76px", gap: 10 }}>
+            <Field label={t("agreed_price")}><TextInput value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+            <Field label={t("unit_cost")}><TextInput value={cost} onChange={(e) => setCost(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
             <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
           </div>
+          {from.defaultPrice > 0 && (
+            <div style={{ fontSize: 12.5, color: "var(--ink-3)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <span>{t("menu_price")}: <span style={{ fontFamily: "var(--font-mono)" }}>{money(from.defaultPrice)}</span></span>
+              {discount > 0 && <span style={{ color: "var(--accent-2)" }}>{t("discount")}: −{money(discount)}</span>}
+            </div>
+          )}
         </div>
       )}
     </Modal>
@@ -220,7 +249,7 @@ export default function MechanicWoDetailPage() {
     }
   };
 
-  const addLineItem = async (item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) => {
+  const addLineItem = async (item: LineItemInput) => {
     if (!wo) return;
     try {
       const updated = await api.addLineItem(wo.id, item);
@@ -287,7 +316,7 @@ export default function MechanicWoDetailPage() {
               {items.length === 0 && <div style={{ padding: 20 }}><Empty icon="list" text={t("empty")} /></div>}
               {items.map((it, i) => (
                 <div key={it.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
-                  <Badge tone={kindFromProto(it.kind) === "part" ? "info" : "neutral"}>{t(kindFromProto(it.kind) === "part" ? "part" : "labor")}</Badge>
+                  <Badge tone={kindIsMaterial(kindFromProto(it.kind)) ? "info" : "neutral"}>{t(kindFromProto(it.kind))}</Badge>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{it.description}</div>
                     <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{money(it.unitPrice)} × {it.quantity}</div>

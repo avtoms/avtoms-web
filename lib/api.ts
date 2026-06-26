@@ -98,9 +98,17 @@ export const api = {
   getWorkOrder: (id: string) => call<WorkOrder>("GET", `/v1/work-orders/${id}`),
   createWorkOrder: (shopId: string, vehicleId: string) =>
     call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId }),
-  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number }) =>
+  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number }) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items`, {
-      lineItem: { kind: kindToProto(item.kind), description: item.description, unitPrice: String(item.unitPrice), quantity: item.quantity },
+      lineItem: {
+        kind: kindToProto(item.kind),
+        description: item.description,
+        unitPrice: String(item.unitPrice),
+        quantity: item.quantity,
+        cost: String(item.cost ?? 0),
+        menuItemId: item.menuItemId ?? "",
+        defaultPrice: String(item.defaultPrice ?? 0),
+      },
     }),
   transition: (woId: string, target: WoState) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/transition`, { target: woStateToProto(target) }),
@@ -115,9 +123,10 @@ export const api = {
   listMenuItems: (shopId: string) =>
     call<{ items?: MenuItem[] }>("GET", "/v1/menu-items" + qs({ shopId }))
       .then((r) => r.items ?? []),
-  createMenuItem: (shopId: string, m: { nameUzLatn: string; nameUzCyrl: string; nameRu: string; defaultPrice: number }) =>
+  createMenuItem: (shopId: string, m: { nameUzLatn: string; nameUzCyrl: string; nameRu: string; defaultPrice: number; defaultCost?: number }) =>
     call<MenuItem>("POST", "/v1/menu-items", {
-      shopId, nameUzLatn: m.nameUzLatn, nameUzCyrl: m.nameUzCyrl, nameRu: m.nameRu, defaultPrice: String(m.defaultPrice),
+      shopId, nameUzLatn: m.nameUzLatn, nameUzCyrl: m.nameUzCyrl, nameRu: m.nameRu,
+      defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
     }),
 
   // ── invoices ──
