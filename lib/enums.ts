@@ -90,6 +90,15 @@ export const apptStateFromProto = (s?: string): ApptState => {
   return (["scheduled", "done", "canceled"] as string[]).includes(k) ? (k as ApptState) : "scheduled";
 };
 
+// Service-reminder states (mirror avtoms.workorder.v1.ServiceReminderState).
+export type ReminderState = "pending" | "done" | "dismissed";
+const REMINDER_PREFIX = "SERVICE_REMINDER_STATE_";
+export const reminderStateToProto = (s: ReminderState): string => REMINDER_PREFIX + s.toUpperCase();
+export const reminderStateFromProto = (s?: string): ReminderState => {
+  const k = (s || "").replace(REMINDER_PREFIX, "").toLowerCase();
+  return (["pending", "done", "dismissed"] as string[]).includes(k) ? (k as ReminderState) : "pending";
+};
+
 // Uzbek number-plate categories (mirrors avtoms.customer.v1.PlateType).
 export type PlateType = "standard" | "electric" | "foreign" | "moped";
 export const PLATE_TYPES: PlateType[] = ["standard", "electric", "foreign", "moped"];

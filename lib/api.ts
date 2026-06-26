@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -158,6 +158,18 @@ export const api = {
     }),
   setAppointmentState: (id: string, state: string) =>
     call<Appointment>("POST", `/v1/appointments/${id}/state`, { state }),
+
+  // ── service reminders ──
+  listReminders: (shopId: string, vehicleId?: string) =>
+    call<{ reminders?: ServiceReminder[] }>("GET", "/v1/reminders" + qs({ shopId, vehicleId })).then((r) => r.reminders ?? []),
+  createReminder: (shopId: string, m: { title: string; vehicleId?: string; customerName?: string; phone?: string; plate?: string; dueDate?: string; dueMileage?: number; notes?: string }) =>
+    call<ServiceReminder>("POST", "/v1/reminders", {
+      shopId, title: m.title, vehicleId: m.vehicleId ?? "", customerName: m.customerName ?? "",
+      phone: m.phone ?? "", plate: m.plate ?? "", dueDate: m.dueDate ?? "",
+      dueMileage: String(m.dueMileage ?? 0), notes: m.notes ?? "",
+    }),
+  setReminderState: (id: string, state: string) =>
+    call<ServiceReminder>("POST", `/v1/reminders/${id}/state`, { state }),
 
   // ── parts inventory ──
   listParts: (shopId: string) =>

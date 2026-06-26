@@ -19,6 +19,7 @@ const ITEMS: NavItem[] = [
   { key: "reports", route: "/reports", icon: "chart", labelKey: "nav_reports" },
   { key: "menu", route: "/menu", icon: "list", labelKey: "nav_menu" },
   { key: "inventory", route: "/inventory", icon: "wrench", labelKey: "nav_inventory" },
+  { key: "reminders", route: "/reminders", icon: "bell", labelKey: "nav_reminders" },
   { key: "staff", route: "/staff", icon: "team", labelKey: "nav_staff" },
   { key: "settings", route: "/settings", icon: "settings", labelKey: "nav_settings" },
 ];

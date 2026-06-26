@@ -139,6 +139,21 @@ export interface Appointment {
   notes?: string;
 }
 
+export interface ServiceReminder {
+  id: string;
+  shopId: string;
+  vehicleId?: string;
+  customerName?: string;
+  phone?: string;
+  plate?: string;
+  title: string;
+  dueDate?: string;   // RFC3339 (optional)
+  dueMileage?: number; // odometer target km (optional)
+  notes?: string;
+  state: string; // SERVICE_REMINDER_STATE_*
+  createdAt: string;
+}
+
 export interface AuditEntry {
   id: string;
   workOrderId: string;
