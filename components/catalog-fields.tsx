@@ -1,13 +1,65 @@
 "use client";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Field, SelectInput, TextInput } from "./ui";
 import { Icon } from "./icons";
 import { api } from "@/lib/api";
 import type { CarMake, CarModel } from "@/lib/types";
 import { isValidPlateFor, formatPlateFor, sanitizePlateInput, platePlaceholder } from "@/lib/plate";
 import { isValidUzPhone, formatPhone, PHONE_HINT } from "@/lib/phone";
+import { useLang } from "./providers";
 import { PlatePreview } from "./plate";
 import type { PlateType } from "@/lib/enums";
+
+// ── MoneyInput ───────────────────────────────────────────────────────────────
+// A numeric amount field (so'm) that shows thousands separators while typing and
+// emits the raw digit string, so callers keep storing a plain integer string.
+function groupDigits(s: string): string {
+  const d = s.replace(/\D/g, "");
+  return d === "" ? "" : Number(d).toLocaleString("ru-RU").replace(/,/g, " ");
+}
+
+export function MoneyInput({
+  value, onChange, placeholder, style, ...rest
+}: {
+  value: string | number;
+  onChange: (digits: string) => void;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const digits = value === "" || value === undefined || value === null ? "" : String(value).replace(/\D/g, "");
+  return (
+    <TextInput
+      {...rest}
+      value={groupDigits(digits)}
+      inputMode="numeric"
+      placeholder={placeholder ?? "0"}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+      style={{ fontFamily: "var(--font-mono)", ...style }}
+    />
+  );
+}
+
+// ── UnitSelect ───────────────────────────────────────────────────────────────
+// Standard (ISO-style) units of measure, so units are picked, not free-typed.
+// The stored value is the symbol (e.g. "pcs", "L", "kg"); labels are localized.
+export const UNITS = ["pcs", "set", "L", "ml", "kg", "g", "m", "roll"] as const;
+export type Unit = (typeof UNITS)[number];
+
+export function UnitSelect({
+  value, onChange, style,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  style?: React.CSSProperties;
+}) {
+  const { t } = useLang();
+  // Tolerate legacy free-text units (e.g. "dona", "litr") by keeping them selectable.
+  const legacy = value && !UNITS.includes(value as Unit);
+  return (
+    <SelectInput value={value} onChange={(e) => onChange(e.target.value)} style={style}>
+      {UNITS.map((u) => <option key={u} value={u}>{t("unit_" + u)}</option>)}
+      {legacy && <option value={value}>{value}</option>}
+    </SelectInput>
+  );
+}
 
 // MakeModelPicker renders Make → Model dropdowns sourced from the admin-managed catalog.
 // It emits make/model as NAMES (vehicles store strings). If the catalog is empty it falls
