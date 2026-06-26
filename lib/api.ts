@@ -76,6 +76,9 @@ export const api = {
     call<{ customers?: Customer[] }>("GET", "/v1/customers" + qs({ shopId, query }))
       .then((r) => r.customers ?? []),
   getCustomer: (id: string) => call<Customer>("GET", `/v1/customers/${id}`),
+  listVehicles: (customerId: string) =>
+    call<{ vehicles?: Vehicle[] }>("GET", `/v1/customers/${customerId}/vehicles`)
+      .then((r) => r.vehicles ?? []),
   createCustomer: (shopId: string, c: { phone: string; name: string; language: Lang; telegramHandle?: string; walkIn?: boolean }) =>
     call<Customer>("POST", "/v1/customers", {
       shopId, phone: c.phone, name: c.name, language: langToProto(c.language),

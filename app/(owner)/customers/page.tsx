@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
-import type { Customer } from "@/lib/types";
+import type { Customer, Vehicle } from "@/lib/types";
 import { SecTitle } from "../_shared";
 import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
 import { isValidPlate } from "@/lib/plate";
@@ -107,6 +107,19 @@ function CustomerDetailModal({ customer, onClose }: { customer: Customer | null;
   const { t } = useLang();
   const { toast } = useToast();
   const [addV, setAddV] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vloading, setVloading] = useState(false);
+
+  const loadVehicles = useCallback(async (id: string) => {
+    setVloading(true);
+    try { setVehicles(await api.listVehicles(id)); }
+    catch { /* surfaced as empty */ }
+    finally { setVloading(false); }
+  }, []);
+
+  // (Re)load when the modal is showing the detail view (also after the add-vehicle modal closes).
+  useEffect(() => { if (customer && !addV) loadVehicles(customer.id); }, [customer, addV, loadVehicles]);
+
   if (!customer) return null;
   return (
     <>
@@ -123,8 +136,17 @@ function CustomerDetailModal({ customer, onClose }: { customer: Customer | null;
             <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <SecTitle>{t("vehicles")}</SecTitle><Btn variant="soft" size="sm" icon="plus" onClick={() => setAddV(true)}>{t("add_vehicle")}</Btn>
             </div>
-            {/* TODO backend: no list-vehicles-by-customer endpoint; vehicles are added but not listed here. */}
-            <div style={{ padding: 20 }}><Empty icon="car" text={t("empty")} /></div>
+            {vloading ? <div style={{ display: "flex", justifyContent: "center", padding: 20 }}><Spinner size={20} /></div>
+              : vehicles.length === 0 ? <div style={{ padding: 20 }}><Empty icon="car" text={t("empty")} /></div>
+              : vehicles.map((v) => (
+                <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="car" size={20} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{[v.make, v.model].filter(Boolean).join(" ") || t("vehicle")}{v.year ? " · " + v.year : ""}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{v.plate}{Number(v.mileage) > 0 ? " · " + v.mileage + " km" : ""}</div>
+                  </div>
+                </div>
+              ))}
           </Card>
         </div>
       </Modal>
