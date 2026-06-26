@@ -170,6 +170,12 @@ export const STR: Record<string, Triple> = {
   inactive: ["Faol emas", "Фаол эмас", "Неактивна"],
   default_price: ["Standart narx", "Стандарт нарх", "Базовая цена"],
   default_cost: ["Standart tannarx", "Стандарт таннарх", "Базовая себестоимость"],
+  service_name: ["Xizmat nomi", "Хизмат номи", "Название услуги"],
+  category: ["Toifa", "Тоифа", "Категория"],
+  est_time: ["Taxminiy vaqt (daqiqa)", "Тахминий вақт (дақиқа)", "Примерное время (мин)"],
+  materials_needed: ["Kerakli materiallar", "Керакли материаллар", "Необходимые материалы"],
+  material_name: ["Material nomi", "Материал номи", "Название материала"],
+  add_material: ["Material qo'shish", "Материал қўшиш", "Добавить материал"],
   pricing_policy: ["Narx siyosati", "Нарх сиёсати", "Ценовая политика"],
   max_discount: ["Maksimal chegirma (%)", "Максимал чегирма (%)", "Макс. скидка (%)"],
   max_discount_hint: [

@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Card, Badge, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money, num } from "@/lib/format";
+import { money, num, durationFmt } from "@/lib/format";
 import type { MenuItem } from "@/lib/types";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -42,10 +42,21 @@ export default function MenuPage() {
         {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="list" /></div>
           : list.map((m) => (
-            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)", opacity: m.active ? 1 : 0.55 }}>
+            <div key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)", opacity: m.active ? 1 : 0.55 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{menuName(m, lang)}</div>
-                <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{m.nameUzLatn} · {m.nameUzCyrl} · {m.nameRu}</div>
+                {(m.category || num(m.estimatedMinutes) > 0) && (
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
+                    {m.category && <span>{m.category}</span>}
+                    {num(m.estimatedMinutes) > 0 && <span>· {durationFmt(num(m.estimatedMinutes))}</span>}
+                  </div>
+                )}
+                {m.materials && m.materials.length > 0 && (
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 4 }}>
+                    <span style={{ fontWeight: 600 }}>{t("materials_needed")}:</span>{" "}
+                    {m.materials.map((x) => x.name + (x.quantity > 1 ? " ×" + x.quantity : "")).join(", ")}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(m.defaultPrice)}</div>
@@ -60,33 +71,81 @@ export default function MenuPage() {
   );
 }
 
+type MatRow = { name: string; qty: string; cost: string; price: string };
+const emptyForm = { name: "", category: "", minutes: "", price: "", cost: "" };
+
 function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [f, setF] = useState({ uz: "", uzc: "", ru: "", price: "", cost: "" });
+  const [f, setF] = useState(emptyForm);
+  const [materials, setMaterials] = useState<MatRow[]>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ uz: "", uzc: "", ru: "", price: "", cost: "" }); }, [open]);
+  useEffect(() => { if (open) { setF(emptyForm); setMaterials([]); } }, [open]);
+
+  const setMat = (i: number, patch: Partial<MatRow>) => setMaterials((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", cost: "", price: "" }]);
+  const delMat = (i: number) => setMaterials((rows) => rows.filter((_, j) => j !== i));
 
   const save = async () => {
-    if (!f.uz.trim() || !f.price || busy) return;
+    if (!f.name.trim() || !f.price || busy) return;
     setBusy(true);
     try {
-      await api.createMenuItem(shopId, { nameUzLatn: f.uz.trim(), nameUzCyrl: f.uzc.trim(), nameRu: f.ru.trim(), defaultPrice: parseInt(f.price, 10) || 0, defaultCost: parseInt(f.cost, 10) || 0 });
+      await api.createMenuItem(shopId, {
+        name: f.name.trim(),
+        defaultPrice: parseInt(f.price, 10) || 0,
+        defaultCost: parseInt(f.cost, 10) || 0,
+        category: f.category.trim(),
+        estimatedMinutes: parseInt(f.minutes, 10) || 0,
+        materials: materials.filter((m) => m.name.trim()).map((m) => ({
+          name: m.name.trim(),
+          quantity: parseInt(m.qty, 10) || 1,
+          unitCost: parseInt(m.cost, 10) || 0,
+          unitPrice: parseInt(m.price, 10) || 0,
+        })),
+      });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };
 
+  const numInput = (v: string, on: (s: string) => void, ph = "0") => (
+    <TextInput value={v} onChange={(e) => on(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={ph} style={{ fontFamily: "var(--font-mono)" }} />
+  );
+
   return (
-    <Modal open={open} onClose={onClose} title={t("add_service")} maxWidth={440}
+    <Modal open={open} onClose={onClose} title={t("add_service")} maxWidth={520}
       footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-        <Field label="O'zbekcha (Latin)"><TextInput value={f.uz} onChange={(e) => setF({ ...f, uz: e.target.value })} /></Field>
-        <Field label="Ўзбекча (Кирилл)"><TextInput value={f.uzc} onChange={(e) => setF({ ...f, uzc: e.target.value })} /></Field>
-        <Field label="Русский"><TextInput value={f.ru} onChange={(e) => setF({ ...f, ru: e.target.value })} /></Field>
+        <Field label={t("service_name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label={t("default_price") + " (" + t("soum") + ")"}><TextInput value={f.price} onChange={(e) => setF({ ...f, price: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-          <Field label={t("default_cost") + " (" + t("soum") + ")"}><TextInput value={f.cost} onChange={(e) => setF({ ...f, cost: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <Field label={t("category")}><TextInput value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} /></Field>
+          <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label={t("default_price") + " (" + t("soum") + ")"}>{numInput(f.price, (s) => setF({ ...f, price: s }))}</Field>
+          <Field label={t("default_cost") + " (" + t("soum") + ")"}>{numInput(f.cost, (s) => setF({ ...f, cost: s }))}</Field>
+        </div>
+
+        {/* materials editor */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-3)" }}>{t("materials_needed")}</span>
+          <Btn variant="soft" size="sm" icon="plus" onClick={addMat}>{t("add_material")}</Btn>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {materials.map((m, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 52px 1fr 1fr 30px", gap: 6, alignItems: "center" }}>
+              <TextInput value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
+              {numInput(m.qty, (s) => setMat(i, { qty: s }), "1")}
+              {numInput(m.cost, (s) => setMat(i, { cost: s }), t("cost"))}
+              {numInput(m.price, (s) => setMat(i, { price: s }), t("price"))}
+              <Btn variant="ghost" size="sm" icon="trash" onClick={() => delMat(i)} aria-label="remove" />
+            </div>
+          ))}
+          {materials.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 52px 1fr 1fr 30px", gap: 6, fontSize: 10.5, color: "var(--ink-3)", padding: "0 2px" }}>
+              <span>{t("material_name")}</span><span>{t("qty")}</span><span>{t("cost")}</span><span>{t("price")}</span><span />
+            </div>
+          )}
         </div>
       </div>
     </Modal>

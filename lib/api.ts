@@ -123,10 +123,20 @@ export const api = {
   listMenuItems: (shopId: string) =>
     call<{ items?: MenuItem[] }>("GET", "/v1/menu-items" + qs({ shopId }))
       .then((r) => r.items ?? []),
-  createMenuItem: (shopId: string, m: { nameUzLatn: string; nameUzCyrl: string; nameRu: string; defaultPrice: number; defaultCost?: number }) =>
+  createMenuItem: (shopId: string, m: {
+    name: string; defaultPrice: number; defaultCost?: number;
+    category?: string; estimatedMinutes?: number;
+    materials?: { name: string; quantity: number; unitCost: number; unitPrice: number }[];
+  }) =>
     call<MenuItem>("POST", "/v1/menu-items", {
-      shopId, nameUzLatn: m.nameUzLatn, nameUzCyrl: m.nameUzCyrl, nameRu: m.nameRu,
+      shopId,
+      // One name field for now; duplicated across languages until AI translation lands.
+      nameUzLatn: m.name, nameUzCyrl: m.name, nameRu: m.name,
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
+      category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
+      materials: (m.materials ?? []).map((x) => ({
+        name: x.name, quantity: x.quantity, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
+      })),
     }),
 
   // ── shop pricing policy ──

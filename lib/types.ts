@@ -101,6 +101,13 @@ export interface WorkOrder {
   customerName?: string;
 }
 
+export interface MenuMaterial {
+  name: string;
+  quantity: number;
+  unitCost?: string; // tiyin
+  unitPrice?: string; // tiyin
+}
+
 export interface MenuItem {
   id: string;
   shopId: string;
@@ -110,6 +117,9 @@ export interface MenuItem {
   defaultPrice: string;
   defaultCost?: string; // optional default shop expense per unit (tiyin)
   active: boolean;
+  category?: string;
+  estimatedMinutes?: number;
+  materials?: MenuMaterial[]; // parts/materials this service is expected to need
 }
 
 export interface ShopSettings {
