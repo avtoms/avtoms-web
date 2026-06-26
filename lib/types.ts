@@ -129,6 +129,12 @@ export interface ShopSettings {
   maxDiscountPercent: number; // 0-100; 100 = no cap
 }
 
+export interface Integration {
+  provider: string;
+  values: Record<string, string>; // secret values are blank on read
+  configured: boolean;
+}
+
 export interface Invoice {
   id: string;
   shopId: string;

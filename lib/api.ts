@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -168,6 +168,14 @@ export const api = {
     call<Staff>("POST", "/v1/admin/staff/active", { staffId, active }),
   setStaffRole: (staffId: string, role: Role) =>
     call<Staff>("POST", "/v1/admin/staff/role", { staffId, role: roleToProto(role) }),
+
+  // ── super-admin integration credentials ──
+  listIntegrations: () =>
+    call<{ integrations?: Integration[] }>("GET", "/v1/admin/integrations").then((r) => r.integrations ?? []),
+  getIntegration: (provider: string) =>
+    call<Integration>("GET", `/v1/admin/integrations/${provider}`),
+  updateIntegration: (provider: string, values: Record<string, string>) =>
+    call<Integration>("POST", `/v1/admin/integrations/${provider}`, { values }),
 
   // ── car catalog (read: any role; create: admin only) ──
   listCarMakes: () =>

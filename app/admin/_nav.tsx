@@ -18,6 +18,7 @@ export const NAV_GROUPS: Group[] = [
       { href: "/admin/car-models", label: "Modellar", icon: "list" },
     ],
   },
+  { title: "Integratsiyalar", items: [{ href: "/admin/integrations", label: "Integratsiyalar", icon: "bell" }] },
 ];
 
 function isActive(pathname: string, item: Item): boolean {
@@ -67,6 +68,7 @@ const TITLES: { match: (p: string) => boolean; title: string }[] = [
   { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar" },
   { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari" },
   { match: (p) => p.startsWith("/admin/car-models"), title: "Avtomobil modellari" },
+  { match: (p) => p.startsWith("/admin/integrations"), title: "Integratsiyalar" },
 ];
 
 export function AdminPageTitle() {
