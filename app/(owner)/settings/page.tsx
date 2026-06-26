@@ -1,11 +1,12 @@
 "use client";
 // Settings (owner-pages.jsx SettingsPage): shop profile (local-only, no backend endpoint),
 // UI language, theme/font/density tweaks (useTheme().set), and sign out.
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Field, TextInput, Btn, Segmented, useIsMobile } from "@/components/ui";
+import { Card, Field, TextInput, Btn, Segmented, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useTheme, useToast } from "@/components/providers";
+import { api, ApiError } from "@/lib/api";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { SecTitle } from "../_shared";
@@ -20,6 +21,33 @@ export default function SettingsPage() {
 
   // shop profile is local-only for now (no shop endpoint in the API client).
   const [shop, setShop] = useState({ name: "", address: "", tin: "", hours: "" });
+
+  // Pricing policy (real): the per-shop max discount %. 100 = no cap.
+  const [maxDiscount, setMaxDiscount] = useState("100");
+  const [policyLoading, setPolicyLoading] = useState(true);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+
+  useEffect(() => {
+    api.getShopSettings()
+      .then((s) => setMaxDiscount(String(s.maxDiscountPercent)))
+      .catch(() => {})
+      .finally(() => setPolicyLoading(false));
+  }, []);
+
+  const savePolicy = async () => {
+    if (savingPolicy) return;
+    const pct = Math.max(0, Math.min(100, parseInt(maxDiscount, 10) || 0));
+    setSavingPolicy(true);
+    try {
+      const s = await api.updateShopSettings(pct);
+      setMaxDiscount(String(s.maxDiscountPercent));
+      toast(t("save"), { icon: "check" });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
 
   const signOut = () => { logout(); router.replace("/login"); };
 
@@ -38,6 +66,24 @@ export default function SettingsPage() {
           <Btn variant="primary" onClick={() => toast(t("save"), { icon: "check" })}>{t("save")}</Btn>
           <div style={{ fontSize: 12, color: "var(--ink-3)" }}>hozircha saqlanmaydi</div>
         </div>
+      </Card>
+
+      {/* pricing policy — real backend (workorder shop settings) */}
+      <Card>
+        <SecTitle>{t("pricing_policy")}</SecTitle>
+        {policyLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner size={22} /></div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label={t("max_discount")}>
+              <TextInput value={maxDiscount} inputMode="numeric"
+                onChange={(e) => setMaxDiscount(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                style={{ fontFamily: "var(--font-mono)" }} />
+            </Field>
+            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("max_discount_hint")}</div>
+            <Btn variant="primary" disabled={savingPolicy} onClick={savePolicy}>{savingPolicy ? <Spinner /> : t("save")}</Btn>
+          </div>
+        )}
       </Card>
 
       {/* UI language */}

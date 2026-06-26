@@ -170,6 +170,18 @@ export const STR: Record<string, Triple> = {
   inactive: ["Faol emas", "Фаол эмас", "Неактивна"],
   default_price: ["Standart narx", "Стандарт нарх", "Базовая цена"],
   default_cost: ["Standart tannarx", "Стандарт таннарх", "Базовая себестоимость"],
+  pricing_policy: ["Narx siyosati", "Нарх сиёсати", "Ценовая политика"],
+  max_discount: ["Maksimal chegirma (%)", "Максимал чегирма (%)", "Макс. скидка (%)"],
+  max_discount_hint: [
+    "Ustalar shu foizdan ko'p chegirma bera olmaydi. 100% — cheklovsiz.",
+    "Усталар шу фоиздан кўп чегирма бера олмайди. 100% — чекловсиз.",
+    "Механики не могут давать скидку больше этого. 100% — без ограничения.",
+  ],
+  discount_exceeds_limit: [
+    "Chegirma ruxsat etilgan chegaradan oshib ketdi",
+    "Чегирма рухсат этилган чегарадан ошиб кетди",
+    "Скидка превышает допустимый лимит",
+  ],
   staff: ["Xodimlar", "Ходимлар", "Сотрудники"],
   invite_mechanic: ["Usta taklif qilish", "Уста таклиф қилиш", "Пригласить механика"],
   invite: ["Taklif qilish", "Таклиф қилиш", "Пригласить"],

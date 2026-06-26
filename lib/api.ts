@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -128,6 +128,12 @@ export const api = {
       shopId, nameUzLatn: m.nameUzLatn, nameUzCyrl: m.nameUzCyrl, nameRu: m.nameRu,
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
     }),
+
+  // ── shop pricing policy ──
+  // shopId is taken from the auth context by the gateway, so it is not sent.
+  getShopSettings: () => call<ShopSettings>("GET", "/v1/shop/settings"),
+  updateShopSettings: (maxDiscountPercent: number) =>
+    call<ShopSettings>("POST", "/v1/shop/settings", { maxDiscountPercent }),
 
   // ── invoices ──
   listInvoices: (shopId: string) =>

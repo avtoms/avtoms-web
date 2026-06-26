@@ -112,6 +112,11 @@ export interface MenuItem {
   active: boolean;
 }
 
+export interface ShopSettings {
+  shopId: string;
+  maxDiscountPercent: number; // 0-100; 100 = no cap
+}
+
 export interface Invoice {
   id: string;
   shopId: string;

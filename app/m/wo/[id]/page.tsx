@@ -64,6 +64,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
   const [qty, setQty] = useState("1");
   const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
   const [menu, setMenu] = useState<MenuItem[] | null>(null);
+  const [maxDiscount, setMaxDiscount] = useState(100); // shop discount cap %; 100 = no cap
   const [saving, setSaving] = useState(false);
 
   const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); };
@@ -72,6 +73,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
     if (!open) return;
     setMode("menu"); reset();
     api.listMenuItems(shopId).then((items) => setMenu(items.filter((m) => m.active))).catch(() => setMenu([]));
+    api.getShopSettings().then((s) => setMaxDiscount(s.maxDiscountPercent)).catch(() => setMaxDiscount(100));
   }, [open, shopId]);
 
   const menuName = (m: MenuItem) => (lang === "ru" ? m.nameRu : lang === "uzc" ? m.nameUzCyrl : m.nameUzLatn) || m.nameUzLatn;
@@ -104,6 +106,8 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
 
   const agreed = parseInt(price, 10) || 0;
   const discount = from.defaultPrice > agreed ? from.defaultPrice - agreed : 0;
+  // Mechanics are held to the shop's discount cap (the gateway blocks an override for them).
+  const overCap = from.defaultPrice > 0 && maxDiscount < 100 && agreed * 100 < from.defaultPrice * (100 - maxDiscount);
 
   return (
     <Modal
@@ -114,7 +118,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
       footer={mode === "custom" ? (
         <>
           <Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn>
-          <Btn variant="primary" icon="plus" disabled={saving} onClick={() => void addCustom()}>{t("add")}</Btn>
+          <Btn variant="primary" icon="plus" disabled={saving || overCap} onClick={() => void addCustom()}>{t("add")}</Btn>
         </>
       ) : null}
     >
@@ -146,7 +150,12 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
           {from.defaultPrice > 0 && (
             <div style={{ fontSize: 12.5, color: "var(--ink-3)", display: "flex", justifyContent: "space-between", gap: 8 }}>
               <span>{t("menu_price")}: <span style={{ fontFamily: "var(--font-mono)" }}>{money(from.defaultPrice)}</span></span>
-              {discount > 0 && <span style={{ color: "var(--accent-2)" }}>{t("discount")}: −{money(discount)}</span>}
+              {discount > 0 && <span style={{ color: overCap ? "var(--danger)" : "var(--accent-2)" }}>{t("discount")}: −{money(discount)}</span>}
+            </div>
+          )}
+          {overCap && (
+            <div style={{ fontSize: 12.5, color: "var(--danger)", fontWeight: 600 }}>
+              {t("discount_exceeds_limit")} ({t("max_discount")}: {maxDiscount}%)
             </div>
           )}
         </div>
