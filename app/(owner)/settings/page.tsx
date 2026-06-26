@@ -9,6 +9,7 @@ import { useAuth, useLang, useTheme, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
+import { loadShopProfile, saveShopProfile } from "@/lib/shop";
 import { SecTitle } from "../_shared";
 
 export default function SettingsPage() {
@@ -19,8 +20,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  // shop profile is local-only for now (no shop endpoint in the API client).
+  // shop profile is local-only for now (no shop endpoint); persisted in localStorage and
+  // used for the printable-invoice header. Loaded once on mount.
   const [shop, setShop] = useState({ name: "", address: "", tin: "", hours: "" });
+  useEffect(() => { setShop(loadShopProfile()); }, []);
+  const saveShop = () => { saveShopProfile(shop); toast(t("save"), { icon: "check" }); };
 
   // Pricing policy (real): the per-shop max discount %. 100 = no cap.
   const [maxDiscount, setMaxDiscount] = useState("100");
@@ -63,8 +67,8 @@ export default function SettingsPage() {
             <Field label={t("tin")}><TextInput value={shop.tin} onChange={(e) => setShop({ ...shop, tin: e.target.value })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
             <Field label={t("hours")}><TextInput value={shop.hours} onChange={(e) => setShop({ ...shop, hours: e.target.value })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
           </div>
-          <Btn variant="primary" onClick={() => toast(t("save"), { icon: "check" })}>{t("save")}</Btn>
-          <div style={{ fontSize: 12, color: "var(--ink-3)" }}>hozircha saqlanmaydi</div>
+          <Btn variant="primary" onClick={saveShop}>{t("save")}</Btn>
+          <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("shop_profile_local_hint")}</div>
         </div>
       </Card>
 

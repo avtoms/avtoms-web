@@ -97,6 +97,8 @@ function InvoiceDetailModal({ invoice, onClose, onPay }: { invoice: Invoice | nu
             </div>
           </div>
         )}
+
+        <Btn variant="ghost" icon="printer" onClick={() => window.open(`/print-invoice/${invoice.id}`, "_blank")}>{t("print")}</Btn>
       </div>
     </Modal>
   );
