@@ -8,7 +8,9 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
-import type { Customer, Vehicle } from "@/lib/types";
+import { STATE_LABEL, woStateFromProto } from "@/lib/enums";
+import { money } from "@/lib/format";
+import type { Customer, Vehicle, WorkOrder } from "@/lib/types";
 import { SecTitle } from "../_shared";
 import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
@@ -106,11 +108,14 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
 }
 
 function CustomerDetailModal({ customer, onClose }: { customer: Customer | null; onClose: () => void }) {
+  const { session } = useAuth();
+  const shopId = session!.staff.shopId;
   const { t } = useLang();
   const { toast } = useToast();
   const [addV, setAddV] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vloading, setVloading] = useState(false);
+  const [histVehicle, setHistVehicle] = useState<Vehicle | null>(null);
 
   const loadVehicles = useCallback(async (id: string) => {
     setVloading(true);
@@ -150,13 +155,59 @@ function CustomerDetailModal({ customer, onClose }: { customer: Customer | null;
                       {Number(v.mileage) > 0 ? " · " + v.mileage + " km" : ""}
                     </div>
                   </div>
+                  <Btn variant="ghost" size="sm" icon="clock" onClick={() => setHistVehicle(v)}>{t("history")}</Btn>
                 </div>
               ))}
           </Card>
         </div>
       </Modal>
       <AddVehicleModal open={addV} onClose={() => setAddV(false)} customerId={customer.id} onCreated={() => { toast(t("save"), { icon: "check" }); setAddV(false); }} />
+      <VehicleHistoryModal vehicle={histVehicle} shopId={shopId} onClose={() => setHistVehicle(null)} />
     </>
+  );
+}
+
+function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Vehicle | null; shopId: string; onClose: () => void }) {
+  const { t } = useLang();
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!vehicle) return;
+    setLoading(true);
+    api.listWorkOrders(shopId, undefined, undefined, vehicle.id)
+      .then((o) => setOrders([...o].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))))
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false));
+  }, [vehicle, shopId]);
+
+  if (!vehicle) return null;
+  const title = [vehicle.make, vehicle.model].filter(Boolean).join(" ") || t("vehicle");
+  return (
+    <Modal open={!!vehicle} onClose={onClose} title={t("service_history")} maxWidth={520}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontSize: 13.5, color: "var(--ink-2)" }}>{title} · <span style={{ fontFamily: "var(--font-mono)" }}>{vehicle.plate}</span></div>
+        <Card pad={0}>
+          {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner size={20} /></div>
+            : orders.length === 0 ? <div style={{ padding: 24 }}><Empty icon="clock" text={t("no_history")} /></div>
+            : orders.map((o) => {
+              const st = woStateFromProto(o.state);
+              return (
+                <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(13.5px * var(--scale))" }}>
+                      {o.createdAt ? new Date(o.createdAt).toLocaleDateString() : "—"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{(o.lineItems?.length ?? 0)} {t("items").toLowerCase()}</div>
+                  </div>
+                  <Badge tone={st === "closed" ? "ok" : st === "canceled" ? "neutral" : "accent"} dot>{t(STATE_LABEL[st])}</Badge>
+                  <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(13.5px * var(--scale))", minWidth: 80, textAlign: "right" }}>{money(o.total ?? 0)}</div>
+                </div>
+              );
+            })}
+        </Card>
+      </div>
+    </Modal>
   );
 }
 

@@ -139,6 +139,15 @@ export interface Appointment {
   notes?: string;
 }
 
+export interface AuditEntry {
+  id: string;
+  workOrderId: string;
+  actorId?: string; // staff id who made the change (may be empty)
+  action: string;   // "state" | "line_added" | "line_removed" | "mechanic_assigned"
+  detail?: string;  // human-readable detail
+  createdAt: string; // RFC3339
+}
+
 export interface Part {
   id: string;
   shopId: string;

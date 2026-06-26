@@ -16,7 +16,7 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry } from "@/lib/types";
 import { SecTitle, Row } from "../../_shared";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -196,6 +196,7 @@ export default function WorkOrderDetailPage() {
               </div>
             ) : <span style={{ color: "var(--ink-3)", fontSize: 14 }}>{t("unassigned")}</span>}
           </Card>
+          <AuditCard woId={id} refresh={`${state}|${items.length}|${wo.assignedMechanicId ?? ""}`} mechanics={mechanics} />
         </div>
       </div>
 
@@ -218,6 +219,49 @@ export default function WorkOrderDetailPage() {
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
     </div>
+  );
+}
+
+/* ── audit log ── */
+const AUDIT_LABEL: Record<string, string> = {
+  state: "audit_state", line_added: "audit_line_added",
+  line_removed: "audit_line_removed", mechanic_assigned: "audit_mechanic_assigned",
+};
+
+function AuditCard({ woId, refresh, mechanics }: { woId: string; refresh: string; mechanics: Staff[] }) {
+  const { t } = useLang();
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getAuditLog(woId)
+      .then((e) => { if (!cancelled) setEntries([...e].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [woId, refresh]);
+
+  if (entries.length === 0) return null;
+  const who = (id?: string) => (id ? (mechanics.find((m) => m.id === id)?.name ?? id.slice(0, 8)) : "");
+
+  return (
+    <Card pad={16}>
+      <SecTitle>{t("audit_log")}</SecTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+        {entries.map((e) => (
+          <div key={e.id} style={{ display: "flex", gap: 10 }}>
+            <div style={{ width: 7, height: 7, borderRadius: 99, background: "var(--accent-2)", marginTop: 5, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "calc(13px * var(--scale))", color: "var(--ink)", fontWeight: 600 }}>
+                {t(AUDIT_LABEL[e.action] ?? "history")}{e.detail ? <span style={{ fontWeight: 400, color: "var(--ink-2)" }}> · {e.detail}</span> : null}
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>
+                {new Date(e.createdAt).toLocaleString()}{who(e.actorId) ? " · " + who(e.actorId) : ""}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
