@@ -54,7 +54,7 @@ export default function MenuPage() {
                 {m.materials && m.materials.length > 0 && (
                   <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 4 }}>
                     <span style={{ fontWeight: 600 }}>{t("materials_needed")}:</span>{" "}
-                    {m.materials.map((x) => x.name + (x.quantity > 1 ? " ×" + x.quantity : "")).join(", ")}
+                    {m.materials.map((x) => x.name + (x.unit ? ` · ${x.quantity} ${x.unit}` : x.quantity > 1 ? " ×" + x.quantity : "")).join(", ")}
                   </div>
                 )}
               </div>
@@ -71,7 +71,7 @@ export default function MenuPage() {
   );
 }
 
-type MatRow = { name: string; qty: string; cost: string; price: string };
+type MatRow = { name: string; qty: string; unit: string; cost: string; price: string };
 const emptyForm = { name: "", category: "", minutes: "", price: "", cost: "" };
 
 function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
@@ -83,7 +83,7 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
   useEffect(() => { if (open) { setF(emptyForm); setMaterials([]); } }, [open]);
 
   const setMat = (i: number, patch: Partial<MatRow>) => setMaterials((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", cost: "", price: "" }]);
+  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "", cost: "", price: "" }]);
   const delMat = (i: number) => setMaterials((rows) => rows.filter((_, j) => j !== i));
 
   const save = async () => {
@@ -98,7 +98,8 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
         estimatedMinutes: parseInt(f.minutes, 10) || 0,
         materials: materials.filter((m) => m.name.trim()).map((m) => ({
           name: m.name.trim(),
-          quantity: parseInt(m.qty, 10) || 1,
+          quantity: parseFloat(m.qty) || 1,
+          unit: m.unit.trim(),
           unitCost: parseInt(m.cost, 10) || 0,
           unitPrice: parseInt(m.price, 10) || 0,
         })),
@@ -133,17 +134,18 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {materials.map((m, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 52px 1fr 1fr 30px", gap: 6, alignItems: "center" }}>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 56px 64px 1fr 1fr 28px", gap: 6, alignItems: "center" }}>
               <TextInput value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
-              {numInput(m.qty, (s) => setMat(i, { qty: s }), "1")}
+              <TextInput value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} />
+              <TextInput value={m.unit} placeholder={t("unit")} onChange={(e) => setMat(i, { unit: e.target.value })} />
               {numInput(m.cost, (s) => setMat(i, { cost: s }), t("cost"))}
               {numInput(m.price, (s) => setMat(i, { price: s }), t("price"))}
               <Btn variant="ghost" size="sm" icon="trash" onClick={() => delMat(i)} aria-label="remove" />
             </div>
           ))}
           {materials.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 52px 1fr 1fr 30px", gap: 6, fontSize: 10.5, color: "var(--ink-3)", padding: "0 2px" }}>
-              <span>{t("material_name")}</span><span>{t("qty")}</span><span>{t("cost")}</span><span>{t("price")}</span><span />
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 56px 64px 1fr 1fr 28px", gap: 6, fontSize: 10.5, color: "var(--ink-3)", padding: "0 2px" }}>
+              <span>{t("material_name")}</span><span>{t("qty")}</span><span>{t("unit")}</span><span>{t("cost")}</span><span>{t("price")}</span><span />
             </div>
           )}
         </div>

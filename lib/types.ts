@@ -103,7 +103,8 @@ export interface WorkOrder {
 
 export interface MenuMaterial {
   name: string;
-  quantity: number;
+  quantity: number; // amount, may be fractional (e.g. 4.5)
+  unit?: string; // free-text unit of measure: litr, kg, dona, metr, ...
   unitCost?: string; // tiyin
   unitPrice?: string; // tiyin
 }

@@ -131,7 +131,7 @@ export const api = {
   createMenuItem: (shopId: string, m: {
     name: string; defaultPrice: number; defaultCost?: number;
     category?: string; estimatedMinutes?: number;
-    materials?: { name: string; quantity: number; unitCost: number; unitPrice: number }[];
+    materials?: { name: string; quantity: number; unit: string; unitCost: number; unitPrice: number }[];
   }) =>
     call<MenuItem>("POST", "/v1/menu-items", {
       shopId,
@@ -140,7 +140,7 @@ export const api = {
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
       category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
       materials: (m.materials ?? []).map((x) => ({
-        name: x.name, quantity: x.quantity, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
+        name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
       })),
     }),
 

@@ -177,6 +177,7 @@ export const STR: Record<string, Triple> = {
   est_time: ["Taxminiy vaqt (daqiqa)", "Тахминий вақт (дақиқа)", "Примерное время (мин)"],
   materials_needed: ["Kerakli materiallar", "Керакли материаллар", "Необходимые материалы"],
   material_name: ["Material nomi", "Материал номи", "Название материала"],
+  unit: ["Birlik", "Бирлик", "Ед. изм."],
   add_material: ["Material qo'shish", "Материал қўшиш", "Добавить материал"],
   pricing_policy: ["Narx siyosati", "Нарх сиёсати", "Ценовая политика"],
   max_discount: ["Maksimal chegirma (%)", "Максимал чегирма (%)", "Макс. скидка (%)"],
