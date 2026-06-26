@@ -21,6 +21,15 @@ const PROVIDERS: { provider: string; title: string; note: string; fields: FieldD
       { key: "originator", label: "Originator", placeholder: "3700" },
     ],
   },
+  {
+    provider: "telegram",
+    title: "Telegram bot",
+    note: "Bot for customer estimate approvals. Create one with @BotFather, then paste its token and username.",
+    fields: [
+      { key: "token", label: "Bot token", secret: true, placeholder: "123456:ABC-DEF…" },
+      { key: "username", label: "Bot username", placeholder: "my_shop_bot" },
+    ],
+  },
 ];
 
 export default function IntegrationsPage() {

@@ -102,6 +102,8 @@ export const api = {
   getWorkOrder: (id: string) => call<WorkOrder>("GET", `/v1/work-orders/${id}`),
   getAuditLog: (woId: string) =>
     call<{ entries?: AuditEntry[] }>("GET", `/v1/work-orders/${woId}/audit`).then((r) => r.entries ?? []),
+  createApprovalLink: (woId: string) =>
+    call<{ token: string; workOrderId: string; botUsername: string; deepLink: string }>("POST", `/v1/work-orders/${woId}/approval`),
   createWorkOrder: (shopId: string, vehicleId: string) =>
     call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId }),
   addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number }) =>

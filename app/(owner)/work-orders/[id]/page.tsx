@@ -47,6 +47,7 @@ export default function WorkOrderDetailPage() {
   const [addItem, setAddItem] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [invoice, setInvoice] = useState(false);
+  const [approval, setApproval] = useState<{ deepLink: string; botUsername: string } | null>(null);
 
   const load = useCallback(async () => {
     try { setWo(await api.getWorkOrder(id)); }
@@ -79,6 +80,11 @@ export default function WorkOrderDetailPage() {
   const doRemoveItem = async (lineItemId?: string) => {
     if (!lineItemId || busy) return; setBusy(true);
     try { setWo(await api.removeLineItem(id, lineItemId)); toast(t("removed"), { icon: "check" }); }
+    catch (e) { err(e); } finally { setBusy(false); }
+  };
+  const requestApproval = async () => {
+    if (busy) return; setBusy(true);
+    try { const r = await api.createApprovalLink(id); setApproval({ deepLink: r.deepLink, botUsername: r.botUsername }); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
 
@@ -205,6 +211,7 @@ export default function WorkOrderDetailPage() {
         <div style={{ position: "fixed", bottom: 0, left: isMobile ? 0 : 260, right: 0, zIndex: 50, padding: 14, paddingBottom: isMobile ? "calc(14px + env(safe-area-inset-bottom))" : 14, background: "color-mix(in oklch, var(--bg), transparent 8%)", borderTop: "1px solid var(--line)", backdropFilter: "blur(8px)" }}>
           <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
             {canCancel && <Btn variant="ghost" size={isMobile ? "sm" : "md"} disabled={busy} onClick={() => doTransition("canceled")} style={{ color: "var(--danger)", marginRight: "auto" }}>{t("cancel_wo")}</Btn>}
+            {state === "estimated" && <Btn variant="soft" size={isMobile ? "sm" : "md"} icon="tg" disabled={busy} onClick={requestApproval}>{t("request_approval")}</Btn>}
             {(state === "ready" || state === "invoiced") && <Btn variant="primary" size={isMobile ? "md" : "lg"} icon="receipt" disabled={busy} onClick={() => setInvoice(true)}>{state === "ready" ? t("generate_invoice") : t("invoice")}</Btn>}
             {forwardTargets.map((target) => {
               // hide the "ready -> invoiced" forward chip since the invoice modal drives it.
@@ -218,6 +225,7 @@ export default function WorkOrderDetailPage() {
       <AddLineItemModal open={addItem} onClose={() => setAddItem(false)} onAdd={doAddItem} shopId={shopId} lang={lang} busy={busy} />
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
+      <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
     </div>
   );
 }
@@ -262,6 +270,34 @@ function AuditCard({ woId, refresh, mechanics }: { woId: string; refresh: string
         ))}
       </div>
     </Card>
+  );
+}
+
+/* ── estimate approval (Telegram) ── */
+function ApprovalModal({ approval, onClose }: { approval: { deepLink: string; botUsername: string } | null; onClose: () => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  if (!approval) return null;
+  const configured = !!approval.deepLink;
+  const copy = () => { if (approval.deepLink) { navigator.clipboard?.writeText(approval.deepLink); toast(t("copied"), { icon: "check" }); } };
+  return (
+    <Modal open={!!approval} onClose={onClose} title={t("request_approval")} maxWidth={420}>
+      {!configured ? (
+        <div style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.6 }}>{t("telegram_not_configured")}</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
+          <div style={{ fontSize: 13.5, color: "var(--ink-2)", textAlign: "center", lineHeight: 1.6 }}>{t("approval_share_hint")}</div>
+          <div style={{ background: "#fff", padding: 12, borderRadius: 12, border: "1px solid var(--line)" }}><QR data={approval.deepLink} size={180} /></div>
+          <div style={{ display: "flex", gap: 8, width: "100%" }}>
+            <TextInput value={approval.deepLink} readOnly style={{ fontFamily: "var(--font-mono)", fontSize: 12, flex: 1 }} onFocus={(e) => e.currentTarget.select()} />
+            <Btn variant="soft" icon="check" onClick={copy}>{t("copy")}</Btn>
+          </div>
+          <a href={approval.deepLink} target="_blank" rel="noreferrer" style={{ width: "100%" }}>
+            <Btn variant="primary" icon="tg" style={{ width: "100%" }}>{t("open_in_telegram")}</Btn>
+          </a>
+        </div>
+      )}
+    </Modal>
   );
 }
 
