@@ -139,6 +139,21 @@ export interface Appointment {
   notes?: string;
 }
 
+export interface Warranty {
+  id: string;
+  shopId: string;
+  vehicleId?: string;
+  workOrderId?: string;
+  title: string;
+  months?: number;
+  kmLimit?: number | string;
+  startsOn: string;   // RFC3339
+  expiresOn?: string;  // RFC3339 (empty when months = 0)
+  note?: string;
+  voided?: boolean;
+  createdAt: string;
+}
+
 export interface ShopExpense {
   id: string;
   shopId: string;

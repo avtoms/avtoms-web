@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -170,6 +170,16 @@ export const api = {
     }),
   setReminderState: (id: string, state: string) =>
     call<ServiceReminder>("POST", `/v1/reminders/${id}/state`, { state }),
+
+  // ── warranties ──
+  listWarranties: (shopId: string, vehicleId?: string) =>
+    call<{ warranties?: Warranty[] }>("GET", "/v1/warranties" + qs({ shopId, vehicleId })).then((r) => r.warranties ?? []),
+  createWarranty: (shopId: string, w: { title: string; vehicleId?: string; workOrderId?: string; months?: number; kmLimit?: number; startsOn?: string; note?: string }) =>
+    call<Warranty>("POST", "/v1/warranties", {
+      shopId, title: w.title, vehicleId: w.vehicleId ?? "", workOrderId: w.workOrderId ?? "",
+      months: w.months ?? 0, kmLimit: String(w.kmLimit ?? 0), startsOn: w.startsOn ?? "", note: w.note ?? "",
+    }),
+  voidWarranty: (id: string) => call<Warranty>("POST", `/v1/warranties/${id}/void`),
 
   // ── shop expenses + P&L ──
   listExpenses: (shopId: string, from?: string, to?: string) =>
