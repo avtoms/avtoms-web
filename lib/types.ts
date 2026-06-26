@@ -124,6 +124,20 @@ export interface MenuItem {
   materials?: MenuMaterial[]; // parts/materials this service is expected to need
 }
 
+export interface Part {
+  id: string;
+  shopId: string;
+  name: string;
+  sku?: string;
+  unit?: string;
+  quantityOnHand: number;
+  reorderLevel: number;
+  unitCost?: string; // tiyin
+  unitPrice?: string; // tiyin
+  supplier?: string;
+  active: boolean;
+}
+
 export interface ShopSettings {
   shopId: string;
   maxDiscountPercent: number; // 0-100; 100 = no cap

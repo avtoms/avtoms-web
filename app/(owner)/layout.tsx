@@ -17,6 +17,7 @@ const ITEMS: NavItem[] = [
   { key: "invoices", route: "/invoices", icon: "receipt", labelKey: "nav_invoices" },
   { key: "reports", route: "/reports", icon: "chart", labelKey: "nav_reports" },
   { key: "menu", route: "/menu", icon: "list", labelKey: "nav_menu" },
+  { key: "inventory", route: "/inventory", icon: "wrench", labelKey: "nav_inventory" },
   { key: "staff", route: "/staff", icon: "team", labelKey: "nav_staff" },
   { key: "settings", route: "/settings", icon: "settings", labelKey: "nav_settings" },
 ];

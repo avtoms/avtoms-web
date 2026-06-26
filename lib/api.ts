@@ -4,7 +4,7 @@
 import { getSession } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -144,6 +144,18 @@ export const api = {
         name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
       })),
     }),
+
+  // ── parts inventory ──
+  listParts: (shopId: string) =>
+    call<{ parts?: Part[] }>("GET", "/v1/parts" + qs({ shopId })).then((r) => r.parts ?? []),
+  createPart: (shopId: string, p: { name: string; sku?: string; unit?: string; quantityOnHand: number; reorderLevel: number; unitCost: number; unitPrice: number; supplier?: string }) =>
+    call<Part>("POST", "/v1/parts", {
+      shopId, name: p.name, sku: p.sku ?? "", unit: p.unit ?? "",
+      quantityOnHand: p.quantityOnHand, reorderLevel: p.reorderLevel,
+      unitCost: String(p.unitCost), unitPrice: String(p.unitPrice), supplier: p.supplier ?? "",
+    }),
+  adjustStock: (partId: string, delta: number, reason: string) =>
+    call<Part>("POST", `/v1/parts/${partId}/adjust`, { delta, reason }),
 
   // ── shop pricing policy ──
   // shopId is taken from the auth context by the gateway, so it is not sent.
