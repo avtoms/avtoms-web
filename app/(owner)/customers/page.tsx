@@ -2,15 +2,17 @@
 // Customers (owner-pages.jsx CustomersPage): debounced search, new-customer modal,
 // detail modal with add-vehicle. Wired to api.listCustomers / createCustomer / createVehicle.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
+import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
 import type { Customer, Vehicle } from "@/lib/types";
 import { SecTitle } from "../_shared";
 import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
-import { isValidPlate } from "@/lib/plate";
+import { PlatePreview } from "@/components/plate";
+import { isValidPlateFor } from "@/lib/plate";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
 
 export default function CustomersPage() {
@@ -143,7 +145,10 @@ function CustomerDetailModal({ customer, onClose }: { customer: Customer | null;
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="car" size={20} /></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{[v.make, v.model].filter(Boolean).join(" ") || t("vehicle")}{v.year ? " · " + v.year : ""}</div>
-                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{v.plate}{Number(v.mileage) > 0 ? " · " + v.mileage + " km" : ""}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+                      <PlatePreview plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
+                      {Number(v.mileage) > 0 ? " · " + v.mileage + " km" : ""}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -158,16 +163,16 @@ function CustomerDetailModal({ customer, onClose }: { customer: Customer | null;
 function AddVehicleModal({ open, onClose, customerId, onCreated }: { open: boolean; onClose: () => void; customerId: string; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [f, setF] = useState({ plate: "", make: "", model: "", year: "", vin: "", mileage: "" });
+  const [f, setF] = useState({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ plate: "", make: "", model: "", year: "", vin: "", mileage: "" }); }, [open]);
+  useEffect(() => { if (open) setF({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" }); }, [open]);
 
   const save = async () => {
     if (!f.plate.trim() || busy) return;
-    if (!isValidPlate(f.plate)) { toast("Noto'g'ri davlat raqami", { icon: "alert", tone: "danger" }); return; }
+    if (!isValidPlateFor(f.plate, f.plateType)) { toast("Noto'g'ri davlat raqami", { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      await api.createVehicle({ customerId, plate: f.plate.trim(), vin: f.vin.trim(), make: f.make.trim(), model: f.model.trim(), year: parseInt(f.year, 10) || 0, mileage: parseInt(f.mileage, 10) || 0 });
+      await api.createVehicle({ customerId, plate: f.plate.trim(), vin: f.vin.trim(), make: f.make.trim(), model: f.model.trim(), year: parseInt(f.year, 10) || 0, mileage: parseInt(f.mileage, 10) || 0, plateType: plateTypeToProto(f.plateType) });
       onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -177,7 +182,10 @@ function AddVehicleModal({ open, onClose, customerId, onCreated }: { open: boole
     <Modal open={open} onClose={onClose} title={t("add_vehicle")} maxWidth={440}
       footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <PlateField value={f.plate} onChange={(p) => setF((s) => ({ ...s, plate: p }))} label={t("plate")} />
+        <Field label={t("plate_type")}>
+          <Segmented options={PLATE_TYPES.map((p) => ({ value: p, label: t("pt_" + p) }))} value={f.plateType} onChange={(v) => setF((s) => ({ ...s, plateType: v as PlateType }))} style={{ width: "100%" }} />
+        </Field>
+        <PlateField value={f.plate} onChange={(p) => setF((s) => ({ ...s, plate: p }))} label={t("plate")} type={f.plateType} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px", gap: 12 }}>
           <MakeModelPicker make={f.make} model={f.model} onChange={(mk, md) => setF((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
           <Field label={t("year")}><TextInput value={f.year} onChange={(e) => setF({ ...f, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>

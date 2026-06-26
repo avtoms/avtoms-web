@@ -87,10 +87,11 @@ export const api = {
   searchVehicles: (shopId: string, plate: string) =>
     call<{ vehicles?: Vehicle[] }>("GET", "/v1/vehicles/search" + qs({ shopId, plate }))
       .then((r) => r.vehicles ?? []),
-  createVehicle: (v: { customerId: string; plate: string; vin?: string; make?: string; model?: string; year?: number; mileage?: number }) =>
+  createVehicle: (v: { customerId: string; plate: string; vin?: string; make?: string; model?: string; year?: number; mileage?: number; plateType?: string }) =>
     call<Vehicle>("POST", "/v1/vehicles", {
       customerId: v.customerId, plate: v.plate, vin: v.vin ?? "", make: v.make ?? "",
       model: v.model ?? "", year: v.year ?? 0, mileage: String(v.mileage ?? 0),
+      plateType: v.plateType ?? "PLATE_TYPE_STANDARD",
     }),
 
   // ── work orders ──

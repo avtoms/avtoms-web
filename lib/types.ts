@@ -58,6 +58,7 @@ export interface Vehicle {
   year?: number;
   mileage?: string;
   deleted?: boolean;
+  plateType?: string; // PLATE_TYPE_* (see lib/enums plateTypeFromProto)
 }
 
 export interface LineItem {

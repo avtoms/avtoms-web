@@ -81,6 +81,16 @@ export const kindFromProto = (s?: string): LineItemKind => {
 // Materials/parts are stock-like (info tone); services/labor are work (neutral tone).
 export const kindIsMaterial = (k: LineItemKind): boolean => k === "material" || k === "part";
 
+// Uzbek number-plate categories (mirrors avtoms.customer.v1.PlateType).
+export type PlateType = "standard" | "electric" | "foreign" | "moped";
+export const PLATE_TYPES: PlateType[] = ["standard", "electric", "foreign", "moped"];
+const PT_PREFIX = "PLATE_TYPE_";
+export const plateTypeToProto = (t: PlateType): string => PT_PREFIX + t.toUpperCase();
+export const plateTypeFromProto = (s?: string): PlateType => {
+  const k = (s || "").replace(PT_PREFIX, "").toLowerCase();
+  return (PLATE_TYPES as string[]).includes(k) ? (k as PlateType) : "standard";
+};
+
 const LANG_PROTO: Record<Lang, string> = { uz: "LANGUAGE_UZ_LATN", uzc: "LANGUAGE_UZ_CYRL", ru: "LANGUAGE_RU" };
 export const langToProto = (l: Lang): string => LANG_PROTO[l] || "LANGUAGE_UZ_LATN";
 export const langFromProto = (s?: string): Lang => (s === "LANGUAGE_UZ_CYRL" ? "uzc" : s === "LANGUAGE_RU" ? "ru" : "uz");

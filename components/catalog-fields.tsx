@@ -4,8 +4,10 @@ import { Field, SelectInput, TextInput } from "./ui";
 import { Icon } from "./icons";
 import { api } from "@/lib/api";
 import type { CarMake, CarModel } from "@/lib/types";
-import { isValidPlate, formatPlate, sanitizePlateInput, PLATE_HINT } from "@/lib/plate";
+import { isValidPlateFor, formatPlateFor, sanitizePlateInput, platePlaceholder } from "@/lib/plate";
 import { isValidUzPhone, formatPhone, PHONE_HINT } from "@/lib/phone";
+import { PlatePreview } from "./plate";
+import type { PlateType } from "@/lib/enums";
 
 // MakeModelPicker renders Make → Model dropdowns sourced from the admin-managed catalog.
 // It emits make/model as NAMES (vehicles store strings). If the catalog is empty it falls
@@ -61,23 +63,27 @@ export function MakeModelPicker({
 
 // PlateField validates an Uzbek license plate live: sanitizes input, formats on blur,
 // colors the border, shows a check when valid and a hint when not.
-export function PlateField({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+export function PlateField({ value, onChange, label, type = "standard" }: { value: string; onChange: (v: string) => void; label: string; type?: PlateType }) {
   const show = value.trim().length > 0;
-  const valid = isValidPlate(value);
+  const valid = isValidPlateFor(value, type);
+  const ph = platePlaceholder(type);
   return (
-    <Field label={label} hint={show && !valid ? `Noto'g'ri davlat raqami — masalan: ${PLATE_HINT}` : undefined}>
+    <Field label={label} hint={show && !valid ? `Noto'g'ri davlat raqami — masalan: ${ph}` : undefined}>
       <div style={{ position: "relative" }}>
         <TextInput
           value={value}
           onChange={(e) => onChange(sanitizePlateInput(e.target.value))}
-          onBlur={(e) => onChange(formatPlate(e.target.value))}
-          placeholder={PLATE_HINT}
+          onBlur={(e) => onChange(formatPlateFor(e.target.value, type))}
+          placeholder={ph}
           style={{ fontFamily: "var(--font-mono)", borderColor: show ? (valid ? "var(--ok)" : "var(--danger)") : undefined, paddingRight: 34 }}
         />
         {show && valid && (
           <span style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", color: "var(--ok)" }}><Icon name="check" size={16} /></span>
         )}
       </div>
+      {show && (
+        <div style={{ marginTop: 8 }}><PlatePreview plate={value} type={type} /></div>
+      )}
     </Field>
   );
 }
