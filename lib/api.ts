@@ -110,6 +110,8 @@ export const api = {
         defaultPrice: String(item.defaultPrice ?? 0),
       },
     }),
+  removeLineItem: (woId: string, lineItemId: string) =>
+    call<WorkOrder>("DELETE", `/v1/work-orders/${woId}/line-items/${lineItemId}`),
   transition: (woId: string, target: WoState) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/transition`, { target: woStateToProto(target) }),
   assignMechanic: (woId: string, mechanicId: string) =>

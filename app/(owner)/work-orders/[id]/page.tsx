@@ -76,6 +76,11 @@ export default function WorkOrderDetailPage() {
     try { setWo(await api.addLineItem(id, item)); setAddItem(false); toast(t("add_item"), { icon: "check" }); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
+  const doRemoveItem = async (lineItemId?: string) => {
+    if (!lineItemId || busy) return; setBusy(true);
+    try { setWo(await api.removeLineItem(id, lineItemId)); toast(t("removed"), { icon: "check" }); }
+    catch (e) { err(e); } finally { setBusy(false); }
+  };
 
   if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner size={28} /></div>;
   if (!wo) return <Empty icon="alert" text={t("error")} />;
@@ -150,6 +155,7 @@ export default function WorkOrderDetailPage() {
                       <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>
                       {discount > 0 && <div style={{ fontSize: 11, color: "var(--ok, var(--accent-2))", fontFamily: "var(--font-mono)" }}>−{money(discount)} {t("discount").toLowerCase()}</div>}
                     </div>
+                    {editable && <IconBtn icon="trash" onClick={() => doRemoveItem(it.id)} aria-label={t("remove")} disabled={busy} />}
                   </div>
                 );
               })}

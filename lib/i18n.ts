@@ -71,6 +71,8 @@ export const STR: Record<string, Triple> = {
   assign: ["Biriktirish", "Бириктириш", "Назначить"],
   line_items: ["Ish va ehtiyot qismlar", "Иш ва эҳтиёт қисмлар", "Работы и запчасти"],
   add_item: ["Qator qo'shish", "Қатор қўшиш", "Добавить позицию"],
+  remove: ["O'chirish", "Ўчириш", "Удалить"],
+  removed: ["O'chirildi", "Ўчирилди", "Удалено"],
   from_menu: ["Ro'yxatdan", "Рўйхатдан", "Из прайса"],
   custom_item: ["Erkin kiritish", "Эркин киритиш", "Произвольно"],
   labor: ["Ish haqi", "Иш ҳақи", "Работа"],
