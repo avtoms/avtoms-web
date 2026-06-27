@@ -1,7 +1,7 @@
 // Typed client for the gateway. The browser calls the gateway directly using
 // NEXT_PUBLIC_API_BASE_URL; CORS is enabled on the gateway. The bearer token is read
 // from the session cookie.
-import { getSession } from "./session";
+import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
   MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty,
@@ -25,7 +25,31 @@ export class ApiError extends Error {
   }
 }
 
-async function call<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
+// Single in-flight refresh shared by all concurrent 401s, so the rotating refresh token
+// is only spent once. Resolves true when a fresh access token was stored.
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  const s = getSession();
+  if (!s?.refreshToken) return false;
+  try {
+    const res = await fetch(API_BASE + "/v1/auth/token/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: s.refreshToken }),
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const tp = JSON.parse(await res.text()) as TokenPair;
+    if (!tp?.accessToken) return false;
+    setSession(sessionFromTokenPair(tp));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function call<T>(method: string, path: string, body?: unknown, auth = true, retried = false): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth) {
     const s = getSession();
@@ -37,6 +61,19 @@ async function call<T>(method: string, path: string, body?: unknown, auth = true
     body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
+  // Access token expired → transparently refresh once and retry, so sessions don't expire
+  // while the refresh token is still valid.
+  if (res.status === 401 && auth && !retried) {
+    if (!refreshInFlight) refreshInFlight = refreshSession().finally(() => { refreshInFlight = null; });
+    if (await refreshInFlight) {
+      return call<T>(method, path, body, auth, true);
+    }
+    // Refresh failed → the session is truly dead; clear it and bounce to login.
+    clearSession();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+  }
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};
   if (!res.ok) {
@@ -55,7 +92,7 @@ const qs = (params: Record<string, string | undefined>) => {
 
 export const api = {
   // ── uploads (multipart, returns the stored object's public URL) ──
-  uploadImage: async (file: File): Promise<string> => {
+  uploadImage: async (file: File, retried = false): Promise<string> => {
     const form = new FormData();
     form.append("file", file);
     const s = getSession();
@@ -64,6 +101,10 @@ export const api = {
       headers: s?.token ? { Authorization: `Bearer ${s.token}` } : {},
       body: form,
     });
+    if (res.status === 401 && !retried) {
+      if (!refreshInFlight) refreshInFlight = refreshSession().finally(() => { refreshInFlight = null; });
+      if (await refreshInFlight) return api.uploadImage(file, true);
+    }
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
     if (!res.ok) throw new ApiError(res.status, data.message || data.error || `HTTP ${res.status}`);
