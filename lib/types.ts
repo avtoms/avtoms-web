@@ -34,6 +34,11 @@ export interface Customer {
   walkIn?: boolean;
   deleted?: boolean;
   createdAt?: string;
+  telegramChatId?: string;
+  notes?: string;
+  email?: string;
+  address?: string;
+  birthday?: string;
 }
 
 export interface CarMake {
@@ -60,6 +65,10 @@ export interface Vehicle {
   mileage?: string;
   deleted?: boolean;
   plateType?: string; // PLATE_TYPE_* (see lib/enums plateTypeFromProto)
+  color?: string;
+  engine?: string;
+  transmission?: string;
+  notes?: string;
 }
 
 export interface LineItem {

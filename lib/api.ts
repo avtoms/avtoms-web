@@ -143,6 +143,12 @@ export const api = {
       shopId, phone: c.phone, name: c.name, language: langToProto(c.language),
       telegramHandle: c.telegramHandle ?? "", walkIn: !!c.walkIn,
     }),
+  updateCustomer: (id: string, c: { name: string; phone: string; language: Lang; telegramHandle?: string; notes?: string; email?: string; address?: string; birthday?: string }) =>
+    call<Customer>("POST", `/v1/customers/${id}`, {
+      name: c.name, phone: c.phone, language: langToProto(c.language), telegramHandle: c.telegramHandle ?? "",
+      notes: c.notes ?? "", email: c.email ?? "", address: c.address ?? "", birthday: c.birthday ?? "",
+    }),
+  deleteCustomer: (id: string) => call<Customer>("DELETE", `/v1/customers/${id}`),
   searchVehicles: (shopId: string, plate: string) =>
     call<{ vehicles?: Vehicle[] }>("GET", "/v1/vehicles/search" + qs({ shopId, plate }))
       .then((r) => r.vehicles ?? []),
@@ -152,6 +158,13 @@ export const api = {
       model: v.model ?? "", year: v.year ?? 0, mileage: String(v.mileage ?? 0),
       plateType: v.plateType ?? "PLATE_TYPE_STANDARD",
     }),
+  updateVehicle: (id: string, v: { plate: string; vin?: string; make?: string; model?: string; year?: number; mileage?: number; plateType?: string; color?: string; engine?: string; transmission?: string; notes?: string }) =>
+    call<Vehicle>("POST", `/v1/vehicles/${id}`, {
+      plate: v.plate, vin: v.vin ?? "", make: v.make ?? "", model: v.model ?? "",
+      year: v.year ?? 0, mileage: String(v.mileage ?? 0), plateType: v.plateType ?? "PLATE_TYPE_STANDARD",
+      color: v.color ?? "", engine: v.engine ?? "", transmission: v.transmission ?? "", notes: v.notes ?? "",
+    }),
+  deleteVehicle: (id: string) => call<Vehicle>("DELETE", `/v1/vehicles/${id}`),
 
   // ── work orders ──
   listWorkOrders: (shopId: string, state?: WoState, mechanicId?: string, vehicleId?: string) =>
