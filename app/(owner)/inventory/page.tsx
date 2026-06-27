@@ -2,6 +2,7 @@
 // Parts inventory: stock list with low-stock flag, add part, and receive/consume stock.
 import React, { useCallback, useEffect, useState } from "react";
 import { Card, Badge, Btn, Modal, Field, TextInput, Segmented, Spinner, Empty } from "@/components/ui";
+import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
@@ -64,7 +65,7 @@ export default function InventoryPage() {
   );
 }
 
-const emptyPart = { name: "", sku: "", unit: "dona", qty: "", reorder: "", cost: "", price: "", supplier: "" };
+const emptyPart = { name: "", sku: "", unit: "pcs", qty: "", reorder: "", cost: "", price: "", supplier: "" };
 
 function AddPartModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
   const { t } = useLang();
@@ -74,14 +75,13 @@ function AddPartModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
   useEffect(() => { if (open) setF(emptyPart); }, [open]);
 
   const dec = (v: string) => v.replace(/[^\d.]/g, "");
-  const intOnly = (v: string) => v.replace(/\D/g, "");
 
   const save = async () => {
     if (!f.name.trim() || busy) return;
     setBusy(true);
     try {
       await api.createPart(shopId, {
-        name: f.name.trim(), sku: f.sku.trim(), unit: f.unit.trim(), supplier: f.supplier.trim(),
+        name: f.name.trim(), sku: f.sku.trim(), unit: f.unit, supplier: f.supplier.trim(),
         quantityOnHand: parseFloat(f.qty) || 0, reorderLevel: parseFloat(f.reorder) || 0,
         unitCost: parseInt(f.cost, 10) || 0, unitPrice: parseInt(f.price, 10) || 0,
       });
@@ -98,13 +98,13 @@ function AddPartModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 10 }}>
           <Field label="SKU"><TextInput value={f.sku} onChange={(e) => setF({ ...f, sku: e.target.value })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
           <Field label={t("supplier")}><TextInput value={f.supplier} onChange={(e) => setF({ ...f, supplier: e.target.value })} /></Field>
-          <Field label={t("unit")}><TextInput value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} /></Field>
+          <Field label={t("unit")}><UnitSelect value={f.unit} onChange={(v) => setF({ ...f, unit: v })} /></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
           <Field label={t("in_stock")}><TextInput value={f.qty} onChange={(e) => setF({ ...f, qty: dec(e.target.value) })} inputMode="decimal" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
           <Field label={t("reorder_level")}><TextInput value={f.reorder} onChange={(e) => setF({ ...f, reorder: dec(e.target.value) })} inputMode="decimal" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-          <Field label={t("cost")}><TextInput value={f.cost} onChange={(e) => setF({ ...f, cost: intOnly(e.target.value) })} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-          <Field label={t("price")}><TextInput value={f.price} onChange={(e) => setF({ ...f, price: intOnly(e.target.value) })} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <Field label={t("cost")}><MoneyInput value={f.cost} onChange={(v) => setF({ ...f, cost: v })} /></Field>
+          <Field label={t("price")}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
         </div>
       </div>
     </Modal>

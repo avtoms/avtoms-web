@@ -5,6 +5,8 @@ import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty 
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { apptStateFromProto, apptStateToProto } from "@/lib/enums";
+import { PhoneField, PlateField } from "@/components/catalog-fields";
+import { PlatePreview } from "@/components/plate";
 import type { Appointment, Staff } from "@/lib/types";
 
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
@@ -68,7 +70,7 @@ export default function SchedulePage() {
                       <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{a.title || t("vehicle")}</div>
                       <div style={{ fontSize: 12, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {a.customerName && <span>{a.customerName}</span>}
-                        {a.plate && <span style={{ fontFamily: "var(--font-mono)" }}>· {a.plate}</span>}
+                        {a.plate && <PlatePreview plate={a.plate} size="sm" />}
                         {mechName(a.mechanicId) && <span>· {mechName(a.mechanicId)}</span>}
                         {!!a.durationMinutes && <span>· {a.durationMinutes}m</span>}
                       </div>
@@ -128,10 +130,10 @@ function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boole
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("name")}><TextInput value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} /></Field>
-          <Field label={t("phone")}><TextInput value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} inputMode="tel" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("plate")}><TextInput value={f.plate} onChange={(e) => setF({ ...f, plate: e.target.value.toUpperCase() })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <PlateField label={t("plate")} value={f.plate} onChange={(p) => setF({ ...f, plate: p })} />
           <Field label={t("mechanic")}>
             <SelectInput value={f.mechanicId} onChange={(e) => setF({ ...f, mechanicId: e.target.value })}>
               <option value="">—</option>

@@ -7,6 +7,8 @@ import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { reminderStateFromProto, reminderStateToProto } from "@/lib/enums";
+import { PhoneField, PlateField } from "@/components/catalog-fields";
+import { PlatePreview } from "@/components/plate";
 import type { ServiceReminder } from "@/lib/types";
 
 const dateStr = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "");
@@ -63,7 +65,7 @@ export default function RemindersPage() {
                   {m.dueDate ? <span>{dateStr(m.dueDate)}</span> : <span>{t("no_due_date")}</span>}
                   {!!m.dueMileage && <span style={{ fontFamily: "var(--font-mono)" }}>· {m.dueMileage.toLocaleString()} km</span>}
                   {m.customerName && <span>· {m.customerName}</span>}
-                  {m.plate && <span style={{ fontFamily: "var(--font-mono)" }}>· {m.plate}</span>}
+                  {m.plate && <PlatePreview plate={m.plate} size="sm" />}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -127,9 +129,9 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("name")}><TextInput value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} /></Field>
-          <Field label={t("phone")}><TextInput value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} inputMode="tel" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} />
         </div>
-        <Field label={t("plate")}><TextInput value={f.plate} onChange={(e) => setF({ ...f, plate: e.target.value.toUpperCase() })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
+        <PlateField label={t("plate")} value={f.plate} onChange={(p) => setF({ ...f, plate: p })} />
       </div>
     </Modal>
   );

@@ -4,6 +4,7 @@
 // NOTE: no toggle-active endpoint in the API client, so the active toggle is read-only.
 import React, { useCallback, useEffect, useState } from "react";
 import { Card, Badge, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
+import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, durationFmt } from "@/lib/format";
@@ -83,7 +84,7 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
   useEffect(() => { if (open) { setF(emptyForm); setMaterials([]); } }, [open]);
 
   const setMat = (i: number, patch: Partial<MatRow>) => setMaterials((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "", cost: "", price: "" }]);
+  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "pcs", cost: "", price: "" }]);
   const delMat = (i: number) => setMaterials((rows) => rows.filter((_, j) => j !== i));
 
   const save = async () => {
@@ -99,7 +100,7 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
         materials: materials.filter((m) => m.name.trim()).map((m) => ({
           name: m.name.trim(),
           quantity: parseFloat(m.qty) || 1,
-          unit: m.unit.trim(),
+          unit: m.unit,
           unitCost: parseInt(m.cost, 10) || 0,
           unitPrice: parseInt(m.price, 10) || 0,
         })),
@@ -123,8 +124,8 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
           <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label={t("default_price") + " (" + t("soum") + ")"}>{numInput(f.price, (s) => setF({ ...f, price: s }))}</Field>
-          <Field label={t("default_cost") + " (" + t("soum") + ")"}>{numInput(f.cost, (s) => setF({ ...f, cost: s }))}</Field>
+          <Field label={t("default_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
+          <Field label={t("default_cost") + " (" + t("soum") + ")"}><MoneyInput value={f.cost} onChange={(v) => setF({ ...f, cost: v })} /></Field>
         </div>
 
         {/* materials editor */}
@@ -137,9 +138,9 @@ function AddMenuModal({ open, onClose, shopId, onCreated }: { open: boolean; onC
             <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 56px 64px 1fr 1fr 28px", gap: 6, alignItems: "center" }}>
               <TextInput value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
               <TextInput value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} />
-              <TextInput value={m.unit} placeholder={t("unit")} onChange={(e) => setMat(i, { unit: e.target.value })} />
-              {numInput(m.cost, (s) => setMat(i, { cost: s }), t("cost"))}
-              {numInput(m.price, (s) => setMat(i, { price: s }), t("price"))}
+              <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} />
+              <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} />
+              <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} />
               <Btn variant="ghost" size="sm" icon="trash" onClick={() => delMat(i)} aria-label="remove" />
             </div>
           ))}

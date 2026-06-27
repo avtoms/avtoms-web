@@ -3,6 +3,7 @@
 // plus the overhead-expense ledger with add/delete. Defaults to the current month.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Btn, IconBtn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
+import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
@@ -160,7 +161,7 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
           </Field>
           <Field label={t("date")}><TextInput type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
         </div>
-        <Field label={t("amount")}><TextInput value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} placeholder="0" /></Field>
+        <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
         <Field label={t("notes")}><TextInput value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
       </div>
     </Modal>

@@ -209,7 +209,7 @@ function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Vehicle | 
   return (
     <Modal open={!!vehicle} onClose={onClose} title={t("service_history")} maxWidth={520}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ fontSize: 13.5, color: "var(--ink-2)" }}>{title} · <span style={{ fontFamily: "var(--font-mono)" }}>{vehicle.plate}</span></div>
+        <div style={{ fontSize: 13.5, color: "var(--ink-2)", display: "flex", alignItems: "center", gap: 8 }}>{title} <PlatePreview plate={vehicle.plate} type={plateTypeFromProto(vehicle.plateType)} size="sm" /></div>
 
         {/* warranties */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

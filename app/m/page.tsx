@@ -6,6 +6,7 @@ import { Badge, Segmented, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, type WoState } from "@/lib/enums";
+import { PlatePreview } from "@/components/plate";
 import { money, num } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 
@@ -123,7 +124,7 @@ function WOCard({ wo, col, cols, busy, dragging, t, mechName, onOpen, onMove, on
             {[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}
           </div>
           {wo.plate && (
-            <span style={{ display: "inline-block", marginTop: 3, fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 12, color: "var(--ink-2)", background: "var(--surface-2)", border: "1px solid var(--line)", padding: "1px 7px", borderRadius: 6, letterSpacing: "0.03em" }}>{wo.plate}</span>
+            <span style={{ display: "inline-block", marginTop: 3 }}><PlatePreview plate={wo.plate} size="sm" /></span>
           )}
         </div>
       </div>

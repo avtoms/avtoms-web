@@ -6,6 +6,7 @@ import {
   Btn, IconBtn, Card, StateBadge, Badge, Field, TextInput, TextArea, Segmented, Modal, Empty, Spinner, useIsMobile,
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
+import { MoneyInput } from "@/components/catalog-fields";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, type WoState, type LineItemKind } from "@/lib/enums";
 import { money, num, durationFmt, minutesBetween } from "@/lib/format";
@@ -143,8 +144,8 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
           <Segmented options={LINE_ITEM_KINDS.map((k) => ({ value: k, label: t(k) }))} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
           <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 76px", gap: 10 }}>
-            <Field label={t("agreed_price")}><TextInput value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-            <Field label={t("unit_cost")}><TextInput value={cost} onChange={(e) => setCost(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="0" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+            <Field label={t("agreed_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
+            <Field label={t("unit_cost")}><MoneyInput value={cost} onChange={setCost} /></Field>
             <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
           </div>
           {from.defaultPrice > 0 && (

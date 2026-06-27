@@ -8,6 +8,7 @@ import { useAuth, useLang } from "@/components/providers";
 import { api } from "@/lib/api";
 import { money, num, vatBreakdown } from "@/lib/format";
 import { loadShopProfile, type ShopProfile } from "@/lib/shop";
+import { PlatePreview } from "@/components/plate";
 import type { Invoice, WorkOrder } from "@/lib/types";
 
 export default function PrintInvoicePage() {
@@ -103,7 +104,7 @@ export default function PrintInvoicePage() {
           <div style={{ textAlign: "right" }}>
             <div className="inv-lbl">{t("vehicle")}</div>
             <div style={{ fontWeight: 600 }}>{vehicle || "—"}</div>
-            {wo?.plate && <div className="inv-mono" style={{ fontSize: 13 }}>{wo.plate}</div>}
+            {wo?.plate && <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}><PlatePreview plate={wo.plate} size="sm" /></div>}
           </div>
         </div>
 
