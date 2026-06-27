@@ -70,6 +70,8 @@ export const api = {
     call<Staff>("POST", "/v1/auth/staff/invite", { shopId, phone, name }),
   deactivateStaff: (staffId: string) =>
     call<Staff>("POST", "/v1/auth/staff/deactivate", { staffId }),
+  updateStaff: (staffId: string, u: { name: string; phone: string; avatarUrl?: string }) =>
+    call<Staff>("POST", `/v1/auth/staff/${staffId}`, { name: u.name, phone: u.phone, avatarUrl: u.avatarUrl ?? "" }),
 
   // ── customers + vehicles ──
   listCustomers: (shopId: string, query?: string) =>

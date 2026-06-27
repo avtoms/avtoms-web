@@ -9,6 +9,7 @@ export interface Staff {
   role: string; // ROLE_OWNER | ROLE_MECHANIC
   active: boolean;
   createdAt?: string;
+  avatarUrl?: string;
 }
 
 export interface TokenPair {

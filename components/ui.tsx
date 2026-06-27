@@ -185,8 +185,12 @@ export function QR({ data, size = 132, color }: { data: string; size?: number; c
   );
 }
 
-export function Avatar({ name, size = 36, color }: { name: string; size?: number; color?: string }) {
+export function Avatar({ name, size = 36, color, src }: { name: string; size?: number; color?: string; src?: string }) {
   const initials = (name || "?").split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={name} width={size} height={size} style={{ width: size, height: size, borderRadius: 99, objectFit: "cover", flexShrink: 0, background: "var(--surface-2)" }} />;
+  }
   return (
     <div style={{ width: size, height: size, borderRadius: 99, background: color || "var(--accent-soft)", color: color ? "#fff" : "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.38, flexShrink: 0, letterSpacing: "-0.02em" }}>{initials}</div>
   );

@@ -20,6 +20,7 @@ export default function StaffPage() {
   const [list, setList] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
+  const [editing, setEditing] = useState<Staff | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,10 +46,11 @@ export default function StaffPage() {
             const role = roleFromProto(s.role);
             return (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)" }}>
-                <Avatar name={s.name} size={40} color={role === "mechanic" ? "var(--info)" : undefined} />
+                <Avatar name={s.name} size={40} color={role === "mechanic" ? "var(--info)" : undefined} src={s.avatarUrl} />
                 <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{s.name}</div><div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{s.phone}</div></div>
                 <Badge tone={role === "owner" ? "accent" : "neutral"}>{t(role === "owner" ? "role_owner" : "role_mechanic")}</Badge>
                 <Badge tone={s.active ? "ok" : "danger"} dot>{s.active ? t("active") : t("inactive")}</Badge>
+                <button onClick={() => setEditing(s)} className="an-btn" style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", padding: 4, display: "flex" }} aria-label={t("edit")}><Icon name="edit" size={16} /></button>
                 {role !== "owner" && s.active && (
                   <button onClick={() => deactivate(s)} className="an-btn an-hide-sm" style={{ border: "none", background: "transparent", color: "var(--danger)", cursor: "pointer", padding: 4, display: "flex" }}><Icon name="trash" size={16} /></button>
                 )}
@@ -57,7 +59,39 @@ export default function StaffPage() {
           })}
       </Card>
       <InviteModal open={inviting} onClose={() => setInviting(false)} shopId={shopId} onCreated={() => load()} />
+      <EditModal staff={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
     </div>
+  );
+}
+
+function EditModal({ staff, onClose, onSaved }: { staff: Staff | null; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [f, setF] = useState({ name: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (staff) setF({ name: staff.name, phone: staff.phone }); }, [staff]);
+  if (!staff) return null;
+
+  const save = async () => {
+    if (!f.phone.trim() || busy) return;
+    if (!isValidUzPhone(f.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
+    setBusy(true);
+    try {
+      await api.updateStaff(staff.id, { name: f.name.trim(), phone: toE164(f.phone), avatarUrl: staff.avatarUrl });
+      toast(t("save"), { icon: "check" }); onSaved();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open={!!staff} onClose={onClose} title={t("edit")} maxWidth={400}
+      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", justifyContent: "center" }}><Avatar name={f.name} size={72} src={staff.avatarUrl} /></div>
+        <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
+      </div>
+    </Modal>
   );
 }
 
