@@ -63,6 +63,19 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
   const [testPhone, setTestPhone] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [health, setHealth] = useState<{ ok: boolean; detail: string } | null>(null);
+
+  const runHealthCheck = async () => {
+    if (checking) return;
+    setChecking(true); setHealth(null);
+    try {
+      const r = await api.testIntegration(provider);
+      setHealth({ ok: !!r.ok, detail: r.detail || (r.ok ? "OK" : "Failed") });
+    } catch (e) {
+      setHealth({ ok: false, detail: e instanceof ApiError ? e.message : "Xatolik" });
+    } finally { setChecking(false); }
+  };
 
   const sendTest = async () => {
     if (!testPhone.trim() || testing) return;
@@ -110,7 +123,15 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
             <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{note}</div>
           </div>
         </div>
-        <Badge tone={configured ? "ok" : "neutral"} dot>{configured ? "Sozlangan" : "Sozlanmagan"}</Badge>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {health && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: health.ok ? "var(--ok)" : "var(--danger)", maxWidth: 280, textAlign: "right" }}>
+              {health.ok ? "✓ " : "✗ "}{health.detail}
+            </span>
+          )}
+          <Btn variant="soft" size="sm" icon="check" disabled={checking} onClick={runHealthCheck}>{checking ? <Spinner size={14} /> : "Tekshirish"}</Btn>
+          <Badge tone={configured ? "ok" : "neutral"} dot>{configured ? "Sozlangan" : "Sozlanmagan"}</Badge>
+        </div>
       </div>
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 28 }}><Spinner size={22} /></div>
