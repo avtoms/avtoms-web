@@ -13,9 +13,10 @@ import type { WorkOrder } from "@/lib/types";
 
 export function SecTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-      <h3 style={{ margin: 0, fontSize: "calc(13px * var(--scale))", fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{children}</h3>
-      {right}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+      {/* title ellipsizes; the action (link/badge) keeps its full width so it never clips */}
+      <h3 style={{ margin: 0, minWidth: 0, fontSize: "calc(13px * var(--scale))", fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{children}</h3>
+      {right && <div style={{ flexShrink: 0 }}>{right}</div>}
     </div>
   );
 }
@@ -56,8 +57,8 @@ export function WORow({ wo }: { wo: WorkOrder }) {
   const total = num(wo.total);
   const created = wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
   return (
-    <Link href={`/work-orders/${wo.id}`} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 18px", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", textDecoration: "none" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 64 }}>
+    <Link href={`/work-orders/${wo.id}`} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 13, width: "100%", padding: isMobile ? "12px 14px" : "13px 18px", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", textDecoration: "none" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 60, flexShrink: 0 }}>
         <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{orderLabel(wo)}</span>
         <span style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{created}</span>
       </div>
@@ -69,8 +70,9 @@ export function WORow({ wo }: { wo: WorkOrder }) {
           : <div style={{ fontSize: 12, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)" }}>{wo.vehicleId.slice(0, 12)}</div>}
       </div>
       {!isMobile && <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 13 }}>{money(total)}</span>}
-      <StateBadge state={state} />
-      <Icon name="chevR" size={16} style={{ color: "var(--ink-3)" }} />
+      <StateBadge state={state} style={{ flexShrink: 0 }} />
+      {/* chevron is decorative — the whole row is a link — so drop it on phones to save width */}
+      {!isMobile && <Icon name="chevR" size={16} style={{ color: "var(--ink-3)" }} />}
     </Link>
   );
 }
