@@ -1,49 +1,111 @@
 "use client";
-// Work orders list (owner.jsx WorkOrdersPage): Segmented state filter + live list.
+// Work orders (owner): a Board / List toggle. The Board is the active cash pipeline
+// (Estimated → Approved → In progress → Ready → Invoiced) as a Jira-style kanban — great
+// for spotting bottlenecks (approvals piling up, jobs ready to invoice). The List is the
+// flat, filterable view that also covers draft / closed / canceled and search.
 // The Create-WO flow lives in the shared layout header button (_create-wo.tsx).
 import React, { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, Segmented, Spinner, Empty } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { WO_STATES, STATE_LABEL, type WoState } from "@/lib/enums";
 import type { WorkOrder } from "@/lib/types";
+import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
 import { WORow } from "../_shared";
+
+// The owner pipeline: the money-sensitive states, left to right. Archive/idle states
+// (draft, closed, canceled) intentionally live in the List, not on the board.
+const PIPELINE: ColDef[] = [
+  { key: "estimated", label: "st_estimated", tone: "accent", accent: "var(--info)", soft: "var(--info-soft)" },
+  { key: "approved", label: "st_approved", tone: "accent", accent: "var(--accent)", soft: "var(--accent-soft)" },
+  { key: "in_progress", label: "st_in_progress", tone: "warn", accent: "var(--warn)", soft: "var(--warn-soft)" },
+  { key: "ready", label: "st_ready", tone: "ok", accent: "var(--ok)", soft: "var(--ok-soft)" },
+  { key: "invoiced", label: "st_invoiced", tone: "ok", accent: "var(--ink-2)", soft: "var(--surface-2)" },
+];
 
 export default function WorkOrdersPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
   const { t } = useLang();
   const { toast } = useToast();
+  const router = useRouter();
 
+  const [view, setView] = useState<"board" | "list">("board");
   const [filter, setFilter] = useState<"all" | WoState>("all");
-  const [list, setList] = useState<WorkOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [list, setList] = useState<WorkOrder[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const filters = [{ value: "all", label: t("all") }, ...WO_STATES.map((s) => ({ value: s, label: t(STATE_LABEL[s]) }))];
-
+  // On the board we load the whole shop and bucket client-side; on the list we let the
+  // server filter by the selected state.
   const load = useCallback(async () => {
-    setLoading(true);
+    setList(null);
     try {
-      setList(await api.listWorkOrders(shopId, filter === "all" ? undefined : filter));
+      const state = view === "list" && filter !== "all" ? filter : undefined;
+      setList(await api.listWorkOrders(shopId, state));
+    } catch (e) {
+      setList([]);
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    }
+  }, [shopId, view, filter, t, toast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Owner board move: a plain state transition (the backend rejects invalid hops with a
+  // clear error, which we surface). No timer side-effects here — that's the mechanic's flow.
+  const moveTo = async (woId: string, target: WoState) => {
+    if (busyId) return;
+    const wo = (list || []).find((w) => w.id === woId);
+    if (!wo) return;
+    setBusyId(woId);
+    try {
+      await api.transition(woId, target);
+      toast(t(STATE_LABEL[target]), { icon: "check" });
+      await load();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
-      setLoading(false);
+      setBusyId(null);
     }
-  }, [shopId, filter, t, toast]);
+  };
 
-  useEffect(() => { load(); }, [load]);
+  const cols = PIPELINE.map((c) => ({ ...c, label: t(c.label) }));
+  const filters = [{ value: "all", label: t("all") }, ...WO_STATES.map((s) => ({ value: s, label: t(STATE_LABEL[s]) }))];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ overflowX: "auto", paddingBottom: 2 }}>
-        <Segmented options={filters} value={filter} onChange={(v) => setFilter(v as "all" | WoState)} size="sm" style={{ flexWrap: "nowrap" }} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <Segmented
+          options={[{ value: "board", label: t("view_board") }, { value: "list", label: t("view_list") }]}
+          value={view}
+          onChange={(v) => setView(v as "board" | "list")}
+          size="sm"
+        />
+        {view === "list" && (
+          <div style={{ overflowX: "auto", paddingBottom: 2, maxWidth: "100%" }}>
+            <Segmented options={filters} value={filter} onChange={(v) => setFilter(v as "all" | WoState)} size="sm" style={{ flexWrap: "nowrap" }} />
+          </div>
+        )}
       </div>
-      <Card pad={0}>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
-          : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="clipboard" /></div>
-          : list.map((w) => <WORow key={w.id} wo={w} />)}
-      </Card>
+
+      {list === null ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+      ) : view === "board" ? (
+        <WorkOrderBoard
+          orders={list}
+          cols={cols}
+          busyId={busyId}
+          onMove={(id, s) => void moveTo(id, s)}
+          onOpen={(id) => router.push(`/work-orders/${id}`)}
+          hint={t("board_hint")}
+          emptyLabel={t("no_orders_col")}
+        />
+      ) : (
+        <Card pad={0}>
+          {list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="clipboard" /></div>
+            : list.map((w) => <WORow key={w.id} wo={w} />)}
+        </Card>
+      )}
     </div>
   );
 }
