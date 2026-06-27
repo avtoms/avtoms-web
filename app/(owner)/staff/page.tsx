@@ -1,7 +1,7 @@
 "use client";
 // Staff (owner-pages.jsx StaffPage): list staff, invite-mechanic modal, deactivate.
 // Wired to api.listStaff / inviteMechanic / deactivateStaff.
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -68,16 +68,30 @@ function EditModal({ staff, onClose, onSaved }: { staff: Staff | null; onClose: 
   const { t } = useLang();
   const { toast } = useToast();
   const [f, setF] = useState({ name: "", phone: "" });
+  const [avatar, setAvatar] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (staff) setF({ name: staff.name, phone: staff.phone }); }, [staff]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (staff) { setF({ name: staff.name, phone: staff.phone }); setAvatar(staff.avatarUrl ?? ""); } }, [staff]);
   if (!staff) return null;
+
+  const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast(t("file_too_large"), { icon: "alert", tone: "danger" }); return; }
+    setUploading(true);
+    try { setAvatar(await api.uploadImage(file)); }
+    catch (err) { toast(err instanceof ApiError ? err.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setUploading(false); }
+  };
 
   const save = async () => {
     if (!f.phone.trim() || busy) return;
     if (!isValidUzPhone(f.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      await api.updateStaff(staff.id, { name: f.name.trim(), phone: toE164(f.phone), avatarUrl: staff.avatarUrl });
+      await api.updateStaff(staff.id, { name: f.name.trim(), phone: toE164(f.phone), avatarUrl: avatar });
       toast(t("save"), { icon: "check" }); onSaved();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -85,9 +99,16 @@ function EditModal({ staff, onClose, onSaved }: { staff: Staff | null; onClose: 
 
   return (
     <Modal open={!!staff} onClose={onClose} title={t("edit")} maxWidth={400}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
+      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy || uploading} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "center" }}><Avatar name={f.name} size={72} src={staff.avatarUrl} /></div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <button type="button" onClick={() => fileRef.current?.click()} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, position: "relative" }} aria-label={t("change_photo")}>
+            {uploading ? <div style={{ width: 72, height: 72, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-2)" }}><Spinner size={22} /></div>
+              : <Avatar name={f.name} size={72} src={avatar} />}
+          </button>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={pickPhoto} style={{ display: "none" }} />
+          <button type="button" onClick={() => fileRef.current?.click()} style={{ border: "none", background: "transparent", color: "var(--accent-2)", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "var(--font-sans)" }}>{t("change_photo")}</button>
+        </div>
         <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
       </div>

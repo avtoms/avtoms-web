@@ -275,6 +275,8 @@ export const STR: Record<string, Triple> = {
   status: ["Holat", "Ҳолат", "Статус"],
   shop_profile: ["Servis profili", "Сервис профили", "Профиль сервиса"],
   shop_profile_local_hint: ["Faqat shu brauzerda saqlanadi (chek uchun)", "Фақат шу браузерда сақланади (чек учун)", "Сохраняется только в этом браузере (для чека)"],
+  change_photo: ["Rasmni o'zgartirish", "Расмни ўзгартириш", "Изменить фото"],
+  file_too_large: ["Fayl juda katta (maks. 5MB)", "Файл жуда катта (макс. 5MB)", "Файл слишком большой (макс. 5MB)"],
   shop_name: ["Servis nomi", "Сервис номи", "Название сервиса"],
   address: ["Manzil", "Манзил", "Адрес"],
   tin: ["STIR", "СТИР", "ИНН"],

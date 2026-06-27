@@ -54,6 +54,22 @@ const qs = (params: Record<string, string | undefined>) => {
 };
 
 export const api = {
+  // ── uploads (multipart, returns the stored object's public URL) ──
+  uploadImage: async (file: File): Promise<string> => {
+    const form = new FormData();
+    form.append("file", file);
+    const s = getSession();
+    const res = await fetch(API_BASE + "/v1/uploads", {
+      method: "POST",
+      headers: s?.token ? { Authorization: `Bearer ${s.token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new ApiError(res.status, data.message || data.error || `HTTP ${res.status}`);
+    return data.url as string;
+  },
+
   // ── auth (public) ──
   requestOtp: (phone: string) =>
     call<RequestOtpResponse>("POST", "/v1/auth/otp/request", { phone }, false),
