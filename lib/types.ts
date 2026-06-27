@@ -93,6 +93,7 @@ export interface WorkOrder {
   total?: string;
   totalCost?: string; // shop's total expense on this order (tiyin)
   totalMargin?: string; // gross margin before VAT: subtotal - totalCost (tiyin)
+  orderNo?: string | number; // per-shop sequence shown to users as "Z-0001"
   notes?: string;
   createdAt?: string;
   activeTimerStartedAt?: string; // set when a timer is currently running

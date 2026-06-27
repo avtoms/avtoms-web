@@ -11,7 +11,7 @@ import {
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money, num, vatBreakdown } from "@/lib/format";
+import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
@@ -117,7 +117,7 @@ export default function WorkOrderDetailPage() {
           <IconBtn icon="arrowL" onClick={() => router.push("/work-orders")} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <h1 style={{ margin: 0, fontSize: "calc(22px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.02em", fontFamily: "var(--font-mono)" }}>{wo.id.slice(0, 8)}</h1>
+              <h1 style={{ margin: 0, fontSize: "calc(22px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.02em", fontFamily: "var(--font-mono)" }}>{orderLabel(wo)}</h1>
               <StateBadge state={state} />
             </div>
           </div>
@@ -454,7 +454,7 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
             <Badge tone={inv.paid ? "ok" : "neutral"} dot>{inv.paid ? t("paid") : t("unpaid")}</Badge>
           </div>
           <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
-            <Row label={t("work_order")} value={wo.id.slice(0, 8)} mono />
+            <Row label={t("work_order")} value={orderLabel(wo)} mono />
             <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
             <Row label={t("total")} value={money(inv.total) + " " + t("soum")} strong mono />
           </div>

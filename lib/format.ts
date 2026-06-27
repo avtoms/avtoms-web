@@ -9,6 +9,13 @@ export function money(v: string | number): string {
   return Math.round(num(v)).toLocaleString("ru-RU").replace(/,/g, " ");
 }
 
+// orderLabel renders a work order's human-friendly number ("Z-0001"), falling back to a
+// short id for any legacy order without a sequence number.
+export function orderLabel(wo: { orderNo?: string | number; id: string }): string {
+  const n = num(wo.orderNo);
+  return n > 0 ? "Z-" + String(n).padStart(4, "0") : wo.id.slice(0, 8);
+}
+
 export function vatBreakdown(items: { unitPrice: string | number; quantity: number }[]) {
   const subtotal = items.reduce((s, i) => s + num(i.unitPrice) * (i.quantity || 0), 0);
   const vat = Math.round(subtotal * 0.12);

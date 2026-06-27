@@ -13,6 +13,7 @@ import type { Vehicle } from "@/lib/types";
 import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { isValidPlateFor } from "@/lib/plate";
+import { orderLabel } from "@/lib/format";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
 
@@ -56,7 +57,7 @@ export function CreateWOModal({ open, onClose }: { open: boolean; onClose: () =>
     setBusy(true);
     try {
       const wo = await api.createWorkOrder(shopId, vehicleId);
-      toast(t("create_wo") + " · " + wo.id.slice(0, 8), { icon: "clipboard" });
+      toast(t("create_wo") + " · " + orderLabel(wo), { icon: "clipboard" });
       onClose();
       router.push(`/work-orders/${wo.id}`);
     } catch (e) {

@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, type WoState } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
-import { money, num } from "@/lib/format";
+import { money, num, orderLabel } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
@@ -84,7 +84,7 @@ function WOCard({ wo, col, cols, busy, dragging, t, mechName, onOpen, onMove, on
   onDragStart: () => void; onDragEnd: () => void;
 }) {
   const total = num(wo.total);
-  const shortId = wo.id.slice(0, 8).toUpperCase();
+  const shortId = orderLabel(wo);
   const running = col.key === "in_progress";
   const elapsed = useElapsedLabel(running ? wo.activeTimerStartedAt : undefined);
   return (

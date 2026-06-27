@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, Badge, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useT } from "@/components/providers";
-import { money, num } from "@/lib/format";
+import { money, num, orderLabel } from "@/lib/format";
 import { woStateFromProto } from "@/lib/enums";
 import { StateBadge } from "@/components/ui";
 import type { WorkOrder } from "@/lib/types";
@@ -56,7 +56,7 @@ export function WORow({ wo }: { wo: WorkOrder }) {
   return (
     <Link href={`/work-orders/${wo.id}`} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 18px", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", textDecoration: "none" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 64 }}>
-        <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{wo.id.slice(0, 8)}</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{orderLabel(wo)}</span>
         <span style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{created}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
