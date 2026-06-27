@@ -30,6 +30,18 @@ const PROVIDERS: { provider: string; title: string; note: string; fields: FieldD
       { key: "username", label: "Bot username", placeholder: "my_shop_bot" },
     ],
   },
+  {
+    provider: "r2",
+    title: "Cloudflare R2 (image uploads)",
+    note: "Object storage for avatars and photos. Endpoint host only (no https://); the bucket must allow public read for images to display.",
+    fields: [
+      { key: "endpoint", label: "Endpoint", placeholder: "<account-id>.r2.cloudflarestorage.com" },
+      { key: "bucket", label: "Bucket", placeholder: "avtoms-media" },
+      { key: "access_key_id", label: "Access Key ID", secret: true, placeholder: "••••••" },
+      { key: "secret_access_key", label: "Secret Access Key", secret: true, placeholder: "••••••" },
+      { key: "public_url", label: "Public URL", placeholder: "https://pub-xxxx.r2.dev" },
+    ],
+  },
 ];
 
 export default function IntegrationsPage() {
