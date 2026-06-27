@@ -58,7 +58,7 @@ export default function DashboardPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ink-3)", fontSize: 12.5 }}>
         <span className="an-pulse" style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ok)" }} /> {t("auto_refresh")} · {t("updated_ago")} {ago} {t("sec_ago")}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(auto-fit, minmax(150px, 1fr))" : "repeat(4, 1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, 1fr)", gap: 14 }}>
         <StatCard label={t("todays_revenue")} value={money(d.todaysRevenue ?? 0)} sub={t("soum")} icon="money" tone="accent" big />
         <StatCard label={t("jobs_in_progress")} value={d.jobsInProgress ?? 0} icon="wrench" tone="warn" />
         <StatCard label={t("ready_for_pickup")} value={d.readyForPickup ?? 0} icon="check" tone="ok" />

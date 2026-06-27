@@ -84,7 +84,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           {newBtn}
           <LangSwitcher lang={lang} onChange={setLang} compact />
         </header>
-        <main style={{ flex: 1, padding: "16px 16px calc(88px + env(safe-area-inset-bottom))" }}>{children}</main>
+        <main style={{ flex: 1, minWidth: 0, overflowX: "hidden", padding: "16px 16px calc(88px + env(safe-area-inset-bottom))" }}>{children}</main>
         <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 45, display: "flex", background: "var(--surface)", borderTop: "1px solid var(--line)", padding: "8px 6px", paddingBottom: "calc(8px + env(safe-area-inset-bottom))" }}>
           {primary.map((it) => {
             const on = isActive(it.route);

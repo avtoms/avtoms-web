@@ -38,7 +38,9 @@ export function StatCard({ label, value, sub, icon, tone = "neutral", big, onCli
         <span style={{ fontSize: "calc(13px * var(--scale))", fontWeight: 600, color: "var(--ink-3)" }}>{label}</span>
         {icon && <div style={{ width: 32, height: 32, borderRadius: 9, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", color: tones[tone] }}><Icon name={icon} size={17} /></div>}
       </div>
-      <div style={{ fontSize: big ? "calc(30px * var(--scale))" : "calc(26px * var(--scale))", fontWeight: 800, color: tones[tone], letterSpacing: "-0.03em", fontFamily: big ? "var(--font-mono)" : "var(--font-sans)" }}>{value}</div>
+      {/* clamp + overflow:hidden so a long money value scales down and never widens the
+          grid track (which caused horizontal page scroll on small phones). */}
+      <div style={{ fontSize: big ? "clamp(20px, 7vw, calc(30px * var(--scale)))" : "clamp(18px, 6vw, calc(26px * var(--scale)))", fontWeight: 800, color: tones[tone], letterSpacing: "-0.03em", fontFamily: big ? "var(--font-mono)" : "var(--font-sans)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
       {sub && <div style={{ fontSize: 12.5, color: "var(--ink-3)", marginTop: 4 }}>{sub}</div>}
     </Card>
   );
