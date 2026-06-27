@@ -104,7 +104,7 @@ export function Card({ children, style, pad = 18, onClick, hover }: { children: 
 
 export function Field({ label, children, hint, style }: { label?: string; children: React.ReactNode; hint?: string; style?: React.CSSProperties }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 6, ...style }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, ...style }}>
       {label && <span style={{ fontSize: "calc(13px * var(--scale))", fontWeight: 600, color: "var(--ink-2)" }}>{label}</span>}
       {children}
       {hint && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{hint}</span>}
@@ -113,7 +113,7 @@ export function Field({ label, children, hint, style }: { label?: string; childr
 }
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "11px 13px", fontSize: "calc(14.5px * var(--scale))", fontFamily: "var(--font-sans)",
+  width: "100%", minWidth: 0, padding: "11px 13px", fontSize: "calc(14.5px * var(--scale))", fontFamily: "var(--font-sans)",
   color: "var(--ink)", background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: "var(--radius-sm)", outline: "none", boxSizing: "border-box",
 };
 export function TextInput({ style, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -136,7 +136,7 @@ export function TextArea({ style, ...rest }: React.TextareaHTMLAttributes<HTMLTe
 type Opt = string | { value: string; label: string };
 export function Segmented({ options, value, onChange, size = "md", style }: { options: Opt[]; value: string; onChange: (v: string) => void; size?: "sm" | "md"; style?: React.CSSProperties }) {
   return (
-    <div style={{ display: "inline-flex", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", padding: 3, gap: 2, ...style }}>
+    <div style={{ display: "inline-flex", flexWrap: "wrap", maxWidth: "100%", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", padding: 3, gap: 2, ...style }}>
       {options.map((o) => {
         const v = typeof o === "string" ? o : o.value;
         const lbl = typeof o === "string" ? o : o.label;
@@ -168,7 +168,7 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 520, 
             <IconBtn icon="x" size={17} onClick={onClose} style={{ width: 34, height: 34 }} />
           </div>
         )}
-        <div style={{ padding: 18, overflowY: "auto", flex: 1 }}>{children}</div>
+        <div style={{ padding: 18, overflowY: "auto", overflowX: "hidden", flex: 1, minWidth: 0 }}>{children}</div>
         {footer && <div style={{ display: "flex", gap: 10, padding: "14px 18px", borderTop: "1px solid var(--line)", flexShrink: 0, justifyContent: "flex-end" }}>{footer}</div>}
       </div>
     </div>
