@@ -199,7 +199,9 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols.length}, minmax(230px, 1fr))`, gap: 16, alignItems: "start" }}>
+        {/* Cap column width (max 300px) so cards don't balloon on wide screens; the 230px
+            floor lets the row scroll horizontally only when the viewport is genuinely narrow. */}
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols.length}, minmax(230px, 300px))`, gap: 16, alignItems: "start", justifyContent: "start" }}>
           {cols.map((c) => {
             const items = byState(c.key);
             const isOver = overCol === c.key;
