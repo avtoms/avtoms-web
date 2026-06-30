@@ -180,19 +180,9 @@ export default function LandingPage() {
 }
 
 // The CIS has member states rather than one flag, so the "regional" mark cycles through the
-// member-country flags — a small animated nod to the whole СНГ market. Each flag is a simple
-// CSS-gradient approximation (stripes), recognizable at chip size.
-const CIS_FLAGS: { code: string; bg: string }[] = [
-  { code: "UZ", bg: "linear-gradient(180deg,#1eb4e7 0 30%,#fff 30% 37%,#16b13e 37% 63%,#fff 63% 70%,#ce1126 70% 100%)" },
-  { code: "RU", bg: "linear-gradient(180deg,#fff 0 33%,#0039a6 33% 67%,#d52b1e 67% 100%)" },
-  { code: "KZ", bg: "linear-gradient(180deg,#00afca,#00afca)" },
-  { code: "KG", bg: "linear-gradient(180deg,#e8112d,#e8112d)" },
-  { code: "TJ", bg: "linear-gradient(180deg,#cc0000 0 30%,#fff 30% 70%,#006600 70% 100%)" },
-  { code: "BY", bg: "linear-gradient(180deg,#cc0000 0 66%,#4aa657 66% 100%)" },
-  { code: "AM", bg: "linear-gradient(180deg,#d90012 0 33%,#0033a0 33% 67%,#f2a800 67% 100%)" },
-  { code: "AZ", bg: "linear-gradient(180deg,#00b9e4 0 33%,#ef3340 33% 67%,#509e2f 67% 100%)" },
-  { code: "MD", bg: "linear-gradient(90deg,#0046ae 0 33%,#ffd200 33% 67%,#cc092f 67% 100%)" },
-];
+// member-country flags — a small animated nod to the whole СНГ market. Real SVG flags come
+// from the flag-icons library (accurate emblems, self-hosted — no emoji/CDN inconsistency).
+const CIS_FLAGS = ["uz", "ru", "kz", "kg", "tj", "by", "am", "az", "md"];
 
 function CisFlag() {
   const [i, setI] = useState(0);
@@ -200,8 +190,8 @@ function CisFlag() {
     const iv = setInterval(() => setI((x) => (x + 1) % CIS_FLAGS.length), 1700);
     return () => clearInterval(iv);
   }, []);
-  const f = CIS_FLAGS[i];
-  return <span key={i} className="lp-flag" title={f.code} style={{ backgroundImage: f.bg }} />;
+  const code = CIS_FLAGS[i];
+  return <span key={i} className={"lp-flag fi fi-" + code} title={code.toUpperCase()} />;
 }
 
 function LangSwitch({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
