@@ -45,14 +45,14 @@ function StatusMenu({ currentCol, targets, onMove, disabled }: {
   const [open, setOpen] = useState(false);
   const dead = disabled || targets.length === 0;
   return (
-    <div style={{ position: "relative", minWidth: 0 }}>
+    <div style={{ position: "relative", flexShrink: 0, maxWidth: "100%" }}>
       <button disabled={dead} onClick={() => setOpen((o) => !o)} className="an-btn" style={{
         display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 9px", borderRadius: 999, maxWidth: "100%",
         border: "1px solid var(--line)", background: currentCol.soft, color: currentCol.accent,
-        cursor: dead ? "default" : "pointer", fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700,
+        cursor: dead ? "default" : "pointer", fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
       }}>
         <span style={{ width: 7, height: 7, borderRadius: 99, background: "currentColor", flexShrink: 0 }} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentCol.label}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{currentCol.label}</span>
         {targets.length > 0 && <Icon name="chevD" size={13} style={{ flexShrink: 0 }} />}
       </button>
       {open && (
@@ -140,10 +140,10 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
         <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} />
         <button onClick={onOpen} className="an-btn" style={{
-          display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: "var(--radius-sm)", flexShrink: 0,
+          display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: "var(--radius-sm)", flexShrink: 0, marginLeft: "auto",
           border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer",
           fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 12.5,
         }}>
