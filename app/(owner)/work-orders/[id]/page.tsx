@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Card, Badge, Btn, IconBtn, Avatar, Modal, Field, TextInput, Segmented,
+  Card, Badge, Btn, IconBtn, Avatar, Modal, Field, TextInput, SelectInput, Segmented,
   Spinner, Empty, StateBadge, FiscalBadge, QR, useIsMobile,
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
@@ -74,6 +74,11 @@ export default function WorkOrderDetailPage() {
   const doAssign = async (mechanicId: string) => {
     if (busy) return; setBusy(true);
     try { setWo(await api.assignMechanic(id, mechanicId)); setAssigning(false); toast(t("assign"), { icon: "check" }); }
+    catch (e) { err(e); } finally { setBusy(false); }
+  };
+  const doAssignLine = async (lineItemId: string, mechanicId: string) => {
+    if (busy) return; setBusy(true);
+    try { setWo(await api.assignLineItem(id, lineItemId, mechanicId)); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
   const doAddItems = async (items: LineItemInput[]) => {
@@ -168,6 +173,15 @@ export default function WorkOrderDetailPage() {
                         {money(it.unitPrice)} × {it.quantity}
                         {discount > 0 && <span style={{ color: "var(--ink-3)", textDecoration: "line-through", marginLeft: 6 }}>{money(defPrice)}</span>}
                       </div>
+                      {/* who does this specific service */}
+                      {kind === "service" && (editable ? (
+                        <SelectInput value={it.assignedMechanicId ?? ""} onChange={(e) => it.id && doAssignLine(it.id, e.target.value)} disabled={busy} style={{ height: 30, fontSize: 12.5, marginTop: 6, maxWidth: 200, paddingTop: 2, paddingBottom: 2 }}>
+                          <option value="">{t("unassigned")}</option>
+                          {mechanics.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </SelectInput>
+                      ) : it.assignedMechanicId ? (
+                        <div style={{ marginTop: 5, fontSize: 12, color: "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="team" size={13} />{mechanics.find((m) => m.id === it.assignedMechanicId)?.name ?? "—"}</div>
+                      ) : null)}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>

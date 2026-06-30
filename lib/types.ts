@@ -81,6 +81,7 @@ export interface LineItem {
   cost?: string; // shop expense (buy price) per unit (tiyin)
   menuItemId?: string; // source menu item, when added from the price list
   defaultPrice?: string; // menu price snapshot at add time, for discount audit (tiyin)
+  assignedMechanicId?: string; // mechanic assigned to this specific service line
 }
 
 export interface TimeEntry {
