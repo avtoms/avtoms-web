@@ -420,7 +420,14 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
       try {
         const all = await api.listInvoices(shopId);
         let existing = all.find((i) => i.workOrderId === wo.id);
-        if (!existing) existing = await api.generateInvoice(shopId, wo.id, total);
+        if (!existing) {
+          existing = await api.generateInvoice(shopId, wo.id, total);
+          // Issuing the invoice advances the order ready → invoiced (the modal "drives"
+          // this transition, which is also what emits the workorder.invoiced event).
+          if (woStateFromProto(wo.state) === "ready") {
+            try { await api.transition(wo.id, "invoiced"); } catch { /* best effort; ignore if already advanced */ }
+          }
+        }
         if (!cancelled) setInv(existing);
         onChange();
       } catch (e) {
