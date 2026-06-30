@@ -6,7 +6,7 @@ import { SESSION_COOKIE, parseSession, type Session } from "./session";
 
 // Server may reach the gateway at a different host than the browser (e.g. in Docker).
 // Prefer a server-only API_BASE_URL, fall back to the public one, then localhost.
-const SERVER_API_BASE = (
+export const SERVER_API_BASE = (
   process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 ).replace(/\/$/, "");
 

@@ -10,6 +10,7 @@ type Group = { title: string; items: Item[] };
 
 export const NAV_GROUPS: Group[] = [
   { title: "Boshqaruv", items: [{ href: "/admin", label: "Umumiy", icon: "dashboard", exact: true }] },
+  { title: "Sotuv", items: [{ href: "/admin/demo-requests", label: "Demo so'rovlari", icon: "bell" }] },
   { title: "Foydalanuvchilar", items: [{ href: "/admin/users", label: "Xodimlar", icon: "users" }] },
   {
     title: "Katalog",
@@ -65,6 +66,7 @@ export function AdminNav() {
 
 const TITLES: { match: (p: string) => boolean; title: string }[] = [
   { match: (p) => p === "/admin", title: "Umumiy ko'rsatkichlar" },
+  { match: (p) => p.startsWith("/admin/demo-requests"), title: "Demo so'rovlari" },
   { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar" },
   { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari" },
   { match: (p) => p.startsWith("/admin/car-models"), title: "Avtomobil modellari" },

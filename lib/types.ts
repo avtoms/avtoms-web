@@ -48,6 +48,18 @@ export interface CarMake {
   logoUrl?: string;
 }
 
+export interface DemoRequest {
+  id: string;
+  name: string;
+  shop?: string;
+  phone: string;
+  city?: string;
+  message?: string;
+  lang?: string;
+  status: string; // new | contacted | closed
+  createdAt?: string;
+}
+
 export interface CarModel {
   id: string;
   makeId: string;

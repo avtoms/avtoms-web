@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -348,6 +348,12 @@ export const api = {
     call<CarMake>("POST", "/v1/admin/car-makes", { name, country }),
   updateCarMake: (id: string, name: string, country: string, logoUrl: string) =>
     call<CarMake>("POST", `/v1/admin/car-makes/${id}`, { name, country, logoUrl }),
+  // ── demo/sales leads (super-admin) ──
+  listDemoRequests: () =>
+    call<{ requests?: DemoRequest[] }>("GET", "/v1/admin/demo-requests").then((r) => r.requests ?? []),
+  setDemoRequestStatus: (id: string, status: string) =>
+    call<DemoRequest>("POST", `/v1/admin/demo-requests/${id}/status`, { status }),
+
   createCarModel: (makeId: string, name: string, bodyType: string) =>
     call<CarModel>("POST", "/v1/admin/car-models", { makeId, name, bodyType }),
 

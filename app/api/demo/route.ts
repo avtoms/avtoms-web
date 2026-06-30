@@ -1,7 +1,8 @@
-// Public demo-request endpoint for the marketing landing page. Self-contained: it forwards
-// the lead to a Telegram chat when DEMO_TG_BOT_TOKEN + DEMO_TG_CHAT_ID are configured, and
-// always logs it to the container stdout as a durable fallback. No auth — guests submit it.
+// Public demo-request endpoint for the marketing landing page. Forwards the lead to the
+// gateway (server-side, no CORS) which persists it and fires the Telegram alert. Kept as a
+// thin Next route so the landing form posts same-origin and we never expose the gateway base.
 import { NextResponse } from "next/server";
+import { SERVER_API_BASE } from "@/lib/server-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
   }
 
-  const lead: Required<Lead> = {
+  const lead = {
     name: clean(body.name, 120),
     shop: clean(body.shop, 160),
     phone: clean(body.phone, 40),
@@ -27,35 +28,25 @@ export async function POST(req: Request) {
     lang: clean(body.lang, 8) || "uz",
   };
 
-  // Minimal validation: a name and a reachable phone are the bare essentials of a lead.
   if (!lead.name || lead.phone.replace(/\D/g, "").length < 7) {
     return NextResponse.json({ ok: false, error: "missing_fields" }, { status: 422 });
   }
 
-  // Always log — guarantees the lead is captured even with no Telegram wiring.
-  console.log("[demo-request]", JSON.stringify(lead));
-
-  const token = process.env.DEMO_TG_BOT_TOKEN;
-  const chat = process.env.DEMO_TG_CHAT_ID;
-  if (token && chat) {
-    const text =
-      `🚗 *Yangi demo so'rovi / Новая заявка на демо*\n\n` +
-      `👤 ${lead.name}\n` +
-      (lead.shop ? `🔧 ${lead.shop}\n` : "") +
-      `📞 ${lead.phone}\n` +
-      (lead.city ? `📍 ${lead.city}\n` : "") +
-      (lead.message ? `💬 ${lead.message}\n` : "") +
-      `🌐 ${lead.lang.toUpperCase()}`;
-    try {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chat, text, parse_mode: "Markdown" }),
-      });
-    } catch (e) {
-      // Telegram delivery is best-effort; the log above is the source of truth.
-      console.error("[demo-request] telegram delivery failed:", e);
+  try {
+    const res = await fetch(SERVER_API_BASE + "/v1/demo-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lead),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error("[demo-request] gateway rejected:", res.status, JSON.stringify(lead));
+      return NextResponse.json({ ok: false, error: "upstream" }, { status: 502 });
     }
+  } catch (e) {
+    // Log as a durable fallback so the lead is never silently lost.
+    console.error("[demo-request] forward failed:", e, JSON.stringify(lead));
+    return NextResponse.json({ ok: false, error: "upstream" }, { status: 502 });
   }
 
   return NextResponse.json({ ok: true });
