@@ -8,6 +8,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
+import { Row } from "../_shared";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
 const PREDEFINED = new Set<string>(CATS);
@@ -42,7 +43,7 @@ export default function FinancesPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [detail, setDetail] = useState<ShopExpense | null>(null);
 
   const range = useMemo(() => monthRange(month), [month]);
   const staffName = useCallback((id?: string) => (id ? staff.find((s) => s.id === id)?.name ?? "" : ""), [staff]);
@@ -71,13 +72,6 @@ export default function FinancesPage() {
   }, [shopId, range, t, toast]);
 
   useEffect(() => { load(); }, [load]);
-
-  const del = async (id: string) => {
-    if (busy) return; setBusy(true);
-    try { await api.deleteExpense(id); load(); }
-    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
-    finally { setBusy(false); }
-  };
 
   const net = pl ? num(pl.netProfit) : 0;
 
@@ -121,13 +115,13 @@ export default function FinancesPage() {
                 {expenses.map((e) => {
                   const worker = staffName(e.staffId);
                   return (
-                  <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
+                  <div key={e.id} className="an-row-btn" onClick={() => setDetail(e)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)", cursor: "pointer" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{catLabel(e.category, t)}{worker ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {worker}</span> : null}{e.note ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {e.note}</span> : null}</div>
                       <div style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{dateStr(e.incurredOn)}</div>
                     </div>
                     <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{money(num(e.amount))}</div>
-                    <IconBtn icon="trash" onClick={() => del(e.id)} />
+                    <IconBtn icon="chevR" onClick={(ev) => { ev.stopPropagation(); setDetail(e); }} />
                   </div>
                   );
                 })}
@@ -135,7 +129,44 @@ export default function FinancesPage() {
           </div>
         </>}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} onCreated={load} />
+      <ExpenseDetailModal expense={detail} workerName={staffName(detail?.staffId)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); load(); }} />
     </div>
+  );
+}
+
+function ExpenseDetailModal({ expense, workerName, onClose, onDeleted }: { expense: ShopExpense | null; workerName: string; onClose: () => void; onDeleted: () => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => { if (expense) setConfirm(false); }, [expense]);
+  if (!expense) return null;
+  const e = expense;
+  const fullDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "long", year: "numeric" }) : "—");
+  const recorded = e.createdAt ? new Date(e.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+  const remove = async () => {
+    if (busy) return; setBusy(true);
+    try { await api.deleteExpense(e.id); onDeleted(); }
+    catch (err) { toast(err instanceof ApiError ? err.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open={!!expense} onClose={onClose} title={catLabel(e.category, t)} maxWidth={420}
+      footer={confirm
+        ? <><span style={{ marginRight: "auto", color: "var(--ink-2)", fontSize: 13 }}>{t("delete") + "?"}</span><Btn variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>{t("no")}</Btn><Btn variant="primary" disabled={busy} style={{ background: "var(--danger)" }} onClick={remove}>{busy ? <Spinner /> : t("delete")}</Btn></>
+        : <><Btn variant="ghost" disabled={busy} onClick={() => setConfirm(true)} style={{ color: "var(--danger)", marginRight: "auto" }} icon="trash">{t("delete")}</Btn><Btn variant="primary" onClick={onClose}>{t("close") || "OK"}</Btn></>}>
+      <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
+        <Row label={t("amount")} value={money(num(e.amount)) + " " + t("soum")} strong mono />
+        <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
+        <Row label={t("category")} value={catLabel(e.category, t)} />
+        <Row label={t("date")} value={fullDate(e.incurredOn)} />
+        {workerName && <Row label={t("worker")} value={workerName} />}
+        {e.note && <Row label={t("notes")} value={e.note} />}
+        <Row label={t("created")} value={recorded} mono />
+      </div>
+    </Modal>
   );
 }
 
