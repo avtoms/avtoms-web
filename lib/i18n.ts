@@ -46,6 +46,7 @@ export const STR: Record<string, Triple> = {
   overhead: ["Qo'shimcha xarajatlar", "Қўшимча харажатлар", "Накладные расходы"],
   net_profit: ["Sof foyda", "Соф фойда", "Чистая прибыль"],
   income_statement: ["Foyda-zarar hisoboti", "Фойда-зарар ҳисоботи", "Отчёт о прибылях и убытках"],
+  statistics: ["Statistika", "Статистика", "Статистика"],
   per_month: ["Oy", "Ой", "Месяц"],
   per_quarter: ["Chorak", "Чорак", "Квартал"],
   per_year: ["Yil", "Йил", "Год"],

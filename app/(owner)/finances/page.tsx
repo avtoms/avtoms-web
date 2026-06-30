@@ -66,6 +66,7 @@ export default function FinancesPage() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [detail, setDetail] = useState<ShopExpense | null>(null);
+  const [tab, setTab] = useState<"stats" | "expenses">("stats");
 
   const range = useMemo(() => {
     if (gran === "month") return monthRange(month);
@@ -118,6 +119,12 @@ export default function FinancesPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* tabs + add */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <Segmented options={[{ value: "stats", label: t("statistics") }, { value: "expenses", label: t("expenses") }]} value={tab} onChange={(v) => setTab(v as "stats" | "expenses")} />
+        {tab === "expenses" && <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_expense")}</Btn>}
+      </div>
+
       {/* period controls */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -134,11 +141,10 @@ export default function FinancesPage() {
             <TextInput type="date" value={cTo} onChange={(e) => setCTo(e.target.value)} style={{ maxWidth: 150 }} />
           </>}
         </div>
-        <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_expense")}</Btn>
       </div>
 
       {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
-        : <>
+        : tab === "stats" ? <>
           {/* KPI cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
             <StatCard label={t("revenue")} value={money(revenue)} sub={t("soum")} icon="money" tone="accent" big />
@@ -179,7 +185,7 @@ export default function FinancesPage() {
               <CategoryBars data={pl.byCategory.map((b) => ({ label: catLabel(b.category, t), amount: num(b.amount) }))} />
             </Card>
           )}
-
+        </> : <>
           {/* expense ledger */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 4px" }}>{t("expenses")}</div>
