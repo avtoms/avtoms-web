@@ -41,16 +41,37 @@ const COPY = {
   footer: { uz: "Avtoservislar uchun zamonaviy boshqaruv tizimi.", ru: "Современная система управления для автосервисов.", en: "Modern management for auto repair shops." },
 };
 
-const MARQUEE = [
-  { reg: "01", main: "A 356 BC", model: "Spark" },
-  { reg: "30", main: "B 777 AA", model: "Cobalt" },
-  { reg: "10", main: "C 123 XX", model: "Malibu" },
-  { reg: "95", main: "D 010 AB", model: "Tracker" },
-  { reg: "40", main: "E 555 KZ", model: "Nexia" },
-  { reg: "01", main: "F 246 BD", model: "Captiva" },
-  { reg: "50", main: "G 888 LM", model: "Damas" },
-  { reg: "25", main: "H 432 PR", model: "Onix" },
+// Authentic CIS passenger-plate formats (same order as the flag cycle), each with a popular
+// local car. `tab` is the coloured region/country band; `side` is where it sits (Russia &
+// Kazakhstan carry the region band on the RIGHT, most others on the left, Belarus none —
+// region after the dash). Sources: Wikipedia "Vehicle registration plates of <country>".
+type PlateSpec = { code: string; tab: string; side: "left" | "right" | "none"; main: string; car: string };
+const CIS: PlateSpec[] = [
+  { code: "uz", tab: "01", side: "left", main: "A 777 AA", car: "Chevrolet Spark" }, // region + L + 3d + 2L
+  { code: "ru", tab: "77", side: "right", main: "А 123 ВС", car: "Lada Vesta" },     // L + 3d + 2L | region (Cyrillic)
+  { code: "kz", tab: "02", side: "right", main: "123 ABC", car: "Toyota Camry" },    // 3d + 3L | region
+  { code: "kg", tab: "01", side: "left", main: "234 ABC", car: "Honda Fit" },        // region(KG) + 3d + 3L
+  { code: "tj", tab: "TJ", side: "left", main: "1234 SH 01", car: "Opel Astra" },    // TJ band + 4d + 2L + region
+  { code: "by", tab: "", side: "none", main: "1234 AB-7", car: "VW Passat" },        // 4d + 2L - region
+  { code: "am", tab: "34", side: "left", main: "SS 045", car: "Nissan Tiida" },      // region + 2L + 3d
+  { code: "az", tab: "10", side: "left", main: "AA 123", car: "Mercedes E" },        // region(AZ) + 2L + 3d
+  { code: "md", tab: "MD", side: "left", main: "ABC 123", car: "Dacia Logan" },      // MD band + 3L + 3d
 ];
+
+// Plate renders a license plate in the brand chip style: the coloured region/country band on
+// the correct side, then the white field with the registration characters.
+function Plate({ spec, big }: { spec: PlateSpec; big?: boolean }) {
+  const tab = spec.tab ? (
+    <span style={{ background: "#15296b", color: "#fff", padding: big ? "7px 9px" : "4px 7px", fontSize: big ? 15 : 12, display: "inline-flex", alignItems: "center", lineHeight: 1 }}>{spec.tab}</span>
+  ) : null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "stretch", border: "1.5px solid #cfd6e6", borderRadius: big ? 7 : 5, overflow: "hidden", background: "#fff", fontFamily: "var(--mono)", fontWeight: 700, boxShadow: big ? "0 2px 8px rgba(0,0,0,.3)" : "none", lineHeight: 1, flexShrink: 0 }}>
+      {spec.side === "left" && tab}
+      <span style={{ color: "#16203a", padding: big ? "7px 11px" : "4px 9px", fontSize: big ? 17 : 12.5, letterSpacing: ".06em", display: "inline-flex", alignItems: "center" }}>{spec.main}</span>
+      {spec.side === "right" && tab}
+    </span>
+  );
+}
 
 const FEATURES: { icon: React.ReactNode; title: Tri; desc: Tri }[] = [
   {
@@ -87,6 +108,14 @@ const FEATURES: { icon: React.ReactNode; title: Tri; desc: Tri }[] = [
 
 export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("uz");
+  // One shared cycle drives BOTH the CIS flag and the example plate, so the plate always
+  // matches the flag currently shown (UZ flag → Uzbek plate, RU flag → Russian plate, …).
+  const [ci, setCi] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setCi((x) => (x + 1) % CIS.length), 2400);
+    return () => clearInterval(iv);
+  }, []);
+  const country = CIS[ci];
   return (
     <div className="lp">
       <LandingStyle />
@@ -122,21 +151,22 @@ export default function LandingPage() {
             <a href="/login" className="lp-btn lp-btn-line">{tr(COPY.cta2, lang)}</a>
           </div>
           <div className="lp-trust lp-rise" style={{ animationDelay: "420ms" }}>
-            <CisFlag /> {tr(COPY.trust, lang)}
+            <CisFlag code={country.code} /> {tr(COPY.trust, lang)}
           </div>
         </div>
         <div className="lp-hero-art lp-rise" style={{ animationDelay: "260ms" }}>
-          <HeroCard lang={lang} />
+          <HeroCard lang={lang} country={country} />
         </div>
       </section>
 
       {/* ── plate marquee (auto-scrolling brand motif) ── */}
       <div className="lp-marquee" aria-hidden>
         <div className="lp-marquee-track">
-          {[...MARQUEE, ...MARQUEE].map((c, i) => (
+          {[...CIS, ...CIS].map((c, i) => (
             <span className="lp-chip" key={i}>
-              <span className="lp-chip-plate"><b>{c.reg}</b>{c.main}</span>
-              <span className="lp-chip-model">{c.model}</span>
+              <span className={"fi fi-" + c.code} style={{ width: 20, height: 14, borderRadius: 2, flexShrink: 0, boxShadow: "0 0 0 1px var(--line)" }} />
+              <Plate spec={c} />
+              <span className="lp-chip-model">{c.car}</span>
             </span>
           ))}
         </div>
@@ -182,16 +212,10 @@ export default function LandingPage() {
 // The CIS has member states rather than one flag, so the "regional" mark cycles through the
 // member-country flags — a small animated nod to the whole СНГ market. Real SVG flags come
 // from the flag-icons library (accurate emblems, self-hosted — no emoji/CDN inconsistency).
-const CIS_FLAGS = ["uz", "ru", "kz", "kg", "tj", "by", "am", "az", "md"];
-
-function CisFlag() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const iv = setInterval(() => setI((x) => (x + 1) % CIS_FLAGS.length), 1700);
-    return () => clearInterval(iv);
-  }, []);
-  const code = CIS_FLAGS[i];
-  return <span key={i} className={"lp-flag fi fi-" + code} title={code.toUpperCase()} />;
+// The regional mark shows the flag of the country whose plate is currently on display
+// (driven by the shared cycle in LandingPage), with a small flip on each change.
+function CisFlag({ code }: { code: string }) {
+  return <span key={code} className={"lp-flag fi fi-" + code} title={code.toUpperCase()} />;
 }
 
 function LangSwitch({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
@@ -212,7 +236,7 @@ function LangSwitch({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
 
 // Product motif: a work-order card echoing the real console (plate · model · client +
 // status pill), floating over a faint board column — ties the brand to the product.
-function HeroCard({ lang }: { lang: Lang }) {
+function HeroCard({ lang, country }: { lang: Lang; country: PlateSpec }) {
   const status: Tri = { uz: "Jarayonda", ru: "В работе", en: "In progress" };
   const total: Tri = { uz: "1 250 000 so‘m", ru: "1 250 000 сум", en: "1,250,000 UZS" };
   const client: Tri = { uz: "Islom N.", ru: "Ислом Н.", en: "Islom N." };
@@ -226,8 +250,11 @@ function HeroCard({ lang }: { lang: Lang }) {
           <span className="lp-wo-id">Z-0142</span>
           <span className="lp-wo-pill"><span className="lp-pulse" /> {tr(status, lang)}</span>
         </div>
-        <div className="lp-plate"><span className="lp-plate-reg">01</span><span className="lp-plate-main">A 356 BC</span></div>
-        <div className="lp-wo-model">Chevrolet Spark</div>
+        {/* Plate + car cycle through the CIS countries in sync with the trust-line flag. */}
+        <div key={country.code} className="lp-platefade" style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          <div><Plate spec={country} big /></div>
+          <div className="lp-wo-model">{country.car}</div>
+        </div>
         <div className="lp-wo-foot">
           <span className="lp-wo-client"><UserIcon /> {tr(client, lang)}</span>
           <span className="lp-wo-total">{tr(total, lang)}</span>
@@ -417,7 +444,9 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .lp-plate { display: inline-flex; align-items: stretch; border-radius: 7px; overflow: hidden; border: 1.5px solid oklch(0.85 0.01 90); background: #fff; font-family: var(--mono); font-weight: 700; box-shadow: 0 2px 8px oklch(0 0 0 / 0.3); }
 .lp-plate-reg { background: oklch(0.32 0.08 250); color: #fff; padding: 7px 8px; font-size: 15px; }
 .lp-plate-main { color: oklch(0.2 0.02 250); padding: 7px 12px; font-size: 17px; letter-spacing: .06em; }
-.lp-wo-model { font-family: var(--disp); font-weight: 600; font-size: 18px; color: var(--ink); margin-top: 13px; letter-spacing: -0.01em; }
+.lp-wo-model { font-family: var(--disp); font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.01em; }
+@keyframes lp-platein { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.lp-platefade { animation: lp-platein .45s ease; margin: 13px 0; }
 .lp-wo-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 15px; border-top: 1px dashed var(--line2); }
 .lp-wo-client { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink3); }
 .lp-wo-total { font-family: var(--mono); font-weight: 700; font-size: 14.5px; color: var(--ok); }
