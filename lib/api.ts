@@ -138,6 +138,10 @@ export const api = {
   listVehicles: (customerId: string) =>
     call<{ vehicles?: Vehicle[] }>("GET", `/v1/customers/${customerId}/vehicles`)
       .then((r) => r.vehicles ?? []),
+  // Every vehicle across the shop (owner Cars view); owner names are joined from listCustomers.
+  listShopVehicles: (shopId: string) =>
+    call<{ vehicles?: Vehicle[] }>("GET", "/v1/vehicles" + qs({ shopId }))
+      .then((r) => r.vehicles ?? []),
   createCustomer: (shopId: string, c: { phone: string; name: string; language: Lang; telegramHandle?: string; walkIn?: boolean }) =>
     call<Customer>("POST", "/v1/customers", {
       shopId, phone: c.phone, name: c.name, language: langToProto(c.language),

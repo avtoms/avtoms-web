@@ -39,6 +39,16 @@ export default function CustomersPage() {
   // debounced search
   useEffect(() => { const h = setTimeout(() => load(q), 300); return () => clearTimeout(h); }, [q, load]);
 
+  // Deep link from the Cars view (?focus=<customerId>) opens that customer's detail.
+  // Read from window (not useSearchParams) to avoid a Suspense boundary at prerender.
+  useEffect(() => {
+    const focusId = new URLSearchParams(window.location.search).get("focus");
+    if (!focusId) return;
+    let on = true;
+    api.getCustomer(focusId).then((c) => { if (on) setSel(c); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 10 }}>

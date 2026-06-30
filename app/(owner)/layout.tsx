@@ -15,6 +15,7 @@ const ITEMS: NavItem[] = [
   { key: "workorders", route: "/work-orders", icon: "clipboard", labelKey: "nav_workorders" },
   { key: "schedule", route: "/schedule", icon: "clock", labelKey: "nav_schedule" },
   { key: "customers", route: "/customers", icon: "users", labelKey: "nav_customers" },
+  { key: "vehicles", route: "/vehicles", icon: "car", labelKey: "nav_vehicles" },
   { key: "invoices", route: "/invoices", icon: "receipt", labelKey: "nav_invoices" },
   { key: "reports", route: "/reports", icon: "chart", labelKey: "nav_reports" },
   { key: "finances", route: "/finances", icon: "money", labelKey: "nav_finances" },
