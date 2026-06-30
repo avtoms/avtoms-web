@@ -317,6 +317,10 @@ function PlateIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fi
 function LandingStyle() {
   return (
     <style>{`
+/* Hide the page scrollbar on the marketing landing only (the page still scrolls via wheel /
+   trackpad / keys). Scoped with :has(.lp) so the app keeps its normal scrollbar. */
+html:has(.lp) { scrollbar-width: none; -ms-overflow-style: none; }
+html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .lp {
   --bg: oklch(0.155 0.022 258); --bg2: oklch(0.195 0.028 258);
   --panel: oklch(0.225 0.03 258); --panel2: oklch(0.27 0.034 258);
