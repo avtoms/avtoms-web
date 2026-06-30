@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Segmented, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useLang } from "@/components/providers";
-import { woStateFromProto, type WoState } from "@/lib/enums";
+import { woStateFromProto, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
 import { money, num, orderLabel } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
@@ -33,36 +33,40 @@ function useElapsedLabel(startedAt?: string): string | null {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+type MoveTarget = { key: WoState; label: string; accent: string };
+
 // ── per-card status dropdown (Jira-style "move to") ──
-function StatusMenu({ current, cols, onMove, disabled }: {
-  current: WoState; cols: ColDef[]; onMove: (s: WoState) => void; disabled: boolean;
+// `targets` are the LEGAL next states for this card (driven by the state machine, not the
+// board layout) so the menu never offers an illegal move and can reach off-board states
+// like Closed/Canceled. The button shows the current state styled by its column.
+function StatusMenu({ currentCol, targets, onMove, disabled }: {
+  currentCol: ColDef; targets: MoveTarget[]; onMove: (s: WoState) => void; disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const cur = cols.find((c) => c.key === current);
+  const dead = disabled || targets.length === 0;
   return (
     <div style={{ position: "relative" }}>
-      <button disabled={disabled} onClick={() => setOpen((o) => !o)} className="an-btn" style={{
+      <button disabled={dead} onClick={() => setOpen((o) => !o)} className="an-btn" style={{
         display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 9px", borderRadius: 999,
-        border: "1px solid var(--line)", background: cur?.soft ?? "var(--surface-2)", color: cur?.accent ?? "var(--ink-2)",
-        cursor: disabled ? "default" : "pointer", fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+        border: "1px solid var(--line)", background: currentCol.soft, color: currentCol.accent,
+        cursor: dead ? "default" : "pointer", fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
       }}>
         <span style={{ width: 7, height: 7, borderRadius: 99, background: "currentColor" }} />
-        {cur?.label ?? current}
-        <Icon name="chevD" size={13} />
+        {currentCol.label}
+        {targets.length > 0 && <Icon name="chevD" size={13} />}
       </button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
           <div className="an-modal-in" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 91, minWidth: 180, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)", boxShadow: "var(--shadow-lg)", padding: 6 }}>
-            {cols.map((c) => (
-              <button key={c.key} onClick={() => { setOpen(false); if (c.key !== current) onMove(c.key); }} className="an-row-btn" style={{
+            {targets.map((tg) => (
+              <button key={tg.key} onClick={() => { setOpen(false); onMove(tg.key); }} className="an-row-btn" style={{
                 display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 10px", border: "none",
-                background: c.key === current ? "var(--surface-2)" : "transparent", color: "var(--ink)", cursor: "pointer",
+                background: "transparent", color: "var(--ink)", cursor: "pointer",
                 borderRadius: "var(--radius-sm)", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 13.5, textAlign: "left",
               }}>
-                <span style={{ width: 8, height: 8, borderRadius: 99, background: c.accent }} />
-                {c.label}
-                {c.key === current && <Icon name="check" size={14} style={{ marginLeft: "auto", color: "var(--ink-3)" }} />}
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: tg.accent }} />
+                {tg.label}
               </button>
             ))}
           </div>
@@ -73,8 +77,8 @@ function StatusMenu({ current, cols, onMove, disabled }: {
 }
 
 // ── work-order card ──
-function WOCard({ wo, col, cols, busy, dragging, t, onOpen, onMove, onDragStart, onDragEnd }: {
-  wo: WorkOrder; col: ColDef; cols: ColDef[]; busy: boolean; dragging: boolean; t: (k: string) => string;
+function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragStart, onDragEnd }: {
+  wo: WorkOrder; col: ColDef; targets: MoveTarget[]; busy: boolean; dragging: boolean; t: (k: string) => string;
   onOpen: () => void; onMove: (s: WoState) => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
@@ -136,7 +140,7 @@ function WOCard({ wo, col, cols, busy, dragging, t, onOpen, onMove, onDragStart,
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <StatusMenu current={col.key} cols={cols} onMove={onMove} disabled={busy} />
+        <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} />
         <button onClick={onOpen} className="an-btn" style={{
           display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: "var(--radius-sm)",
           border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer",
@@ -153,7 +157,7 @@ function WOCard({ wo, col, cols, busy, dragging, t, onOpen, onMove, onDragStart,
 // is dragged to another column or a target is chosen from its status dropdown; the caller
 // decides what a transition means (and whether to reload). Orders whose state is not one of
 // `cols` are simply not shown (the board is the active pipeline; archives live in the list).
-export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emptyLabel }: {
+export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emptyLabel, moveTargets }: {
   orders: WorkOrder[];
   cols: ColDef[];
   busyId: string | null;
@@ -161,6 +165,10 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   onOpen: (woId: string) => void;
   hint?: string;
   emptyLabel: string;
+  // Legal move targets for a card's current state. Defaults to the on-board columns that
+  // the state machine permits; pass a wider set (e.g. the full TRANSITIONS, including
+  // off-board Closed/Canceled) for the owner board.
+  moveTargets?: (current: WoState) => WoState[];
 }) {
   const { t } = useLang();
   const isMobile = useIsMobile();
@@ -170,6 +178,15 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   const dragIdRef = useRef<string | null>(null);
 
   const byState = (s: WoState) => orders.filter((w) => woStateFromProto(w.state) === s);
+
+  // Resolve a card's move targets into labelled, coloured options. An on-board target keeps
+  // its column colour; an off-board one (Closed/Canceled) falls back to a neutral chip.
+  const defaultTargets = (cur: WoState) => cols.map((c) => c.key).filter((k) => k !== cur && (TRANSITIONS[cur] || []).includes(k));
+  const resolveTargets = moveTargets ?? defaultTargets;
+  const targetsFor = (cur: WoState): MoveTarget[] => resolveTargets(cur).map((k) => {
+    const c = cols.find((x) => x.key === k);
+    return { key: k, label: c?.label ?? t(STATE_LABEL[k]), accent: c?.accent ?? "var(--ink-2)" };
+  });
   const startDrag = (id: string) => { dragIdRef.current = id; setDragId(id); };
   const endDrag = () => { dragIdRef.current = null; setDragId(null); setOverCol(null); };
   const dropOn = (target: WoState) => { const id = dragIdRef.current; setOverCol(null); if (id) onMove(id, target); };
@@ -188,7 +205,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
             <div style={{ padding: "32px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 14 }}>{emptyLabel}</div>
           ) : items.map((w) => {
             const c = cols.find((x) => x.key === woStateFromProto(w.state))!;
-            return <WOCard key={w.id} wo={w} col={c} cols={cols} busy={busyId === w.id} dragging={false} t={t} onOpen={() => onOpen(w.id)} onMove={(s) => onMove(w.id, s)} onDragStart={() => {}} onDragEnd={() => {}} />;
+            return <WOCard key={w.id} wo={w} col={c} targets={targetsFor(c.key)} busy={busyId === w.id} dragging={false} t={t} onOpen={() => onOpen(w.id)} onMove={(s) => onMove(w.id, s)} onDragStart={() => {}} onDragEnd={() => {}} />;
           })}
         </div>
       </div>
@@ -229,7 +246,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
                       {isOver ? t("drop_here") : emptyLabel}
                     </div>
                   ) : items.map((w) => (
-                    <WOCard key={w.id} wo={w} col={c} cols={cols} busy={busyId === w.id} dragging={dragId === w.id} t={t} onOpen={() => onOpen(w.id)} onMove={(s) => onMove(w.id, s)} onDragStart={() => startDrag(w.id)} onDragEnd={endDrag} />
+                    <WOCard key={w.id} wo={w} col={c} targets={targetsFor(c.key)} busy={busyId === w.id} dragging={dragId === w.id} t={t} onOpen={() => onOpen(w.id)} onMove={(s) => onMove(w.id, s)} onDragStart={() => startDrag(w.id)} onDragEnd={endDrag} />
                   ))}
                 </div>
               </div>

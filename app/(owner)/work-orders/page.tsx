@@ -9,19 +9,21 @@ import { useRouter } from "next/navigation";
 import { Card, Segmented, Spinner, Empty } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { WO_STATES, STATE_LABEL, type WoState } from "@/lib/enums";
+import { WO_STATES, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
 import type { WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
 import { WORow } from "../_shared";
 
-// The owner pipeline: the money-sensitive states, left to right. Archive/idle states
-// (draft, closed, canceled) intentionally live in the List, not on the board.
+// The owner pipeline, left to right. Draft starts the flow; the terminal Closed/Canceled
+// states stay off the board (reachable via a card's status menu, then they drop into the
+// List). Each card's status menu offers exactly the legal next states (see moveTargets).
 const PIPELINE: ColDef[] = [
+  { key: "draft", label: "st_draft", tone: "accent", accent: "var(--ink-3)", soft: "var(--surface-2)" },
   { key: "estimated", label: "st_estimated", tone: "accent", accent: "var(--info)", soft: "var(--info-soft)" },
   { key: "approved", label: "st_approved", tone: "accent", accent: "var(--accent)", soft: "var(--accent-soft)" },
   { key: "in_progress", label: "st_in_progress", tone: "warn", accent: "var(--warn)", soft: "var(--warn-soft)" },
   { key: "ready", label: "st_ready", tone: "ok", accent: "var(--ok)", soft: "var(--ok-soft)" },
-  { key: "invoiced", label: "st_invoiced", tone: "ok", accent: "var(--ink-2)", soft: "var(--surface-2)" },
+  { key: "invoiced", label: "st_invoiced", tone: "ok", accent: "var(--accent-2)", soft: "var(--accent-soft)" },
 ];
 
 export default function WorkOrdersPage() {
@@ -99,6 +101,7 @@ export default function WorkOrdersPage() {
           onOpen={(id) => router.push(`/work-orders/${id}`)}
           hint={t("board_hint")}
           emptyLabel={t("no_orders_col")}
+          moveTargets={(cur) => TRANSITIONS[cur] || []}
         />
       ) : (
         <Card pad={0}>
