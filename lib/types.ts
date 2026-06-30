@@ -168,11 +168,12 @@ export interface Warranty {
 export interface ShopExpense {
   id: string;
   shopId: string;
-  category: string; // rent, salary, utilities, supplies, tax, other
+  category: string; // predefined (rent/salary/...) or a shop's custom free-text category
   amount: number | string; // tiyin
   incurredOn: string; // RFC3339
   note?: string;
   createdAt: string;
+  staffId?: string; // optional worker this expense is for (e.g. whose salary)
 }
 
 export interface ExpenseBucket {

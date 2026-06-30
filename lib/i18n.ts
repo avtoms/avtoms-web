@@ -259,6 +259,8 @@ export const STR: Record<string, Triple> = {
   default_cost: ["Standart tannarx", "Стандарт таннарх", "Базовая себестоимость"],
   service_name: ["Xizmat nomi", "Хизмат номи", "Название услуги"],
   category: ["Toifa", "Тоифа", "Категория"],
+  custom_category: ["Maxsus toifa", "Махсус тоифа", "Своя категория"],
+  worker: ["Xodim", "Ходим", "Сотрудник"],
   est_time: ["Taxminiy vaqt (daqiqa)", "Тахминий вақт (дақиқа)", "Примерное время (мин)"],
   materials_needed: ["Kerakli materiallar", "Керакли материаллар", "Необходимые материалы"],
   material_name: ["Material nomi", "Материал номи", "Название материала"],
