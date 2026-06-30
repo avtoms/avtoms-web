@@ -13,6 +13,7 @@ import type { Customer, Vehicle } from "@/lib/types";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { VehicleHistoryModal } from "@/components/vehicle-history";
+import { EditVehicleModal } from "@/components/vehicle-edit";
 
 export default function VehiclesPage() {
   const { session } = useAuth();
@@ -25,6 +26,7 @@ export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [owners, setOwners] = useState<Record<string, Customer>>({});
   const [hist, setHist] = useState<Vehicle | null>(null);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
 
   const load = useCallback(async () => {
     setVehicles(null);
@@ -90,6 +92,8 @@ export default function VehiclesPage() {
                   </div>
                 </div>
               </button>
+              {/* edit this car */}
+              <Btn variant="ghost" size="sm" icon="edit" aria-label={t("edit")} onClick={() => setEditing(v)} />
               {/* jump to the owner's card */}
               {o && <Btn variant="ghost" size="sm" icon="users" aria-label={t("nav_customers")} onClick={() => router.push(`/customers?focus=${o.id}`)} />}
             </div>
@@ -97,6 +101,7 @@ export default function VehiclesPage() {
         })}
       </Card>
       <VehicleHistoryModal vehicle={hist} shopId={shopId} onClose={() => setHist(null)} />
+      <EditVehicleModal vehicle={editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); load(); }} />
     </div>
   );
 }
