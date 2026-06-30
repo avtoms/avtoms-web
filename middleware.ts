@@ -14,9 +14,11 @@ export function middleware(req: NextRequest) {
   const inMechanicArea = pathname === "/m" || pathname.startsWith("/m/");
   const inAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
 
-  // Not signed in → only /login is allowed.
+  // Not signed in → the public marketing site is the front door: the landing page ("/"),
+  // the login screen, and the demo-request API are open; everything else bounces to /login.
   if (!role) {
-    return pathname === "/login" ? NextResponse.next() : redirect("/login");
+    const isPublic = pathname === "/" || pathname === "/login" || pathname.startsWith("/api/");
+    return isPublic ? NextResponse.next() : redirect("/login");
   }
 
   // Signed in but on /login or root → send to role home.
