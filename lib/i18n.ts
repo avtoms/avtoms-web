@@ -158,6 +158,8 @@ export const STR: Record<string, Triple> = {
   mark_ready: ["Tayyor deb belgilash", "Тайёр деб белгилаш", "Отметить готовым"],
   generate_invoice: ["Hisob-faktura chiqarish", "Ҳисоб-фактура чиқариш", "Выставить счёт"],
   cancel_wo: ["Buyurtmani bekor qilish", "Буюртмани бекор қилиш", "Отменить заказ"],
+  cancel_wo_confirm: ["Bu buyurtmani bekor qilasizmi? Bu amalni qaytarib bo'lmaydi.", "Бу буюртмани бекор қиласизми? Бу амални қайтариб бўлмайди.", "Отменить этот заказ-наряд? Это действие нельзя отменить."],
+  no: ["Yo'q", "Йўқ", "Нет"],
   approve: ["Tasdiqlash", "Тасдиқлаш", "Подтвердить"],
   decline: ["Rad etish", "Рад этиш", "Отклонить"],
   start_timer: ["Vaqtni boshlash", "Вақтни бошлаш", "Запустить таймер"],

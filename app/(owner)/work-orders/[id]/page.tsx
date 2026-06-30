@@ -48,6 +48,7 @@ export default function WorkOrderDetailPage() {
   const [addItem, setAddItem] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [invoice, setInvoice] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [approval, setApproval] = useState<{ deepLink: string; botUsername: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -211,7 +212,7 @@ export default function WorkOrderDetailPage() {
       {(forwardTargets.length > 0 || canCancel || state === "ready" || state === "invoiced") && (
         <div style={{ position: "fixed", bottom: 0, left: isMobile ? 0 : 260, right: 0, zIndex: 50, padding: 14, paddingBottom: isMobile ? "calc(14px + env(safe-area-inset-bottom))" : 14, background: "color-mix(in oklch, var(--bg), transparent 8%)", borderTop: "1px solid var(--line)", backdropFilter: "blur(8px)" }}>
           <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
-            {canCancel && <Btn variant="ghost" size={isMobile ? "sm" : "md"} disabled={busy} onClick={() => doTransition("canceled")} style={{ color: "var(--danger)", marginRight: "auto" }}>{t("cancel_wo")}</Btn>}
+            {canCancel && <Btn variant="ghost" size={isMobile ? "sm" : "md"} disabled={busy} onClick={() => setConfirmCancel(true)} style={{ color: "var(--danger)", marginRight: "auto" }}>{t("cancel_wo")}</Btn>}
             {state === "estimated" && <Btn variant="soft" size={isMobile ? "sm" : "md"} icon="tg" disabled={busy} onClick={requestApproval}>{t("request_approval")}</Btn>}
             {(state === "ready" || state === "invoiced") && <Btn variant="primary" size={isMobile ? "md" : "lg"} icon="receipt" disabled={busy} onClick={() => setInvoice(true)}>{state === "ready" ? t("generate_invoice") : t("invoice")}</Btn>}
             {forwardTargets.map((target) => {
@@ -227,6 +228,13 @@ export default function WorkOrderDetailPage() {
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
+      <Modal open={confirmCancel} onClose={() => setConfirmCancel(false)} title={t("cancel_wo")} maxWidth={400}
+        footer={<>
+          <Btn variant="ghost" disabled={busy} onClick={() => setConfirmCancel(false)}>{t("no")}</Btn>
+          <Btn variant="primary" disabled={busy} style={{ background: "var(--danger)" }} onClick={async () => { setConfirmCancel(false); await doTransition("canceled"); }}>{busy ? <Spinner /> : t("cancel_wo")}</Btn>
+        </>}>
+        <div style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.5 }}>{t("cancel_wo_confirm")}</div>
+      </Modal>
     </div>
   );
 }
