@@ -224,6 +224,22 @@ export const api = {
         name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
       })),
     }),
+  updateMenuItem: (id: string, m: {
+    name: string; defaultPrice: number; defaultCost?: number; active: boolean;
+    category?: string; estimatedMinutes?: number;
+    materials?: { name: string; quantity: number; unit: string; unitCost: number; unitPrice: number }[];
+  }) =>
+    call<MenuItem>("POST", `/v1/menu-items/${id}`, {
+      nameUzLatn: m.name, nameUzCyrl: m.name, nameRu: m.name,
+      defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
+      active: m.active, category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
+      materials: (m.materials ?? []).map((x) => ({
+        name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
+      })),
+    }),
+  listMenuPriceHistory: (id: string) =>
+    call<{ changes?: import("@/lib/types").MenuPriceChange[] }>("GET", `/v1/menu-items/${id}/price-history`)
+      .then((r) => r.changes ?? []),
 
   // ── appointments ──
   listAppointments: (shopId: string, from?: string, to?: string) =>

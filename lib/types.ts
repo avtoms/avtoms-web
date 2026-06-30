@@ -121,6 +121,16 @@ export interface MenuMaterial {
   unitPrice?: string; // tiyin
 }
 
+export interface MenuPriceChange {
+  id: string;
+  menuItemId: string;
+  oldPrice: string | number; // tiyin
+  newPrice: string | number;
+  oldCost?: string | number;
+  newCost?: string | number;
+  changedAt: string; // RFC3339
+}
+
 export interface MenuItem {
   id: string;
   shopId: string;

@@ -274,6 +274,8 @@ export const STR: Record<string, Triple> = {
   worker: ["Xodim", "Ходим", "Сотрудник"],
   est_time: ["Taxminiy vaqt (daqiqa)", "Тахминий вақт (дақиқа)", "Примерное время (мин)"],
   materials_needed: ["Kerakli materiallar", "Керакли материаллар", "Необходимые материалы"],
+  price_history: ["Narx tarixi", "Нарх тарихи", "История цен"],
+  no_price_changes: ["Narx o'zgarmagan", "Нарх ўзгармаган", "Цена не менялась"],
   material_name: ["Material nomi", "Материал номи", "Название материала"],
   unit: ["Birlik", "Бирлик", "Ед. изм."],
   plate_type: ["Raqam turi", "Рақам тури", "Тип номера"],
