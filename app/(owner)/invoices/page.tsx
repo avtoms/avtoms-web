@@ -6,9 +6,9 @@ import { Card, Badge, Btn, Modal, Spinner, Empty, FiscalBadge, QR } from "@/comp
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money, orderLabel } from "@/lib/format";
 import { fiscalFromProto, paymentFromProto, type PaymentMethod } from "@/lib/enums";
-import type { Invoice } from "@/lib/types";
+import type { Invoice, WorkOrder } from "@/lib/types";
 import { Row } from "../_shared";
 
 export default function InvoicesPage() {
@@ -18,12 +18,23 @@ export default function InvoicesPage() {
   const { toast } = useToast();
 
   const [list, setList] = useState<Invoice[]>([]);
+  const [orderNos, setOrderNos] = useState<Record<string, string>>({}); // workOrderId → "Z-0001"
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<Invoice | null>(null);
 
+  // An invoice references its work order by id; resolve that to the human Z-number so the
+  // list and detail show "Z-0008" instead of a raw UUID.
+  const orderNoFor = useCallback((inv: Invoice | null) => (inv ? orderNos[inv.workOrderId] ?? "—" : "—"), [orderNos]);
+
   const load = useCallback(async () => {
     setLoading(true);
-    try { setList(await api.listInvoices(shopId)); }
+    try {
+      const [invs, wos] = await Promise.all([api.listInvoices(shopId), api.listWorkOrders(shopId)]);
+      const map: Record<string, string> = {};
+      for (const w of wos) map[w.id] = orderLabel(w as WorkOrder);
+      setOrderNos(map);
+      setList(invs);
+    }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setLoading(false); }
   }, [shopId, t, toast]);
@@ -46,7 +57,7 @@ export default function InvoicesPage() {
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="receipt" /></div>
           : list.map((inv) => (
             <button key={inv.id} onClick={() => setSel(inv)} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, rowGap: 6, flexWrap: "wrap", width: "100%", padding: "13px 18px", border: "none", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
-              <div style={{ minWidth: 76 }}><div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{inv.id.slice(0, 8)}</div><div style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{inv.workOrderId.slice(0, 8)}</div></div>
+              <div style={{ minWidth: 76 }}><div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{orderNoFor(inv)}</div><div style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{t("invoice").toLowerCase()} {inv.id.slice(0, 6)}</div></div>
               <div style={{ flex: 1 }} />
               <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(inv.total)}</span>
               <span className="an-hide-sm"><FiscalBadge status={fiscalFromProto(inv.fiscalStatus)} /></span>
@@ -56,24 +67,24 @@ export default function InvoicesPage() {
             </button>
           ))}
       </Card>
-      <InvoiceDetailModal invoice={sel} onClose={() => setSel(null)} onPay={pay} />
+      <InvoiceDetailModal invoice={sel} orderNo={orderNoFor(sel)} onClose={() => setSel(null)} onPay={pay} />
     </div>
   );
 }
 
-function InvoiceDetailModal({ invoice, onClose, onPay }: { invoice: Invoice | null; onClose: () => void; onPay: (inv: Invoice, m: PaymentMethod) => void }) {
+function InvoiceDetailModal({ invoice, orderNo, onClose, onPay }: { invoice: Invoice | null; orderNo: string; onClose: () => void; onPay: (inv: Invoice, m: PaymentMethod) => void }) {
   const { t } = useLang();
   if (!invoice) return null;
   const fiscal = fiscalFromProto(invoice.fiscalStatus);
   return (
-    <Modal open={!!invoice} onClose={onClose} title={t("invoice") + " · " + invoice.id.slice(0, 8)} maxWidth={440}>
+    <Modal open={!!invoice} onClose={onClose} title={t("invoice") + " · " + orderNo} maxWidth={440}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <FiscalBadge status={fiscal} />
           <Badge tone={invoice.paid ? "ok" : "neutral"} dot>{invoice.paid ? t("paid") : t("unpaid")}</Badge>
         </div>
         <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
-          <Row label={t("work_order")} value={invoice.workOrderId.slice(0, 8)} mono />
+          <Row label={t("work_order")} value={orderNo} mono />
           <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
           <Row label={t("total")} value={money(invoice.total) + " " + t("soum")} strong mono />
         </div>
