@@ -9,7 +9,8 @@ import { Icon } from "@/components/icons";
 import { MoneyInput } from "@/components/catalog-fields";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, type WoState, type LineItemKind } from "@/lib/enums";
-import { money, num, durationFmt, minutesBetween } from "@/lib/format";
+import { money, num, durationFmt, minutesBetween, orderLabel, vehicleTitle } from "@/lib/format";
+import { PlatePreview } from "@/components/plate";
 import type { WorkOrder, MenuItem } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
@@ -292,7 +293,7 @@ export default function MechanicWoDetailPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <IconBtn icon="arrowL" onClick={() => router.push("/m")} aria-label={t("back")} />
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h1 style={{ margin: 0, fontSize: "calc(22px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.02em", fontFamily: "var(--font-mono)" }}>{wo.id}</h1>
+          <h1 style={{ margin: 0, fontSize: "calc(22px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.02em", fontFamily: "var(--font-mono)" }}>{orderLabel(wo)}</h1>
           <StateBadge state={state} />
         </div>
       </div>
@@ -303,9 +304,12 @@ export default function MechanicWoDetailPage() {
           <div style={{ width: 46, height: 46, borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="car" size={24} />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{t("work_order")}</div>
-            <div style={{ fontSize: 13, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{wo.vehicleId}</div>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vehicleTitle(wo) || t("work_order")}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {wo.plate && <PlatePreview plate={wo.plate} size="sm" />}
+              {wo.customerName && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "var(--ink-3)" }}><Icon name="users" size={13} />{wo.customerName}</span>}
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("total")}</div>

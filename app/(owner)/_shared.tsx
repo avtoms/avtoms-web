@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Card, Badge, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useT } from "@/components/providers";
-import { money, num, orderLabel } from "@/lib/format";
+import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
+import { PlatePreview } from "@/components/plate";
 import { woStateFromProto } from "@/lib/enums";
 import { StateBadge } from "@/components/ui";
 import type { WorkOrder } from "@/lib/types";
@@ -54,29 +55,31 @@ export function StatCard({ label, value, sub, icon, tone = "neutral", big, onCli
   );
 }
 
-// Work-order list row. The backend doesn't embed the vehicle/customer in the list
-// response, so we show the WO id + total + state (degrade gracefully).
-// TODO backend: include vehicle/plate summary in listWorkOrders for richer rows.
+// Work-order list row. Identity is the car (plate · make model) with the client name
+// secondary — the way a UZ shop refers to a job ("01 A 356 BC · Spark · Иван"). The
+// gateway denormalizes plate/make/model/customerName onto each work order for display.
 export function WORow({ wo }: { wo: WorkOrder }) {
   const t = useT();
   const isMobile = useIsMobile();
   const state = woStateFromProto(wo.state);
   const total = num(wo.total);
   const created = wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
+  const title = vehicleTitle(wo) || t("work_order");
   return (
     <Link href={`/work-orders/${wo.id}`} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 13, width: "100%", padding: isMobile ? "12px 14px" : "13px 18px", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", textDecoration: "none" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 60, flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 56, flexShrink: 0 }}>
         <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{orderLabel(wo)}</span>
         <span style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{created}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("work_order")}</div>
-        {/* On phones drop the secondary vehicle id and surface the money under the title instead. */}
-        {isMobile
-          ? <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 12.5 }}>{money(total)}</div>
-          : <div style={{ fontSize: 12, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)" }}>{wo.vehicleId.slice(0, 12)}</div>}
+        <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>{title}</div>
+        {/* Client name secondary; on phones surface the money here too. */}
+        <div style={{ fontSize: 12, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", gap: 8 }}>
+          {wo.customerName && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.customerName}</span>}
+          {isMobile && <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", marginLeft: "auto", flexShrink: 0 }}>{money(total)}</span>}
+        </div>
       </div>
-      {!isMobile && <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 13 }}>{money(total)}</span>}
+      {!isMobile && <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 13, flexShrink: 0 }}>{money(total)}</span>}
       <StateBadge state={state} style={{ flexShrink: 0 }} />
       {/* chevron is decorative — the whole row is a link — so drop it on phones to save width */}
       {!isMobile && <Icon name="chevR" size={16} style={{ color: "var(--ink-3)" }} />}

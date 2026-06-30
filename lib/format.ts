@@ -16,6 +16,22 @@ export function orderLabel(wo: { orderNo?: string | number; id: string }): strin
   return n > 0 ? "Z-" + String(n).padStart(4, "0") : wo.id.slice(0, 8);
 }
 
+// In Uzbekistan a car is identified day-to-day by its plate + model (e.g. "01 A 356 BC Spark"),
+// with the owner's name secondary. These helpers build that identity consistently everywhere.
+// makeModel: "Spark", "Chevrolet Spark" → the human car name (make + model, de-duped, trimmed).
+export function makeModel(v: { make?: string; model?: string }): string {
+  const parts = [v.make, v.model].map((s) => (s ?? "").trim()).filter(Boolean);
+  return parts.join(" ");
+}
+
+// vehicleTitle: the primary line — "01 A 356 BC · Spark". Falls back gracefully when a piece
+// is missing (plate-only, or model-only). Returns "" when nothing is known.
+export function vehicleTitle(v: { plate?: string; make?: string; model?: string }): string {
+  const plate = (v.plate ?? "").trim();
+  const mm = makeModel(v);
+  return [plate, mm].filter(Boolean).join(" · ");
+}
+
 export function vatBreakdown(items: { unitPrice: string | number; quantity: number }[]) {
   const subtotal = items.reduce((s, i) => s + num(i.unitPrice) * (i.quantity || 0), 0);
   const vat = Math.round(subtotal * 0.12);
