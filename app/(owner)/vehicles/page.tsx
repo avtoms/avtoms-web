@@ -44,10 +44,12 @@ export default function VehiclesPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return vehicles ?? [];
+    const squash = (s: string) => s.toLowerCase().replace(/\s+/g, ""); // space-insensitive plate match
+    const needleSquashed = squash(needle);
     return (vehicles ?? []).filter((v) => {
       const o = owners[v.customerId];
-      const hay = [v.plate, v.make, v.model, o?.name, o?.phone].filter(Boolean).join(" ").toLowerCase();
-      return hay.includes(needle);
+      const text = [v.make, v.model, o?.name, o?.phone].filter(Boolean).join(" ").toLowerCase();
+      return text.includes(needle) || squash(v.plate || "").includes(needleSquashed);
     });
   }, [vehicles, owners, q]);
 
