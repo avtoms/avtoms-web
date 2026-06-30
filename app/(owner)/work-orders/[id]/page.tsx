@@ -18,6 +18,7 @@ import {
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem, AuditEntry } from "@/lib/types";
 import { MoneyInput } from "@/components/catalog-fields";
+import { PlatePreview } from "@/components/plate";
 import { SecTitle, Row } from "../../_shared";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -125,11 +126,13 @@ export default function WorkOrderDetailPage() {
         </div>
         <Card pad={16}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <div style={{ width: 46, height: 46, borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="car" size={24} /></div>
+            <div style={{ width: 46, height: 46, borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="car" size={24} /></div>
             <div style={{ flex: 1, minWidth: 140 }}>
-              {/* TODO backend: no get-vehicle-by-id endpoint; show the vehicle id reference. */}
-              <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{t("vehicle")}</div>
-              <div style={{ fontSize: 13, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{wo.vehicleId}</div>
+              <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+                {wo.plate ? <PlatePreview plate={wo.plate} size="sm" /> : <span style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{wo.vehicleId.slice(0, 8)}</span>}
+                {wo.customerName && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "var(--ink-3)" }}><Icon name="users" size={13} />{wo.customerName}</span>}
+              </div>
             </div>
           </div>
         </Card>
