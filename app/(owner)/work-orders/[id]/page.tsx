@@ -17,7 +17,7 @@ import {
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem, AuditEntry } from "@/lib/types";
-import { MoneyInput } from "@/components/catalog-fields";
+import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { SecTitle, Row } from "../../_shared";
@@ -336,8 +336,13 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   // The picked service's bill-of-materials, each toggleable to also add as a material line.
   const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
+  // Ad-hoc extra materials the owner types in to attach to this service line.
+  const [extras, setExtras] = useState<{ name: string; qty: string; unit: string; cost: string; price: string }[]>([]);
+  const addExtra = () => setExtras((s) => [...s, { name: "", qty: "1", unit: "pcs", cost: "", price: "" }]);
+  const setExtra = (i: number, patch: Partial<{ name: string; qty: string; unit: string; cost: string; price: string }>) => setExtras((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const delExtra = (i: number) => setExtras((s) => s.filter((_, j) => j !== i));
 
-  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setMats([]); };
+  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setMats([]); setExtras([]); };
 
   useEffect(() => {
     if (!open) return;
@@ -375,7 +380,14 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       menuItemId: from.menuItemId || undefined,
       defaultPrice: from.defaultPrice || undefined,
     }];
-    for (const m of mats) if (m.on) items.push(matLine(m.mat));
+    if (kind === "service") {
+      for (const m of mats) if (m.on) items.push(matLine(m.mat));
+      for (const e of extras) {
+        if (!e.name.trim()) continue;
+        const label = e.name.trim() + (e.unit ? ` · ${e.qty} ${e.unit}` : "");
+        items.push({ kind: "material", description: label, unitPrice: parseInt(e.price, 10) || 0, quantity: parseInt(e.qty, 10) || 1, cost: parseInt(e.cost, 10) || 0 });
+      }
+    }
     onAdd(items);
   };
 
@@ -412,16 +424,29 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
             </div>
           )}
 
-          {/* this service's materials — toggle which to also add as material lines */}
-          {mats.length > 0 && (
+          {/* materials for this service — toggle the price-list ones and/or add extras */}
+          {kind === "service" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 7, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("materials_needed")}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("materials_needed")}</span>
+                <Btn variant="soft" size="sm" icon="plus" onClick={addExtra}>{t("add_material")}</Btn>
+              </div>
               {mats.map((m, i) => (
                 <button key={i} type="button" onClick={() => setMats((s) => s.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))} className="an-btn" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: m.on ? "var(--accent-soft)" : "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
                   <span style={{ width: 18, height: 18, borderRadius: 5, border: "1.5px solid " + (m.on ? "var(--accent-2)" : "var(--line-2)"), background: m.on ? "var(--accent-2)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.on && <Icon name="check" size={13} style={{ color: "#fff" }} />}</span>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--ink)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.mat.name}{m.mat.unit ? ` · ${m.mat.quantity} ${m.mat.unit}` : m.mat.quantity > 1 ? ` ×${m.mat.quantity}` : ""}</span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, color: "var(--ink-2)", fontWeight: 700 }}>{money(Math.round(num(m.mat.unitPrice) * (m.mat.quantity || 1)))}</span>
                 </button>
+              ))}
+              {extras.map((e, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 52px 60px 1fr 1fr 26px", gap: 6, alignItems: "center" }}>
+                  <TextInput value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value })} />
+                  <TextInput value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} />
+                  <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} />
+                  <MoneyInput value={e.cost} onChange={(v) => setExtra(i, { cost: v })} placeholder={t("unit_cost")} />
+                  <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} />
+                  <Btn variant="ghost" size="sm" icon="trash" onClick={() => delExtra(i)} aria-label="remove" />
+                </div>
               ))}
             </div>
           )}
