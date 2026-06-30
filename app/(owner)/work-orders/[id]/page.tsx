@@ -16,7 +16,7 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry, Part } from "@/lib/types";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
@@ -326,6 +326,11 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
 }) {
   const { t } = useLang();
   const [mode, setMode] = useState<"menu" | "custom">("menu");
+  // Which catalog the "from list" view shows: services (price list) or materials (inventory).
+  const [catalog, setCatalog] = useState<"services" | "materials">("services");
+  // True once a line was picked from a catalog — hides the service/material toggle so a
+  // catalogued service can't be silently turned into a material (and vice-versa).
+  const [picked, setPicked] = useState(false);
   const [kind, setKind] = useState<LineItemKind>("service");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("");
@@ -334,6 +339,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   // Captures the price-list origin so a negotiated price can be audited against the menu price.
   const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   // The picked service's bill-of-materials, each toggleable to also add as a material line.
   const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
   // Ad-hoc extra materials the owner types in to attach to this service line.
@@ -342,24 +348,40 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const setExtra = (i: number, patch: Partial<{ name: string; qty: string; unit: string; cost: string; price: string }>) => setExtras((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const delExtra = (i: number) => setExtras((s) => s.filter((_, j) => j !== i));
 
-  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setMats([]); setExtras([]); };
+  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setMats([]); setExtras([]); };
 
   useEffect(() => {
     if (!open) return;
-    setMode("menu"); reset();
+    setMode("menu"); setCatalog("services"); reset();
     api.listMenuItems(shopId).then((m) => setMenu(m.filter((x) => x.active))).catch(() => {});
+    api.listParts(shopId).then((p) => setParts(p.filter((x) => x.active))).catch(() => {});
   }, [open, shopId]);
 
   // Picking from the price list prefills the editor (instead of adding immediately) so the
   // owner can negotiate the price before confirming — the menu price is kept as the snapshot.
   // The service's materials come along (pre-checked) so they can be added in one go.
   const pickMenu = (m: MenuItem) => {
+    setPicked(true);
     setKind("service");
     setDesc(menuName(m, lang));
     setPrice(String(num(m.defaultPrice)));
     setCost(String(num(m.defaultCost)));
     setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) });
     setMats((m.materials ?? []).map((mat) => ({ on: true, mat })));
+    setExtras([]);
+    setMode("custom");
+  };
+  // Picking a material from the inventory catalog prefills a material line (price/cost/unit
+  // from the part) — materials come from the catalog, not from flipping a service's type.
+  const pickPart = (p: Part) => {
+    setPicked(true);
+    setKind("material");
+    setDesc(p.unit ? `${p.name} (${p.unit})` : p.name);
+    setPrice(String(num(p.unitPrice)));
+    setCost(String(num(p.unitCost)));
+    setFrom({ menuItemId: "", defaultPrice: num(p.unitPrice) });
+    setMats([]);
+    setExtras([]);
     setMode("custom");
   };
   // Build a material line from a menu material: fold the (possibly fractional) quantity into
@@ -399,18 +421,36 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       footer={mode === "custom" ? <><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" icon="plus" disabled={busy} onClick={addCustom}>{t("add")}</Btn></> : undefined}>
       <Segmented options={[{ value: "menu", label: t("from_menu") }, { value: "custom", label: t("custom_item") }]} value={mode} onChange={(v) => { const nv = v as "menu" | "custom"; if (nv === "custom" && mode === "menu") reset(); setMode(nv); }} style={{ marginBottom: 16, width: "100%" }} />
       {mode === "menu" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 360, overflowY: "auto" }}>
-          {menu.length === 0 && <Empty icon="list" text={t("empty")} />}
-          {menu.map((m) => (
-            <button key={m.id} disabled={busy} onClick={() => pickMenu(m)} className="an-row-btn" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
-              <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{menuName(m, lang)}</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 14 }}>{money(m.defaultPrice)}</span>
-            </button>
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* services come from the price list; materials from the inventory catalog */}
+          <Segmented options={[{ value: "services", label: t("services") }, { value: "materials", label: t("materials") }]} value={catalog} onChange={(v) => setCatalog(v as "services" | "materials")} size="sm" style={{ width: "100%" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 340, overflowY: "auto" }}>
+            {catalog === "services" ? (
+              menu.length === 0 ? <Empty icon="list" text={t("empty")} /> :
+              menu.map((m) => (
+                <button key={m.id} disabled={busy} onClick={() => pickMenu(m)} className="an-row-btn" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
+                  <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{menuName(m, lang)}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 14 }}>{money(m.defaultPrice)}</span>
+                </button>
+              ))
+            ) : (
+              parts.length === 0 ? <Empty icon="wrench" text={t("empty")} /> :
+              parts.map((p) => (
+                <button key={p.id} disabled={busy} onClick={() => pickPart(p)} className="an-row-btn" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 14px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                    <span style={{ fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{t("in_stock")}: {p.quantityOnHand}{p.unit ? " " + p.unit : ""}</span>
+                  </span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 14, flexShrink: 0 }}>{money(num(p.unitPrice))}</span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Segmented options={LINE_ITEM_KINDS.map((k) => ({ value: k, label: t(k) }))} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
+          {/* type toggle only for free custom lines; catalogued items keep their kind */}
+          {!picked && <Segmented options={LINE_ITEM_KINDS.map((k) => ({ value: k, label: t(k) }))} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />}
           <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 76px", gap: 10 }}>
             <Field label={t("agreed_price")}><MoneyInput value={price} onChange={setPrice} /></Field>

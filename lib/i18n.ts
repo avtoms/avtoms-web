@@ -36,6 +36,8 @@ export const STR: Record<string, Triple> = {
   nav_reports: ["Hisobotlar", "Ҳисоботлар", "Отчёты"],
   nav_menu: ["Narxlar ro'yxati", "Нархлар рўйхати", "Прайс-лист"],
   nav_inventory: ["Ombor", "Омбор", "Склад"],
+  services: ["Xizmatlar", "Хизматлар", "Услуги"],
+  materials: ["Materiallar", "Материаллар", "Материалы"],
   nav_schedule: ["Jadval", "Жадвал", "Расписание"],
   nav_reminders: ["Eslatmalar", "Эслатмалар", "Напоминания"],
   nav_finances: ["Moliya", "Молия", "Финансы"],
