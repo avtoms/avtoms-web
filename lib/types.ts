@@ -184,6 +184,8 @@ export interface ShopExpense {
   note?: string;
   createdAt: string;
   staffId?: string; // optional worker this expense is for (e.g. whose salary)
+  payee?: string; // optional receiver/recipient of the payment
+  paidBy?: string; // optional staff id of the paying person
 }
 
 export interface ExpenseBucket {

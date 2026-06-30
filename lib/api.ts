@@ -278,10 +278,11 @@ export const api = {
   // ── shop expenses + P&L ──
   listExpenses: (shopId: string, from?: string, to?: string) =>
     call<{ expenses?: ShopExpense[] }>("GET", "/v1/expenses" + qs({ shopId, from, to })).then((r) => r.expenses ?? []),
-  createExpense: (shopId: string, e: { category: string; amount: number; incurredOn?: string; note?: string; staffId?: string }) =>
+  createExpense: (shopId: string, e: { category: string; amount: number; incurredOn?: string; note?: string; staffId?: string; payee?: string; paidBy?: string }) =>
     call<ShopExpense>("POST", "/v1/expenses", {
       shopId, category: e.category, amount: String(e.amount),
       incurredOn: e.incurredOn ?? "", note: e.note ?? "", staffId: e.staffId ?? "",
+      payee: e.payee ?? "", paidBy: e.paidBy ?? "",
     }),
   deleteExpense: (id: string) => call<{ deleted?: boolean }>("DELETE", `/v1/expenses/${id}`),
   getProfitLoss: (shopId: string, from?: string, to?: string) =>

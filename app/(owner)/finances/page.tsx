@@ -192,11 +192,11 @@ export default function FinancesPage() {
             {expenses.length === 0 ? <Card pad={24}><Empty icon="money" text={t("no_expenses")} /></Card>
               : <Card pad={0}>
                 {expenses.map((e) => {
-                  const worker = staffName(e.staffId);
+                  const receiver = staffName(e.staffId) || e.payee || "";
                   return (
                   <div key={e.id} className="an-row-btn" onClick={() => setDetail(e)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)", cursor: "pointer" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{catLabel(e.category, t)}{worker ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {worker}</span> : null}{e.note ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {e.note}</span> : null}</div>
+                      <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{catLabel(e.category, t)}{receiver ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {receiver}</span> : null}{e.note ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {e.note}</span> : null}</div>
                       <div style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{dateStr(e.incurredOn)}</div>
                     </div>
                     <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{money(num(e.amount))}</div>
@@ -208,7 +208,7 @@ export default function FinancesPage() {
           </div>
         </>}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} onCreated={reload} />
-      <ExpenseDetailModal expense={detail} workerName={staffName(detail?.staffId)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
+      <ExpenseDetailModal expense={detail} receiver={staffName(detail?.staffId) || detail?.payee || ""} paidByName={staffName(detail?.paidBy)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
     </div>
   );
 }
@@ -261,7 +261,7 @@ function CategoryBars({ data }: { data: { label: string; amount: number }[] }) {
   );
 }
 
-function ExpenseDetailModal({ expense, workerName, onClose, onDeleted }: { expense: ShopExpense | null; workerName: string; onClose: () => void; onDeleted: () => void }) {
+function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted }: { expense: ShopExpense | null; receiver: string; paidByName: string; onClose: () => void; onDeleted: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -289,7 +289,8 @@ function ExpenseDetailModal({ expense, workerName, onClose, onDeleted }: { expen
         <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
         <Row label={t("category")} value={catLabel(e.category, t)} />
         <Row label={t("date")} value={fullDate(e.incurredOn)} />
-        {workerName && <Row label={t("worker")} value={workerName} />}
+        {receiver && <Row label={t("receiver")} value={receiver} />}
+        {paidByName && <Row label={t("paid_by")} value={paidByName} />}
         {e.note && <Row label={t("notes")} value={e.note} />}
         <Row label={t("created")} value={recorded} mono />
       </div>
@@ -317,9 +318,10 @@ function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open
   const { toast } = useToast();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   // `category` is the selected option; when it's CUSTOM the owner types `customCat`.
-  const [f, setF] = useState({ category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "" });
+  const blank = { category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "", payee: "", paidBy: "" };
+  const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "" }); }, [open]);
+  useEffect(() => { if (open) setF(blank); }, [open]);
 
   const isSalary = f.category === "salary";
   const resolvedCat = f.category === CUSTOM ? f.customCat.trim() : f.category;
@@ -333,6 +335,8 @@ function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open
         category: resolvedCat, amount,
         incurredOn: new Date(f.date + "T12:00:00").toISOString(), note: f.note.trim(),
         staffId: isSalary ? f.staffId : "",
+        payee: isSalary ? "" : f.payee.trim(),
+        paidBy: f.paidBy,
       });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
@@ -357,15 +361,26 @@ function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open
             <TextInput value={f.customCat} onChange={(e) => setF({ ...f, customCat: e.target.value })} placeholder={t("category")} autoFocus />
           </Field>
         )}
-        {isSalary && (
-          <Field label={t("worker")}>
+        {/* Receiver: a staff worker for salary, otherwise a free-text payee. */}
+        {isSalary ? (
+          <Field label={t("receiver") + " (" + t("worker") + ")"}>
             <SelectInput value={f.staffId} onChange={(e) => setF({ ...f, staffId: e.target.value })}>
               <option value="">—</option>
               {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </SelectInput>
           </Field>
+        ) : (
+          <Field label={t("receiver")}>
+            <TextInput value={f.payee} onChange={(e) => setF({ ...f, payee: e.target.value })} placeholder={t("receiver_ph")} />
+          </Field>
         )}
         <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
+        <Field label={t("paid_by")}>
+          <SelectInput value={f.paidBy} onChange={(e) => setF({ ...f, paidBy: e.target.value })}>
+            <option value="">—</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </SelectInput>
+        </Field>
         <Field label={t("notes")}><TextInput value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
       </div>
     </Modal>
