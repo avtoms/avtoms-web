@@ -5,12 +5,13 @@
 // by customerId. A row deep-links to the owner (customers?focus=<id>).
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Avatar, Spinner, Empty, TextInput } from "@/components/ui";
+import { Card, Btn, Spinner, Empty, TextInput } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import type { Customer, Vehicle } from "@/lib/types";
 import { PlatePreview } from "@/components/plate";
+import { VehicleHistoryModal } from "@/components/vehicle-history";
 
 export default function VehiclesPage() {
   const { session } = useAuth();
@@ -22,6 +23,7 @@ export default function VehiclesPage() {
   const [q, setQ] = useState("");
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [owners, setOwners] = useState<Record<string, Customer>>({});
+  const [hist, setHist] = useState<Vehicle | null>(null);
 
   const load = useCallback(async () => {
     setVehicles(null);
@@ -64,33 +66,36 @@ export default function VehiclesPage() {
           const o = owners[v.customerId];
           const car = [v.make, v.model].filter(Boolean).join(" ") || t("vehicle");
           return (
-            <button
-              key={v.id}
-              onClick={() => o && router.push(`/customers?focus=${o.id}`)}
-              className="an-row-btn"
-              style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 18px", border: "none", borderBottom: "1px solid var(--line)", background: "transparent", cursor: o ? "pointer" : "default", fontFamily: "var(--font-sans)", textAlign: "left" }}
-            >
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="car" size={21} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{car}{v.year ? ` (${v.year})` : ""}</span>
-                  {v.plate && <PlatePreview plate={v.plate} size="sm" />}
+            <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px 10px 18px", borderBottom: "1px solid var(--line)" }}>
+              {/* main area → open this car's full history (service + warranties) */}
+              <button
+                onClick={() => setHist(v)}
+                className="an-row-btn"
+                style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 13, border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", padding: "3px 0" }}
+              >
+                <div style={{ width: 40, height: 40, borderRadius: 11, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name="car" size={21} />
                 </div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-3)", marginTop: 3, display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                  <Icon name="users" size={13} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {o ? (o.walkIn ? t("walk_in") : o.name) : "—"}{o?.phone ? " · " + o.phone : ""}
-                  </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{car}{v.year ? ` (${v.year})` : ""}</span>
+                    {v.plate && <PlatePreview plate={v.plate} size="sm" />}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", marginTop: 3, display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <Icon name="users" size={13} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {o ? (o.walkIn ? t("walk_in") : o.name) : "—"}{o?.phone ? " · " + o.phone : ""}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <Avatar name={o?.walkIn ? "?" : o?.name || "?"} size={32} />
-              <Icon name="chevR" size={16} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
-            </button>
+              </button>
+              {/* jump to the owner's card */}
+              {o && <Btn variant="ghost" size="sm" icon="users" aria-label={t("nav_customers")} onClick={() => router.push(`/customers?focus=${o.id}`)} />}
+            </div>
           );
         })}
       </Card>
+      <VehicleHistoryModal vehicle={hist} shopId={shopId} onClose={() => setHist(null)} />
     </div>
   );
 }
