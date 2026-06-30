@@ -129,7 +129,8 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
     setBusy(true);
     try {
       await api.createReminder(shopId, {
-        title: f.title.trim(), customerName: f.customerName.trim(), phone: f.phone.trim(), plate: f.plate.trim(),
+        title: f.title.trim(), vehicleId: f.vehicleId || undefined,
+        customerName: f.customerName.trim(), phone: f.phone.trim(), plate: f.plate.trim(),
         dueDate: f.due ? new Date(f.due + "T12:00:00").toISOString() : undefined,
         dueMileage: parseInt(f.mileage, 10) || 0, notes: "",
       });
