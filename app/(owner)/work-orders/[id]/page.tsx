@@ -76,10 +76,16 @@ export default function WorkOrderDetailPage() {
     try { setWo(await api.assignMechanic(id, mechanicId)); setAssigning(false); toast(t("assign"), { icon: "check" }); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
-  const doAddItem = async (item: LineItemInput) => {
+  const doAddItems = async (items: LineItemInput[]) => {
+    if (!items.length) return;
     setBusy(true);
-    try { setWo(await api.addLineItem(id, item)); setAddItem(false); toast(t("add_item"), { icon: "check" }); }
-    catch (e) { err(e); } finally { setBusy(false); }
+    try {
+      let updated: WorkOrder | undefined;
+      for (const it of items) updated = await api.addLineItem(id, it); // sequential: each mutates the same WO
+      if (updated) setWo(updated);
+      setAddItem(false);
+      toast(t("add_item"), { icon: "check" });
+    } catch (e) { err(e); } finally { setBusy(false); }
   };
   const doRemoveItem = async (lineItemId?: string) => {
     if (!lineItemId || busy) return; setBusy(true);
@@ -228,7 +234,7 @@ export default function WorkOrderDetailPage() {
         </div>
       )}
 
-      <AddLineItemModal open={addItem} onClose={() => setAddItem(false)} onAdd={doAddItem} shopId={shopId} lang={lang} busy={busy} />
+      <AddLineItemModal open={addItem} onClose={() => setAddItem(false)} onAdd={doAddItems} shopId={shopId} lang={lang} busy={busy} />
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
@@ -316,7 +322,7 @@ function ApprovalModal({ approval, onClose }: { approval: { deepLink: string; bo
 
 /* ── add line item ── */
 function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
-  open: boolean; onClose: () => void; onAdd: (i: LineItemInput) => void; shopId: string; lang: string; busy: boolean;
+  open: boolean; onClose: () => void; onAdd: (items: LineItemInput[]) => void; shopId: string; lang: string; busy: boolean;
 }) {
   const { t } = useLang();
   const [mode, setMode] = useState<"menu" | "custom">("menu");
@@ -328,8 +334,10 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   // Captures the price-list origin so a negotiated price can be audited against the menu price.
   const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  // The picked service's bill-of-materials, each toggleable to also add as a material line.
+  const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
 
-  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); };
+  const reset = () => { setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setMats([]); };
 
   useEffect(() => {
     if (!open) return;
@@ -339,24 +347,36 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
 
   // Picking from the price list prefills the editor (instead of adding immediately) so the
   // owner can negotiate the price before confirming — the menu price is kept as the snapshot.
+  // The service's materials come along (pre-checked) so they can be added in one go.
   const pickMenu = (m: MenuItem) => {
     setKind("service");
     setDesc(menuName(m, lang));
     setPrice(String(num(m.defaultPrice)));
     setCost(String(num(m.defaultCost)));
     setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) });
+    setMats((m.materials ?? []).map((mat) => ({ on: true, mat })));
     setMode("custom");
+  };
+  // Build a material line from a menu material: fold the (possibly fractional) quantity into
+  // the price/cost so the line keeps an integer quantity of 1 and exact totals.
+  const matLine = (mat: import("@/lib/types").MenuMaterial): LineItemInput => {
+    const q = mat.quantity || 1;
+    const label = mat.name + (mat.unit ? ` · ${mat.quantity} ${mat.unit}` : mat.quantity > 1 ? ` ×${mat.quantity}` : "");
+    const unitPrice = Math.round(num(mat.unitPrice) * q);
+    return { kind: "material", description: label, unitPrice, quantity: 1, cost: Math.round(num(mat.unitCost) * q), defaultPrice: unitPrice };
   };
   const addCustom = () => {
     if (!desc.trim() || !price) return;
-    onAdd({
+    const items: LineItemInput[] = [{
       kind, description: desc.trim(),
       unitPrice: parseInt(price, 10) || 0,
       quantity: parseInt(qty, 10) || 1,
       cost: parseInt(cost, 10) || 0,
       menuItemId: from.menuItemId || undefined,
       defaultPrice: from.defaultPrice || undefined,
-    });
+    }];
+    for (const m of mats) if (m.on) items.push(matLine(m.mat));
+    onAdd(items);
   };
 
   const agreed = parseInt(price, 10) || 0;
@@ -389,6 +409,20 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
             <div style={{ fontSize: 12.5, color: "var(--ink-3)", display: "flex", justifyContent: "space-between", gap: 8 }}>
               <span>{t("menu_price")}: <span style={{ fontFamily: "var(--font-mono)" }}>{money(from.defaultPrice)}</span></span>
               {discount > 0 && <span style={{ color: "var(--accent-2)" }}>{t("discount")}: −{money(discount)}</span>}
+            </div>
+          )}
+
+          {/* this service's materials — toggle which to also add as material lines */}
+          {mats.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 7, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("materials_needed")}</div>
+              {mats.map((m, i) => (
+                <button key={i} type="button" onClick={() => setMats((s) => s.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))} className="an-btn" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: m.on ? "var(--accent-soft)" : "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 5, border: "1.5px solid " + (m.on ? "var(--accent-2)" : "var(--line-2)"), background: m.on ? "var(--accent-2)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.on && <Icon name="check" size={13} style={{ color: "#fff" }} />}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--ink)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.mat.name}{m.mat.unit ? ` · ${m.mat.quantity} ${m.mat.unit}` : m.mat.quantity > 1 ? ` ×${m.mat.quantity}` : ""}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, color: "var(--ink-2)", fontWeight: 700 }}>{money(Math.round(num(m.mat.unitPrice) * (m.mat.quantity || 1)))}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
