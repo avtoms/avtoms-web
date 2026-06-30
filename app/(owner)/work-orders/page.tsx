@@ -14,9 +14,10 @@ import type { WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
 import { WORow } from "../_shared";
 
-// The owner pipeline, left to right. Draft starts the flow; the terminal Closed/Canceled
-// states stay off the board (reachable via a card's status menu, then they drop into the
-// List). Each card's status menu offers exactly the legal next states (see moveTargets).
+// The owner board shows the full lifecycle, left to right — every status is a column,
+// including the terminal Closed/Canceled. Each card's status menu still offers only the
+// legal next states (see moveTargets), so the columns are a complete view while moves stay
+// valid. The board scrolls horizontally; the List remains for filtering/search.
 const PIPELINE: ColDef[] = [
   { key: "draft", label: "st_draft", tone: "accent", accent: "var(--ink-3)", soft: "var(--surface-2)" },
   { key: "estimated", label: "st_estimated", tone: "accent", accent: "var(--info)", soft: "var(--info-soft)" },
@@ -24,6 +25,8 @@ const PIPELINE: ColDef[] = [
   { key: "in_progress", label: "st_in_progress", tone: "warn", accent: "var(--warn)", soft: "var(--warn-soft)" },
   { key: "ready", label: "st_ready", tone: "ok", accent: "var(--ok)", soft: "var(--ok-soft)" },
   { key: "invoiced", label: "st_invoiced", tone: "ok", accent: "var(--accent-2)", soft: "var(--accent-soft)" },
+  { key: "closed", label: "st_closed", tone: "ok", accent: "var(--ink-2)", soft: "var(--surface-2)" },
+  { key: "canceled", label: "st_canceled", tone: "warn", accent: "var(--danger)", soft: "var(--danger-soft)" },
 ];
 
 export default function WorkOrdersPage() {
