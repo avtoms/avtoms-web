@@ -3,7 +3,7 @@
 // "garage-signal" theme, fonts (Unbounded display + Golos Text body + JetBrains Mono),
 // and a trilingual (UZ / RU / EN) copy dictionary — it does NOT use the app's i18n/theme
 // providers so it can present a distinct brand world. Submits the demo form to /api/demo.
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 type Tri = { uz: string; ru: string; en: string };
 type Lang = "uz" | "ru" | "en";
@@ -122,7 +122,7 @@ export default function LandingPage() {
             <a href="/login" className="lp-btn lp-btn-line">{tr(COPY.cta2, lang)}</a>
           </div>
           <div className="lp-trust lp-rise" style={{ animationDelay: "420ms" }}>
-            <span className="lp-globe"><GlobeIcon /></span> {tr(COPY.trust, lang)}
+            <CisFlag /> {tr(COPY.trust, lang)}
           </div>
         </div>
         <div className="lp-hero-art lp-rise" style={{ animationDelay: "260ms" }}>
@@ -179,6 +179,31 @@ export default function LandingPage() {
   );
 }
 
+// The CIS has member states rather than one flag, so the "regional" mark cycles through the
+// member-country flags — a small animated nod to the whole СНГ market. Each flag is a simple
+// CSS-gradient approximation (stripes), recognizable at chip size.
+const CIS_FLAGS: { code: string; bg: string }[] = [
+  { code: "UZ", bg: "linear-gradient(180deg,#1eb4e7 0 30%,#fff 30% 37%,#16b13e 37% 63%,#fff 63% 70%,#ce1126 70% 100%)" },
+  { code: "RU", bg: "linear-gradient(180deg,#fff 0 33%,#0039a6 33% 67%,#d52b1e 67% 100%)" },
+  { code: "KZ", bg: "linear-gradient(180deg,#00afca,#00afca)" },
+  { code: "KG", bg: "linear-gradient(180deg,#e8112d,#e8112d)" },
+  { code: "TJ", bg: "linear-gradient(180deg,#cc0000 0 30%,#fff 30% 70%,#006600 70% 100%)" },
+  { code: "BY", bg: "linear-gradient(180deg,#cc0000 0 66%,#4aa657 66% 100%)" },
+  { code: "AM", bg: "linear-gradient(180deg,#d90012 0 33%,#0033a0 33% 67%,#f2a800 67% 100%)" },
+  { code: "AZ", bg: "linear-gradient(180deg,#00b9e4 0 33%,#ef3340 33% 67%,#509e2f 67% 100%)" },
+  { code: "MD", bg: "linear-gradient(90deg,#0046ae 0 33%,#ffd200 33% 67%,#cc092f 67% 100%)" },
+];
+
+function CisFlag() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setI((x) => (x + 1) % CIS_FLAGS.length), 1700);
+    return () => clearInterval(iv);
+  }, []);
+  const f = CIS_FLAGS[i];
+  return <span key={i} className="lp-flag" title={f.code} style={{ backgroundImage: f.bg }} />;
+}
+
 function LangSwitch({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   const opts: { k: Lang; label: string }[] = [
     { k: "uz", label: "UZ" },
@@ -200,7 +225,7 @@ function LangSwitch({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
 function HeroCard({ lang }: { lang: Lang }) {
   const status: Tri = { uz: "Jarayonda", ru: "В работе", en: "In progress" };
   const total: Tri = { uz: "1 250 000 so‘m", ru: "1 250 000 сум", en: "1,250,000 UZS" };
-  const client: Tri = { uz: "Islom A.", ru: "Ислом А.", en: "Islom A." };
+  const client: Tri = { uz: "Islom N.", ru: "Ислом Н.", en: "Islom N." };
   return (
     <div className="lp-art">
       <div className="lp-art-col" aria-hidden>
@@ -292,7 +317,6 @@ function WrenchIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" f
 function ArrowIcon() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
 function CheckIcon() { return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>; }
 function UserIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>; }
-function GlobeIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>; }
 function BoardIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="6" height="18" rx="1.5" /><rect x="10.5" y="3" width="6" height="12" rx="1.5" /><rect x="18" y="3" width="3" height="8" rx="1.2" /></svg>; }
 function BellIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>; }
 function ChartIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19V5M4 19h16" /><path d="M8 16l3-4 3 2 4-6" /></svg>; }
@@ -380,7 +404,8 @@ function LandingStyle() {
 .lp-sub { font-size: clamp(15.5px, 2vw, 18.5px); line-height: 1.55; color: var(--ink2); margin: 20px 0 0; max-width: 38ch; }
 .lp-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .lp-trust { display: inline-flex; align-items: center; gap: 9px; margin-top: 26px; font-size: 13.5px; color: var(--ink3); }
-.lp-globe { display: inline-flex; flex-shrink: 0; color: var(--amber2); }
+.lp-flag { width: 21px; height: 14px; border-radius: 3px; flex-shrink: 0; background-size: cover; box-shadow: 0 0 0 1px var(--line), inset 0 0 6px oklch(0 0 0 / 0.25); animation: lp-flagin .5s ease; }
+@keyframes lp-flagin { from { opacity: 0; transform: rotateY(70deg) scale(.85); } to { opacity: 1; transform: none; } }
 
 /* hero art */
 .lp-hero-art { display: flex; justify-content: center; }
@@ -470,7 +495,7 @@ function LandingStyle() {
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-rise, .lp-glow, .lp-wo, .lp-pulse, .lp-done-mark, .lp-aurora, .lp-bg::after,
-  .lp-h1-accent, .lp-btn-primary::after, .lp-marquee-track { animation: none !important; }
+  .lp-h1-accent, .lp-btn-primary::after, .lp-marquee-track, .lp-flag { animation: none !important; }
   .lp-rise { opacity: 1; transform: none; }
   .lp-h1-accent { background-position: 0 0; }
 }
