@@ -39,6 +39,17 @@ export default function CustomersPage() {
   // debounced search
   useEffect(() => { const h = setTimeout(() => load(q), 300); return () => clearTimeout(h); }, [q, load]);
 
+  // Plates per customer for the little plate chips in the list — one shop-wide vehicle fetch.
+  const [platesByCustomer, setPlatesByCustomer] = useState<Record<string, Vehicle[]>>({});
+  const loadVehicles = useCallback(() => {
+    api.listShopVehicles(shopId).then((vs) => {
+      const map: Record<string, Vehicle[]> = {};
+      for (const v of vs) (map[v.customerId] ||= []).push(v);
+      setPlatesByCustomer(map);
+    }).catch(() => {});
+  }, [shopId]);
+  useEffect(() => { loadVehicles(); }, [loadVehicles]);
+
   // Deep link from the Cars view (?focus=<customerId>) opens that customer's detail.
   // Read from window (not useSearchParams) to avoid a Suspense boundary at prerender.
   useEffect(() => {
@@ -67,13 +78,21 @@ export default function CustomersPage() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", display: "flex", alignItems: "center", gap: 8 }}>{c.walkIn ? t("walk_in") : c.name}{c.walkIn && <Badge tone="neutral">{t("walk_in")}</Badge>}</div>
                 <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{c.phone}{c.telegramHandle ? " · " + c.telegramHandle : ""}</div>
+                {!!platesByCustomer[c.id]?.length && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                    {platesByCustomer[c.id].slice(0, 4).map((v) => (
+                      <PlatePreview key={v.id} plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
+                    ))}
+                    {platesByCustomer[c.id].length > 4 && <span style={{ fontSize: 11.5, color: "var(--ink-3)", alignSelf: "center" }}>+{platesByCustomer[c.id].length - 4}</span>}
+                  </div>
+                )}
               </div>
-              <Icon name="chevR" size={16} style={{ color: "var(--ink-3)" }} />
+              <Icon name="chevR" size={16} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
             </button>
           ))}
       </Card>
       <AddCustomerModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={() => load(q)} />
-      <CustomerDetailModal customer={sel} onClose={() => setSel(null)} onChanged={() => load(q)} />
+      <CustomerDetailModal customer={sel} onClose={() => setSel(null)} onChanged={() => { load(q); loadVehicles(); }} />
     </div>
   );
 }
