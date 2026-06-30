@@ -88,6 +88,7 @@ export const STR: Record<string, Triple> = {
   mark_done: ["Bajarildi", "Бажарилди", "Выполнено"],
   st_scheduled: ["Rejalashtirilgan", "Режалаштирилган", "Запланировано"],
   st_done: ["Bajarildi", "Бажарилди", "Выполнено"],
+  reminders_done: ["Bajarilgan", "Бажарилган", "Выполненные"],
   no_appointments: ["Yozuvlar yo'q", "Ёзувлар йўқ", "Записей нет"],
   add_part: ["Mahsulot qo'shish", "Маҳсулот қўшиш", "Добавить товар"],
   in_stock: ["Omborda", "Омборда", "В наличии"],

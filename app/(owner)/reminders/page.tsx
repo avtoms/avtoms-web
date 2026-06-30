@@ -2,7 +2,7 @@
 // Service reminders: upcoming maintenance due per vehicle (oil change, inspection, ...).
 // Grouped into overdue / upcoming / no-date; add, mark done, dismiss.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -39,45 +39,53 @@ export default function RemindersPage() {
     finally { setBusy(false); }
   };
 
-  // Only pending reminders are actionable; split overdue / upcoming / undated.
-  const { overdue, upcoming, undated } = useMemo(() => {
+  // Pending reminders are actionable (overdue / upcoming / undated); completed ones (done or
+  // dismissed) are kept as history so nothing silently vanishes after it's handled.
+  const { overdue, upcoming, undated, done } = useMemo(() => {
     const now = Date.now();
     const pending = list.filter((m) => reminderStateFromProto(m.state) === "pending");
     return {
       overdue: pending.filter((m) => m.dueDate && new Date(m.dueDate).getTime() < now),
       upcoming: pending.filter((m) => m.dueDate && new Date(m.dueDate).getTime() >= now),
       undated: pending.filter((m) => !m.dueDate),
+      done: list.filter((m) => reminderStateFromProto(m.state) !== "pending"),
     };
   }, [list]);
 
-  const section = (key: string, items: ServiceReminder[], tone: "danger" | "accent" | "neutral") =>
+  const section = (key: string, items: ServiceReminder[], tone: "danger" | "accent" | "neutral", completed = false) =>
     items.length === 0 ? null : (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: tone === "danger" ? "var(--danger)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 4px" }}>{t(key)} · {items.length}</div>
         <Card pad={0}>
-          {items.map((m) => (
-            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="bell" size={18} /></div>
+          {items.map((m) => {
+            const st = reminderStateFromProto(m.state);
+            return (
+            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "12px 18px", borderBottom: "1px solid var(--line)", opacity: completed ? 0.6 : 1 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: completed ? "var(--surface-2)" : "var(--accent-soft)", color: completed ? "var(--ink-3)" : "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={completed ? "check" : "bell"} size={18} /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{m.title}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", textDecoration: completed ? "line-through" : "none" }}>{m.title}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {m.dueDate ? <span>{dateStr(m.dueDate)}</span> : <span>{t("no_due_date")}</span>}
                   {!!m.dueMileage && <span style={{ fontFamily: "var(--font-mono)" }}>· {m.dueMileage.toLocaleString()} km</span>}
                   {m.customerName && <span>· {m.customerName}</span>}
                   {m.plate && <PlatePreview plate={m.plate} size="sm" />}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <Btn variant="soft" size="sm" icon="check" disabled={busy} onClick={() => setState(m, "done")}>{t("mark_done")}</Btn>
-                <Btn variant="ghost" size="sm" disabled={busy} onClick={() => setState(m, "dismissed")} style={{ color: "var(--ink-3)" }}>{t("dismiss")}</Btn>
-              </div>
+              {completed ? (
+                <Badge tone={st === "done" ? "ok" : "neutral"} dot>{st === "done" ? t("st_done") : t("st_dismissed")}</Badge>
+              ) : (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Btn variant="soft" size="sm" icon="check" disabled={busy} onClick={() => setState(m, "done")}>{t("mark_done")}</Btn>
+                  <Btn variant="ghost" size="sm" disabled={busy} onClick={() => setState(m, "dismissed")} style={{ color: "var(--ink-3)" }}>{t("dismiss")}</Btn>
+                </div>
+              )}
             </div>
-          ))}
+          ); })}
         </Card>
       </div>
     );
 
-  const empty = overdue.length === 0 && upcoming.length === 0 && undated.length === 0;
+  const empty = overdue.length === 0 && upcoming.length === 0 && undated.length === 0 && done.length === 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -90,6 +98,7 @@ export default function RemindersPage() {
             {section("overdue", overdue, "danger")}
             {section("upcoming", upcoming, "accent")}
             {section("no_due_date", undated, "neutral")}
+            {section("reminders_done", done, "neutral", true)}
           </>}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={load} />
     </div>
