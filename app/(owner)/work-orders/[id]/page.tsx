@@ -19,6 +19,7 @@ import {
 import type { WorkOrder, Staff, MenuItem, AuditEntry } from "@/lib/types";
 import { MoneyInput } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
+import { CarImage } from "@/components/car-image";
 import { SecTitle, Row } from "../../_shared";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -126,7 +127,7 @@ export default function WorkOrderDetailPage() {
         </div>
         <Card pad={16}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <div style={{ width: 46, height: 46, borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="car" size={24} /></div>
+            <CarImage src={wo.vehicleImageUrl} make={wo.make} size={52} />
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 4 }}>

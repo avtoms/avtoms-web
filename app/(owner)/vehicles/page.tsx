@@ -11,6 +11,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import type { Customer, Vehicle } from "@/lib/types";
 import { PlatePreview } from "@/components/plate";
+import { CarImage } from "@/components/car-image";
 import { VehicleHistoryModal } from "@/components/vehicle-history";
 
 export default function VehiclesPage() {
@@ -75,9 +76,7 @@ export default function VehiclesPage() {
                 className="an-row-btn"
                 style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 13, border: "none", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", padding: "3px 0" }}
               >
-                <div style={{ width: 40, height: 40, borderRadius: 11, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name="car" size={21} />
-                </div>
+                <CarImage src={v.imageUrl} make={v.make} size={44} radius={11} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{car}{v.year ? ` (${v.year})` : ""}</span>

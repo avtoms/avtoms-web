@@ -69,6 +69,7 @@ export interface Vehicle {
   engine?: string;
   transmission?: string;
   notes?: string;
+  imageUrl?: string; // uploaded photo of this car
 }
 
 export interface LineItem {
@@ -111,6 +112,7 @@ export interface WorkOrder {
   make?: string;
   model?: string;
   customerName?: string;
+  vehicleImageUrl?: string; // denormalized car photo url
 }
 
 export interface MenuMaterial {
