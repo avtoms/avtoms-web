@@ -15,13 +15,13 @@ const COPY = {
   h1a: { uz: "Sizning avtoservisingiz —", ru: "Ваш автосервис —", en: "Your auto shop —" },
   h1b: { uz: "bitta ekranda.", ru: "на одном экране.", en: "on one screen." },
   sub: {
-    uz: "Buyurtmalar, mijozlar, ombor, hisob-fakturalar va moliya — O‘zbekiston uchun yaratilgan platformada.",
-    ru: "Заказы, клиенты, склад, счета и финансы — на платформе, созданной для Узбекистана.",
-    en: "Work orders, clients, inventory, invoices and finances — on a platform built for Uzbekistan.",
+    uz: "Buyurtmalar, mijozlar, ombor, hisob-fakturalar va moliya — MDH bozori uchun yaratilgan platformada.",
+    ru: "Заказы, клиенты, склад, счета и финансы — на платформе, созданной для стран СНГ.",
+    en: "Work orders, clients, inventory, invoices and finances — on a platform built for the CIS.",
   },
   cta1: { uz: "Bepul demo olish", ru: "Получить демо", en: "Get a free demo" },
   cta2: { uz: "Tizimga kirish", ru: "Войти в систему", en: "Log in" },
-  trust: { uz: "O‘zbekiston avtoservislari uchun", ru: "Для автосервисов Узбекистана", en: "Made for Uzbekistan’s workshops" },
+  trust: { uz: "MDH avtoservislari uchun", ru: "Для автосервисов стран СНГ", en: "Made for CIS workshops" },
   feat_title: { uz: "Hamma narsa bir joyda", ru: "Всё в одном месте", en: "Everything in one place" },
   feat_sub: { uz: "Servisingizni boshqarish uchun kerak bo‘lgan har bir vosita.", ru: "Каждый инструмент для управления вашим сервисом.", en: "Every tool you need to run the shop." },
   form_kicker: { uz: "Demo so‘rovi", ru: "Заявка на демо", en: "Request a demo" },
@@ -76,7 +76,7 @@ const FEATURES: { icon: React.ReactNode; title: Tri; desc: Tri }[] = [
   {
     icon: <ReceiptIcon />,
     title: { uz: "Fiskal hisob-fakturalar", ru: "Фискальные счета", en: "Fiscal invoices" },
-    desc: { uz: "QR-kodli rasmiy cheklar — O‘zbekiston soliq talablariga mos.", ru: "Официальные чеки с QR — по требованиям налоговой Узбекистана.", en: "Official QR receipts, compliant with Uzbek tax rules." },
+    desc: { uz: "QR-kodli rasmiy cheklar — mahalliy soliq talablariga mos.", ru: "Официальные чеки с QR — по местным налоговым требованиям.", en: "Official QR receipts, compliant with local tax rules." },
   },
   {
     icon: <PlateIcon />,
@@ -122,7 +122,7 @@ export default function LandingPage() {
             <a href="/login" className="lp-btn lp-btn-line">{tr(COPY.cta2, lang)}</a>
           </div>
           <div className="lp-trust lp-rise" style={{ animationDelay: "420ms" }}>
-            <span className="lp-flag" /> {tr(COPY.trust, lang)}
+            <span className="lp-globe"><GlobeIcon /></span> {tr(COPY.trust, lang)}
           </div>
         </div>
         <div className="lp-hero-art lp-rise" style={{ animationDelay: "260ms" }}>
@@ -173,7 +173,7 @@ export default function LandingPage() {
       <footer className="lp-wrap lp-footer">
         <div className="lp-foot-brand"><span className="lp-mark sm"><WrenchIcon /></span> Auto-Garaj</div>
         <div className="lp-foot-text">{tr(COPY.footer, lang)}</div>
-        <div className="lp-foot-meta">© 2026 · O‘zbekiston</div>
+        <div className="lp-foot-meta">© 2026 · СНГ / CIS</div>
       </footer>
     </div>
   );
@@ -292,6 +292,7 @@ function WrenchIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" f
 function ArrowIcon() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
 function CheckIcon() { return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>; }
 function UserIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>; }
+function GlobeIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>; }
 function BoardIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="6" height="18" rx="1.5" /><rect x="10.5" y="3" width="6" height="12" rx="1.5" /><rect x="18" y="3" width="3" height="8" rx="1.2" /></svg>; }
 function BellIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>; }
 function ChartIcon() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19V5M4 19h16" /><path d="M8 16l3-4 3 2 4-6" /></svg>; }
@@ -379,7 +380,7 @@ function LandingStyle() {
 .lp-sub { font-size: clamp(15.5px, 2vw, 18.5px); line-height: 1.55; color: var(--ink2); margin: 20px 0 0; max-width: 38ch; }
 .lp-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .lp-trust { display: inline-flex; align-items: center; gap: 9px; margin-top: 26px; font-size: 13.5px; color: var(--ink3); }
-.lp-flag { width: 20px; height: 14px; border-radius: 3px; flex-shrink: 0; background: linear-gradient(180deg, oklch(0.7 0.13 220) 0 33%, #fff 33% 39%, oklch(0.72 0.15 150) 39% 67%, #fff 67% 73%, oklch(0.66 0.18 25) 73% 100%); box-shadow: 0 0 0 1px var(--line); }
+.lp-globe { display: inline-flex; flex-shrink: 0; color: var(--amber2); }
 
 /* hero art */
 .lp-hero-art { display: flex; justify-content: center; }
