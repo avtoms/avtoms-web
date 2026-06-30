@@ -45,6 +45,7 @@ export interface CarMake {
   id: string;
   name: string;
   country?: string;
+  logoUrl?: string;
 }
 
 export interface CarModel {

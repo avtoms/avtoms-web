@@ -7,7 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { apptStateFromProto, apptStateToProto } from "@/lib/enums";
 import { PhoneField, PlateField } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
-import type { Appointment, Staff } from "@/lib/types";
+import type { Appointment, Staff, Customer, Vehicle } from "@/lib/types";
 
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
 const timeStr = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -101,9 +101,29 @@ function defaultWhen(): string {
 function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boolean; onClose: () => void; shopId: string; mechanics: Staff[]; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [f, setF] = useState({ title: "", customer: "", phone: "", plate: "", when: defaultWhen(), duration: "60", mechanicId: "", notes: "" });
+  const [f, setF] = useState({ title: "", customerId: "", customer: "", phone: "", vehicleId: "", plate: "", when: defaultWhen(), duration: "60", mechanicId: "", notes: "" });
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ title: "", customer: "", phone: "", plate: "", when: defaultWhen(), duration: "60", mechanicId: "", notes: "" }); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    setF({ title: "", customerId: "", customer: "", phone: "", vehicleId: "", plate: "", when: defaultWhen(), duration: "60", mechanicId: "", notes: "" });
+    setVehicles([]);
+    api.listCustomers(shopId).then((c) => setCustomers(c.filter((x) => !x.walkIn))).catch(() => {});
+  }, [open, shopId]);
+
+  // Pick an existing client → carry their name + phone and load their cars to pick a plate.
+  // Leaving the picker empty and typing the name/phone manually still creates a fresh walk-in.
+  const pickCustomer = (id: string) => {
+    const c = customers.find((x) => x.id === id);
+    setF((s) => ({ ...s, customerId: id, customer: c?.name ?? "", phone: c?.phone ?? "", vehicleId: "", plate: "" }));
+    if (id) api.listVehicles(id).then(setVehicles).catch(() => setVehicles([]));
+    else setVehicles([]);
+  };
+  const pickVehicle = (vid: string) => {
+    const v = vehicles.find((x) => x.id === vid);
+    setF((s) => ({ ...s, vehicleId: vid, plate: v?.plate ?? "" }));
+  };
 
   const save = async () => {
     if (!f.title.trim() || !f.when || busy) return;
@@ -128,6 +148,20 @@ function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boole
           <Field label={t("appt_when")}><TextInput type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} /></Field>
           <Field label={t("duration_min")}><TextInput value={f.duration} onChange={(e) => setF({ ...f, duration: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
         </div>
+        <Field label={t("nav_customers")}>
+          <SelectInput value={f.customerId} onChange={(e) => pickCustomer(e.target.value)}>
+            <option value="">{t("appt_new_client")}</option>
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</option>)}
+          </SelectInput>
+        </Field>
+        {f.customerId && vehicles.length > 0 && (
+          <Field label={t("vehicle")}>
+            <SelectInput value={f.vehicleId} onChange={(e) => pickVehicle(e.target.value)}>
+              <option value="">—</option>
+              {vehicles.map((v) => <option key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</option>)}
+            </SelectInput>
+          </Field>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("name")}><TextInput value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} /></Field>
           <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} />

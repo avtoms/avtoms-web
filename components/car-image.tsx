@@ -5,6 +5,7 @@
 // offline for any make without bundling third-party logo assets.
 import React from "react";
 import { Icon } from "@/components/icons";
+import { useCarMakeLogo } from "@/lib/car-makes";
 
 // Deterministic hue from the make so each brand keeps a consistent colour.
 function brandHue(make: string): number {
@@ -20,10 +21,19 @@ function brandInitials(make: string): string {
 }
 
 export function CarImage({ src, make, size = 46, radius = 12 }: { src?: string; make?: string; size?: number; radius?: number }) {
+  // Brand logo uploaded by the super admin (looked up by make name), used when there is no
+  // per-car photo. Falls through to the monogram emblem when the brand has no logo.
+  const logo = useCarMakeLogo(make);
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={src} alt="" style={{ width: size, height: size, borderRadius: radius, objectFit: "cover", flexShrink: 0, background: "var(--surface-2)" }} />
+    );
+  }
+  if (logo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={logo} alt={make} title={make} style={{ width: size, height: size, borderRadius: radius, objectFit: "contain", flexShrink: 0, background: "var(--surface-2)", padding: size * 0.12 }} />
     );
   }
   if (make && make.trim()) {

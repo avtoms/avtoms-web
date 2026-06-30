@@ -346,6 +346,8 @@ export const api = {
       .then((r) => r.models ?? []),
   createCarMake: (name: string, country: string) =>
     call<CarMake>("POST", "/v1/admin/car-makes", { name, country }),
+  updateCarMake: (id: string, name: string, country: string, logoUrl: string) =>
+    call<CarMake>("POST", `/v1/admin/car-makes/${id}`, { name, country, logoUrl }),
   createCarModel: (makeId: string, name: string, bodyType: string) =>
     call<CarModel>("POST", "/v1/admin/car-models", { makeId, name, bodyType }),
 

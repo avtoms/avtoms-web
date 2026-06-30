@@ -1,11 +1,16 @@
 "use client";
-import { useState } from "react";
+// Client island for the super-admin car-make catalog: create new makes and edit existing
+// ones (name, country, brand logo). The logo is uploaded to object storage and shown across
+// the app (CarImage) as the brand emblem, falling back to a monogram when none is set.
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Field, TextInput, Btn, Spinner } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import { useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import { invalidateCarMakeLogos } from "@/lib/car-makes";
+import type { CarMake } from "@/lib/types";
 
-// Client island: creates a car make, then refreshes the SSR page to re-fetch the list.
 export function CreateMakeForm() {
   const router = useRouter();
   const { toast } = useToast();
@@ -37,5 +42,71 @@ export function CreateMakeForm() {
         <Btn variant="primary" icon="plus" disabled={busy} onClick={save}>{busy ? <Spinner /> : "Marka qo'shish"}</Btn>
       </div>
     </Card>
+  );
+}
+
+// One editable row: shows the logo (or monogram fallback), lets the admin upload/replace the
+// logo and edit name/country inline.
+export function MakeRow({ make, last }: { make: CarMake; last: boolean }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(make.name);
+  const [country, setCountry] = useState(make.country ?? "");
+  const [logoUrl, setLogoUrl] = useState(make.logoUrl ?? "");
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const dirty = name.trim() !== make.name || (country.trim() !== (make.country ?? "")) || logoUrl !== (make.logoUrl ?? "");
+
+  const pickLogo = async (file?: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await api.uploadImage(file);
+      setLogoUrl(url);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const save = async () => {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    try {
+      await api.updateCarMake(make.id, name.trim(), country.trim(), logoUrl);
+      invalidateCarMakeLogos();
+      toast("Saqlandi", { icon: "check" });
+      router.refresh();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const mono = name.trim().slice(0, 2).toUpperCase();
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: last ? "none" : "1px solid var(--line)" }}>
+      <button type="button" onClick={() => fileRef.current?.click()} title="Logotip yuklash"
+        style={{ width: 46, height: 46, borderRadius: 12, flexShrink: 0, border: "1px dashed var(--line)", cursor: "pointer", padding: 0, overflow: "hidden", background: logoUrl ? "var(--surface-2)" : "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+        {uploading ? <Spinner size={16} />
+          : logoUrl ? <img src={logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 5 }} />
+          : <span style={{ fontWeight: 800, fontSize: 15, color: "var(--accent-2)" }}>{mono}</span>}
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => pickLogo(e.target.files?.[0])} />
+      <div style={{ flex: "2 1 160px", minWidth: 0 }}>
+        <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Marka" />
+      </div>
+      <div style={{ flex: "1 1 120px", minWidth: 0 }} className="an-hide-sm">
+        <TextInput value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Davlat" />
+      </div>
+      <Btn variant={dirty ? "primary" : "soft"} size="sm" icon="check" disabled={!dirty || busy} onClick={save}>
+        {busy ? <Spinner size={14} /> : "Saqlash"}
+      </Btn>
+    </div>
   );
 }

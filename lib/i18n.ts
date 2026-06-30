@@ -83,6 +83,7 @@ export const STR: Record<string, Triple> = {
   st_dismissed: ["Bekor qilingan", "Бекор қилинган", "Отклонено"],
   add_appointment: ["Yozuv qo'shish", "Ёзув қўшиш", "Добавить запись"],
   appt_when: ["Sana va vaqt", "Сана ва вақт", "Дата и время"],
+  appt_new_client: ["Yangi mijoz", "Янги мижоз", "Новый клиент"],
   duration_min: ["Davomiyligi (daq)", "Давомийлиги (дақ)", "Длительность (мин)"],
   mark_done: ["Bajarildi", "Бажарилди", "Выполнено"],
   st_scheduled: ["Rejalashtirilgan", "Режалаштирилган", "Запланировано"],
