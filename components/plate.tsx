@@ -29,7 +29,7 @@ export function PlatePreview({ plate, type = "standard", size = "md" }: { plate:
     const cmp = display.replace(/\s/g, "");
     const d = cmp.slice(0, 3), l = cmp.slice(3);
     return (
-      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "1.5px solid #111", borderRadius: 4, background: c.bg, color: c.text, minHeight: h + 8, minWidth: h, padding: "2px 7px", fontFamily: "var(--font-mono)", fontWeight: 800, lineHeight: 1.05 }}>
+      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "1.5px solid #111", borderRadius: 4, background: c.bg, color: c.text, minHeight: h + 8, minWidth: h, maxWidth: "100%", padding: "2px 7px", fontFamily: "var(--font-mono)", fontWeight: 800, lineHeight: 1.05 }}>
         <span style={{ fontSize: fs - 1 }}>{d || "—"}</span>
         <span style={{ fontSize: fs - 2 }}>{l || "—"}</span>
       </span>
@@ -38,7 +38,7 @@ export function PlatePreview({ plate, type = "standard", size = "md" }: { plate:
 
   const { region, rest } = plateParts(plate, type);
   return (
-    <span style={{ display: "inline-flex", alignItems: "stretch", border: "1.5px solid #111", borderRadius: 4, overflow: "hidden", background: c.bg, color: c.text, height: h, fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: fs }}>
+    <span style={{ display: "inline-flex", alignItems: "stretch", border: "1.5px solid #111", borderRadius: 4, overflow: "hidden", maxWidth: "100%", background: c.bg, color: c.text, height: h, fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: fs }}>
       {region && (
         <span style={{ display: "flex", alignItems: "center", padding: "0 6px", background: c.regionGreen ? "#1eb53a" : "transparent", color: c.regionGreen ? "#fff" : c.text, borderRight: "1.5px solid #111" }}>{region}</span>
       )}

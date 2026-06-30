@@ -113,7 +113,8 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
         )}
       </div>
 
-      {/* vehicle: make/model + plate */}
+      {/* vehicle: make/model + plate. Plate gets its own row so it has the full card width
+          (it's a fixed-size element and would overflow a narrow flex column otherwise). */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 9 }}>
         <div style={{ width: 40, height: 40, borderRadius: 11, background: col.soft, color: col.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon name="car" size={21} />
@@ -122,11 +123,11 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
           <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}
           </div>
-          {wo.plate && (
-            <span style={{ display: "inline-block", marginTop: 3 }}><PlatePreview plate={wo.plate} size="sm" /></span>
-          )}
         </div>
       </div>
+      {wo.plate && (
+        <div style={{ minWidth: 0, marginBottom: 9 }}><PlatePreview plate={wo.plate} size="sm" /></div>
+      )}
 
       {/* customer + total */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
