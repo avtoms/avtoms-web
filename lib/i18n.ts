@@ -78,6 +78,7 @@ export const STR: Record<string, Triple> = {
   due_date: ["Muddat", "Муддат", "Срок"],
   due_mileage: ["Probeg (km)", "Пробег (km)", "Пробег (км)"],
   reminder_title: ["Xizmat turi", "Хизмат тури", "Вид услуги"],
+  reminder_tg_hint: ["Muddati kelganda mijozga Telegram orqali xabar yuboriladi (agar ulangan bo'lsa).", "Муддати келганда мижозга Телеграм орқали хабар юборилади (агар уланган бўлса).", "Когда подойдёт срок, клиенту придёт напоминание в Telegram (если привязан)."],
   dismiss: ["Bekor qilish", "Бекор қилиш", "Отклонить"],
   st_dismissed: ["Bekor qilingan", "Бекор қилинган", "Отклонено"],
   add_appointment: ["Yozuv qo'shish", "Ёзув қўшиш", "Добавить запись"],

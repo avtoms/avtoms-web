@@ -2,14 +2,13 @@
 // Service reminders: upcoming maintenance due per vehicle (oil change, inspection, ...).
 // Grouped into overdue / upcoming / no-date; add, mark done, dismiss.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
+import { Card, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { reminderStateFromProto, reminderStateToProto } from "@/lib/enums";
-import { PhoneField, PlateField } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
-import type { ServiceReminder } from "@/lib/types";
+import type { ServiceReminder, Customer, Vehicle } from "@/lib/types";
 
 const dateStr = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "");
 
@@ -100,18 +99,39 @@ export default function RemindersPage() {
 function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [f, setF] = useState({ title: "", customer: "", phone: "", plate: "", due: "", mileage: "", notes: "" });
+  const [f, setF] = useState({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "" });
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ title: "", customer: "", phone: "", plate: "", due: "", mileage: "", notes: "" }); }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setF({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "" });
+    setVehicles([]);
+    api.listCustomers(shopId).then((c) => setCustomers(c.filter((x) => !x.walkIn))).catch(() => {});
+  }, [open, shopId]);
+
+  // Picking a real client carries their name + phone (so the due-date Telegram reminder
+  // reaches them) and loads their cars to pick the plate from.
+  const pickCustomer = (id: string) => {
+    const c = customers.find((x) => x.id === id);
+    setF((s) => ({ ...s, customerId: id, customerName: c?.name ?? "", phone: c?.phone ?? "", vehicleId: "", plate: "" }));
+    if (id) api.listVehicles(id).then(setVehicles).catch(() => setVehicles([]));
+    else setVehicles([]);
+  };
+  const pickVehicle = (vid: string) => {
+    const v = vehicles.find((x) => x.id === vid);
+    setF((s) => ({ ...s, vehicleId: vid, plate: v?.plate ?? "" }));
+  };
 
   const save = async () => {
     if (!f.title.trim() || busy) return;
     setBusy(true);
     try {
       await api.createReminder(shopId, {
-        title: f.title.trim(), customerName: f.customer.trim(), phone: f.phone.trim(), plate: f.plate.trim(),
+        title: f.title.trim(), customerName: f.customerName.trim(), phone: f.phone.trim(), plate: f.plate.trim(),
         dueDate: f.due ? new Date(f.due + "T12:00:00").toISOString() : undefined,
-        dueMileage: parseInt(f.mileage, 10) || 0, notes: f.notes.trim(),
+        dueMileage: parseInt(f.mileage, 10) || 0, notes: "",
       });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
@@ -123,15 +143,28 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
       footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Field label={t("reminder_title")}><TextInput value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("reminder_title")} /></Field>
+        <Field label={t("nav_customers")}>
+          <SelectInput value={f.customerId} onChange={(e) => pickCustomer(e.target.value)}>
+            <option value="">—</option>
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</option>)}
+          </SelectInput>
+        </Field>
+        {f.customerId && (
+          <Field label={t("vehicle")}>
+            <SelectInput value={f.vehicleId} onChange={(e) => pickVehicle(e.target.value)}>
+              <option value="">—</option>
+              {vehicles.map((v) => <option key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</option>)}
+            </SelectInput>
+          </Field>
+        )}
+        {f.plate && <span style={{ display: "inline-block" }}><PlatePreview plate={f.plate} size="sm" /></span>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("due_date")}><TextInput type="date" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></Field>
           <Field label={t("due_mileage")}><TextInput value={f.mileage} onChange={(e) => setF({ ...f, mileage: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("name")}><TextInput value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} /></Field>
-          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} />
+        <div style={{ fontSize: 12, color: "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Icon name="tg" size={14} /> {t("reminder_tg_hint")}
         </div>
-        <PlateField label={t("plate")} value={f.plate} onChange={(p) => setF({ ...f, plate: p })} />
       </div>
     </Modal>
   );
