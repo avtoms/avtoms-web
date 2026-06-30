@@ -9,7 +9,7 @@
   --danger: oklch(0.57 0.20 25); --danger-soft: oklch(0.95 0.05 25); --info: oklch(0.58 0.15 256); --info-soft: oklch(0.95 0.04 256);
   --shadow: 0 1px 2px oklch(0.4 0.03 258 / 0.06), 0 8px 24px oklch(0.4 0.03 258 / 0.07);
   --shadow-lg: 0 4px 12px oklch(0.4 0.03 258 / 0.10), 0 24px 60px oklch(0.4 0.03 258 / 0.16);
-  --font-sans: 'Manrope', system-ui, sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: var(--ff-manrope), system-ui, sans-serif; --font-mono: var(--ff-mono), ui-monospace, monospace;
   --scale: 1; --radius: 10px; --radius-sm: 7px; --radius-lg: 16px;
 }
 * { box-sizing: border-box; }

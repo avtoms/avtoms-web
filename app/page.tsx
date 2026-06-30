@@ -324,7 +324,7 @@ function LandingStyle() {
   --line: oklch(0.33 0.03 258); --line2: oklch(0.44 0.04 258);
   --amber: oklch(0.66 0.16 256); --amber2: oklch(0.74 0.14 226); --ok: oklch(0.78 0.14 168);
   --glow1: oklch(0.62 0.18 258); --glow2: oklch(0.70 0.15 222);
-  --disp: 'Unbounded', system-ui, sans-serif; --body: 'Golos Text', system-ui, sans-serif; --mono: 'JetBrains Mono', monospace;
+  --disp: var(--ff-unbounded), system-ui, sans-serif; --body: var(--ff-golos), system-ui, sans-serif; --mono: var(--ff-mono), monospace;
   position: relative; min-height: 100vh; width: 100%; overflow-x: hidden;
   background: var(--bg); color: var(--ink); font-family: var(--body);
   -webkit-font-smoothing: antialiased; scroll-behavior: smooth;

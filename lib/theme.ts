@@ -48,9 +48,9 @@ export const THEMES: Record<ThemeName, ThemeDef> = {
 };
 
 export const FONTS: Record<FontName, { label: string; sans: string; mono: string }> = {
-  golos: { label: "Golos Text", sans: "'Golos Text', system-ui, sans-serif", mono: "'JetBrains Mono', ui-monospace, monospace" },
-  manrope: { label: "Manrope", sans: "'Manrope', system-ui, sans-serif", mono: "'JetBrains Mono', ui-monospace, monospace" },
-  onest: { label: "Onest", sans: "'Onest', system-ui, sans-serif", mono: "'JetBrains Mono', ui-monospace, monospace" },
+  golos: { label: "Golos Text", sans: "var(--ff-golos), system-ui, sans-serif", mono: "var(--ff-mono), ui-monospace, monospace" },
+  manrope: { label: "Manrope", sans: "var(--ff-manrope), system-ui, sans-serif", mono: "var(--ff-mono), ui-monospace, monospace" },
+  onest: { label: "Onest", sans: "var(--ff-onest), system-ui, sans-serif", mono: "var(--ff-mono), ui-monospace, monospace" },
 };
 
 export function applyTheme(themeName: ThemeName, fontName: FontName, density: Density) {

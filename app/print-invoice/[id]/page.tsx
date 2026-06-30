@@ -50,12 +50,12 @@ export default function PrintInvoicePage() {
   return (
     <div className="inv-root">
       <style>{`
-        .inv-root { background: #f4f4f5; min-height: 100vh; padding: 24px; color: #18181b; font-family: 'Golos Text', system-ui, sans-serif; }
+        .inv-root { background: #f4f4f5; min-height: 100vh; padding: 24px; color: #18181b; font-family: var(--ff-golos), system-ui, sans-serif; }
         .inv-bar { max-width: 760px; margin: 0 auto 16px; display: flex; gap: 10px; justify-content: flex-end; }
         .inv-bar button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 9px; border: 1px solid #d4d4d8; background: #fff; cursor: pointer; }
         .inv-bar button.primary { background: #18181b; color: #fff; border-color: #18181b; }
         .inv-paper { max-width: 760px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-        .inv-mono { font-family: 'JetBrains Mono', monospace; }
+        .inv-mono { font-family: var(--ff-mono), monospace; }
         .inv-h { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #18181b; padding-bottom: 18px; }
         .inv-title { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
         .inv-meta { text-align: right; font-size: 13px; color: #52525b; line-height: 1.7; }
