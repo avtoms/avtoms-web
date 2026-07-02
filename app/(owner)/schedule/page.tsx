@@ -99,7 +99,7 @@ function defaultWhen(): string {
 }
 
 function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boolean; onClose: () => void; shopId: string; mechanics: Staff[]; onCreated: () => void }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
   const [f, setF] = useState({ title: "", customerId: "", customer: "", phone: "", vehicleId: "", plate: "", when: defaultWhen(), duration: "60", mechanicId: "", notes: "" });
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -128,9 +128,23 @@ function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boole
   const save = async () => {
     if (!f.title.trim() || !f.when || busy) return;
     setBusy(true);
+    const name = f.customer.trim();
+    const phone = f.phone.trim();
     try {
+      // A booking for a NEW person (not picked from existing) also registers them in the
+      // clients list — so a scheduled visit means the client exists, just reserved for that
+      // time. Reuse an existing client when the phone already matches; never block the
+      // booking if client creation fails.
+      if (!f.customerId && name) {
+        const digits = (s: string) => s.replace(/\D/g, "");
+        const dupe = phone ? customers.find((c) => c.phone && digits(c.phone) === digits(phone)) : undefined;
+        if (!dupe) {
+          try { await api.createCustomer(shopId, { name, phone, language: lang }); }
+          catch { /* non-fatal — still create the appointment */ }
+        }
+      }
       await api.createAppointment(shopId, {
-        title: f.title.trim(), customerName: f.customer.trim(), phone: f.phone.trim(), plate: f.plate.trim(),
+        title: f.title.trim(), customerName: name, phone, plate: f.plate.trim(),
         mechanicId: f.mechanicId || undefined, scheduledAt: new Date(f.when).toISOString(),
         durationMinutes: parseInt(f.duration, 10) || 0, notes: f.notes.trim(),
       });
