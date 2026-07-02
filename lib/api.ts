@@ -268,11 +268,12 @@ export const api = {
   // ── service reminders ──
   listReminders: (shopId: string, vehicleId?: string) =>
     call<{ reminders?: ServiceReminder[] }>("GET", "/v1/reminders" + qs({ shopId, vehicleId })).then((r) => r.reminders ?? []),
-  createReminder: (shopId: string, m: { title: string; vehicleId?: string; customerName?: string; phone?: string; plate?: string; dueDate?: string; dueMileage?: number; notes?: string }) =>
+  createReminder: (shopId: string, m: { title: string; vehicleId?: string; customerName?: string; phone?: string; plate?: string; dueDate?: string; dueMileage?: number; notes?: string; repeatMonths?: number; repeatKm?: number }) =>
     call<ServiceReminder>("POST", "/v1/reminders", {
       shopId, title: m.title, vehicleId: m.vehicleId ?? "", customerName: m.customerName ?? "",
       phone: m.phone ?? "", plate: m.plate ?? "", dueDate: m.dueDate ?? "",
       dueMileage: String(m.dueMileage ?? 0), notes: m.notes ?? "",
+      repeatMonths: m.repeatMonths ?? 0, repeatKm: String(m.repeatKm ?? 0),
     }),
   setReminderState: (id: string, state: string) =>
     call<ServiceReminder>("POST", `/v1/reminders/${id}/state`, { state }),
