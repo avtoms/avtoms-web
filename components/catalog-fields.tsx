@@ -11,29 +11,76 @@ import { PlatePreview } from "./plate";
 import type { PlateType } from "@/lib/enums";
 
 // ── MoneyInput ───────────────────────────────────────────────────────────────
-// A numeric amount field (so'm) that shows thousands separators while typing and
-// emits the raw digit string, so callers keep storing a plain integer string.
+// A numeric amount field (so'm) built for BIG sums:
+//  • live thousands grouping ("12 500 000") with tabular numerals;
+//  • the font auto-shrinks for long values so the WHOLE number stays visible
+//    (no more "only the last digits" in narrow fields);
+//  • a "000" quick key appends three zeros — the natural "ming" workflow;
+//  • a magnitude hint below ("≈ 12,5 mln so'm") confirms the zero count at a glance.
+// Emits the raw digit string, so callers keep storing a plain integer string.
+const MAX_MONEY_DIGITS = 12; // < 1 trillion so'm — beyond any real shop amount
+
 function groupDigits(s: string): string {
-  const d = s.replace(/\D/g, "");
+  const d = s.replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS);
   return d === "" ? "" : Number(d).toLocaleString("ru-RU").replace(/,/g, " ");
 }
 
+// humanMagnitude renders "12,5 mln" / "450 ming" so the user can sanity-check the zeros.
+function humanMagnitude(digits: string, t: (k: string) => string): string {
+  const n = Number(digits);
+  if (!n || n < 10000) return "";
+  const fmt = (v: number) => (Math.round(v * 10) / 10).toLocaleString("ru-RU").replace(".", ",");
+  if (n >= 1_000_000_000) return `≈ ${fmt(n / 1_000_000_000)} ${t("money_bln")} ${t("soum")}`;
+  if (n >= 1_000_000) return `≈ ${fmt(n / 1_000_000)} ${t("money_mln")} ${t("soum")}`;
+  return `≈ ${fmt(n / 1_000)} ${t("money_k")} ${t("soum")}`;
+}
+
 export function MoneyInput({
-  value, onChange, placeholder, style, ...rest
+  value, onChange, placeholder, style, disabled, ...rest
 }: {
   value: string | number;
   onChange: (digits: string) => void;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
-  const digits = value === "" || value === undefined || value === null ? "" : String(value).replace(/\D/g, "");
+  const { t } = useLang();
+  const digits = value === "" || value === undefined || value === null ? "" : String(value).replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS);
+  const grouped = groupDigits(digits);
+  // Shrink instead of clipping: a 12-digit sum still fits fully in a narrow grid cell.
+  const fontSize = grouped.length > 13 ? 12 : grouped.length > 10 ? 13 : undefined;
+  const hint = humanMagnitude(digits, t);
+  const canAppend = !disabled && digits !== "" && digits !== "0" && digits.length + 3 <= MAX_MONEY_DIGITS;
   return (
-    <TextInput
-      {...rest}
-      value={groupDigits(digits)}
-      inputMode="numeric"
-      placeholder={placeholder ?? "0"}
-      onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
-      style={{ fontFamily: "var(--font-mono)", ...style }}
-    />
+    <div style={{ width: "100%" }}>
+      <div style={{ position: "relative" }}>
+        <TextInput
+          {...rest}
+          disabled={disabled}
+          value={grouped}
+          inputMode="numeric"
+          placeholder={placeholder ?? "0"}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS))}
+          style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums", paddingRight: 44, ...(fontSize ? { fontSize } : {}), ...style }}
+        />
+        {/* "000" quick key: one tap = ×1000 ("ming") — typing millions takes 2 taps, not 6 zeros */}
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={!canAppend}
+          onClick={() => canAppend && onChange(digits + "000")}
+          className="an-btn"
+          title="×1000"
+          style={{
+            position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)",
+            padding: "3px 7px", borderRadius: 7, border: "1px solid var(--line)",
+            background: "var(--surface-2)", color: canAppend ? "var(--ink-2)" : "var(--ink-3)",
+            fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 700, cursor: canAppend ? "pointer" : "default",
+            opacity: canAppend ? 1 : 0.45, lineHeight: 1.2,
+          }}
+        >000</button>
+      </div>
+      {hint && (
+        <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{hint}</div>
+      )}
+    </div>
   );
 }
 
