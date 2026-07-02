@@ -92,7 +92,9 @@ const qs = (params: Record<string, string | undefined>) => {
 
 export const api = {
   // ── uploads (multipart, returns the stored object's public URL) ──
-  uploadImage: async (file: File, retried = false): Promise<string> => {
+  // Generic uploader for any accepted file (images → avatars, PDFs → receipts). The gateway
+  // routes to a storage prefix by content type.
+  uploadFile: async (file: File | Blob, retried = false): Promise<string> => {
     const form = new FormData();
     form.append("file", file);
     const s = getSession();
@@ -103,13 +105,14 @@ export const api = {
     });
     if (res.status === 401 && !retried) {
       if (!refreshInFlight) refreshInFlight = refreshSession().finally(() => { refreshInFlight = null; });
-      if (await refreshInFlight) return api.uploadImage(file, true);
+      if (await refreshInFlight) return api.uploadFile(file, true);
     }
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
     if (!res.ok) throw new ApiError(res.status, data.message || data.error || `HTTP ${res.status}`);
     return data.url as string;
   },
+  uploadImage: (file: File): Promise<string> => api.uploadFile(file),
 
   // ── auth (public) ──
   requestOtp: (phone: string) =>

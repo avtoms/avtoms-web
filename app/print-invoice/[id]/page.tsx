@@ -9,15 +9,16 @@
 // and the fiscal sign (OFD receipt id) + verification QR. The negotiated per-line discount
 // (menu default_price vs the agreed unit_price) was previously not shown at all — it is now
 // surfaced both per line and as a total, next to the actual (net) amount.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth, useLang } from "@/components/providers";
-import { api } from "@/lib/api";
+import { useAuth, useLang, useToast } from "@/components/providers";
+import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { orderLabel } from "@/lib/format";
 import { paymentFromProto, fiscalFromProto } from "@/lib/enums";
 import { loadShopProfile, type ShopProfile } from "@/lib/shop";
 import { PlatePreview } from "@/components/plate";
+import { QR } from "@/components/ui";
 import type { Invoice, WorkOrder } from "@/lib/types";
 
 export default function PrintInvoicePage() {
@@ -25,11 +26,15 @@ export default function PrintInvoicePage() {
   const router = useRouter();
   const { session } = useAuth();
   const { t } = useLang();
+  const { toast } = useToast();
 
   const [shop, setShop] = useState<ShopProfile | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [error, setError] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setShop(loadShopProfile()); }, []);
   useEffect(() => {
@@ -75,6 +80,64 @@ export default function PrintInvoicePage() {
   const orderNo = wo ? orderLabel(wo) : "";
   const vehicle = wo ? [wo.make, wo.model].filter(Boolean).join(" ") : "";
 
+  // Rasterize the receipt (exact on-screen layout, all scripts) into a single image and wrap
+  // it in an A4 PDF, paginating if it runs taller than one page. The owner-only internal panel
+  // (.inv-noprint) is skipped so the PDF matches the printed customer check. The file is both
+  // downloaded locally and uploaded to R2 (returns its public URL).
+  const genPdf = async () => {
+    if (!paperRef.current || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const [h2c, jspdf] = await Promise.all([import("html2canvas-pro"), import("jspdf")]);
+      const html2canvas = h2c.default;
+      const JsPDF = jspdf.jsPDF;
+      const fonts = (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts;
+      if (fonts?.ready) { try { await fonts.ready; } catch { /* fonts optional */ } }
+
+      const canvas = await html2canvas(paperRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        ignoreElements: (el: Element) => (el as HTMLElement).classList?.contains("inv-noprint"),
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new JsPDF({ unit: "pt", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      let position = 0;
+      let remaining = imgH;
+      pdf.addImage(imgData, "PNG", 0, position, pageW, imgH);
+      remaining -= pageH;
+      while (remaining > 0) {
+        position -= pageH;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, pageW, imgH);
+        remaining -= pageH;
+      }
+
+      const blob: Blob = pdf.output("blob");
+      const fname = `chek-${(orderNo || invoice.id.slice(0, 8)).replace(/[^\w-]/g, "")}.pdf`;
+      // Local download.
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = dlUrl; a.download = fname; a.click();
+      setTimeout(() => URL.revokeObjectURL(dlUrl), 5000);
+      // Store to R2. The local download already succeeded, so a storage failure is non-fatal.
+      try {
+        const url = await api.uploadFile(new File([blob], fname, { type: "application/pdf" }));
+        setPdfUrl(url);
+        toast(t("pdf_saved"), { icon: "check" });
+      } catch (e) {
+        toast(e instanceof ApiError ? e.message : t("pdf_saved"), { icon: "download" });
+      }
+    } catch {
+      toast(t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <div className="inv-root">
       <style>{`
@@ -118,10 +181,12 @@ export default function PrintInvoicePage() {
 
       <div className="inv-bar">
         <button onClick={() => router.back()}>← {t("back")}</button>
+        {pdfUrl && <button onClick={() => window.open(pdfUrl, "_blank")}>{t("open_link")}</button>}
+        <button onClick={genPdf} disabled={pdfBusy}>{pdfBusy ? t("generating_pdf") : t("download_pdf")}</button>
         <button className="primary" onClick={() => window.print()}>{t("print")}</button>
       </div>
 
-      <div className="inv-paper">
+      <div className="inv-paper" ref={paperRef}>
         <div className="inv-h">
           <div>
             <div className="inv-title">{shop.name || t("receipt")}</div>
@@ -215,8 +280,7 @@ export default function PrintInvoicePage() {
           </div>
           {invoice.fiscalQr && (
             <div className="inv-qr">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={invoice.fiscalQr} alt="QR" width={104} height={104} style={{ border: "1px solid #e4e4e7", borderRadius: 8 }} />
+              <QR data={invoice.fiscalQr} size={104} />
               <div className="cap">{t("verify_qr")}</div>
             </div>
           )}

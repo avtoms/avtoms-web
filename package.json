@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "flag-icons": "^7.5.0",
+    "html2canvas-pro": "^2.2.1",
+    "jspdf": "^4.2.1",
     "next": "15.1.6",
     "react": "19.0.0",
     "react-dom": "19.0.0"
