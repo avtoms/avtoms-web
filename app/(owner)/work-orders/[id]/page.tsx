@@ -6,20 +6,22 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card, Badge, Btn, IconBtn, Avatar, Modal, Field, TextInput, SelectInput, Segmented,
-  Spinner, Empty, StateBadge, FiscalBadge, QR, useIsMobile, Skeleton, SkeletonRows,
+  Spinner, Empty, StateBadge, QR, useIsMobile, Skeleton, SkeletonRows,
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
 import {
-  woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto, lineStatusFromProto,
+  woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem, AuditEntry, Part } from "@/lib/types";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
+import { FiscalCheck } from "@/components/fiscal-check";
+import { loadShopProfile } from "@/lib/shop";
 import { SecTitle, Row } from "../../_shared";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -586,62 +588,15 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
   };
 
   if (!open) return null;
-  const fiscal = inv ? fiscalFromProto(inv.fiscalStatus) : "pending";
-
-  // Discount breakdown (menu default_price vs agreed unit_price), mirrored from the printable
-  // check so the order-detail invoice shows the negotiated discount, not just the total.
-  const discRows = (wo.lineItems ?? []).map((it) => {
-    const qty = it.quantity || 0;
-    const actualUnit = num(it.unitPrice);
-    const listUnit = num(it.defaultPrice) > actualUnit ? num(it.defaultPrice) : actualUnit;
-    return { disc: Math.max(0, (listUnit - actualUnit) * qty), lineSum: actualUnit * qty };
-  });
-  const totalDiscount = discRows.reduce((s, r) => s + r.disc, 0);
-  const netSubtotal = wo.subtotal != null ? num(wo.subtotal) : discRows.reduce((s, r) => s + r.lineSum, 0);
-  const vatAmt = wo.vat != null ? num(wo.vat) : Math.round(netSubtotal * 0.12);
 
   return (
-    <Modal open={open} onClose={onClose} title={t("invoice") + (inv ? " · " + inv.id.slice(0, 8) : "")} maxWidth={440}>
+    <Modal open={open} onClose={onClose} title={t("invoice") + (inv ? " · " + inv.id.slice(0, 8) : "")} maxWidth={620}>
       {!inv ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Spinner size={24} /></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <FiscalBadge status={fiscal} />
-            <Badge tone={inv.paid ? "ok" : "neutral"} dot>{inv.paid ? t("paid") : t("unpaid")}</Badge>
-          </div>
-          <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
-            <Row label={t("work_order")} value={orderLabel(wo)} mono />
-            {totalDiscount > 0 && (
-              <>
-                <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
-                <Row label={t("subtotal")} value={money(netSubtotal)} mono />
-                <Row label={t("discount")} value={"−" + money(totalDiscount)} mono />
-                <Row label={t("vat")} value={money(vatAmt)} mono />
-              </>
-            )}
-            <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
-            <Row label={t("total")} value={money(inv.total) + " " + t("soum")} strong mono />
-          </div>
-
-          {fiscal === "fiscalized" && inv.fiscalQr ? (
-            <div style={{ display: "flex", gap: 16, alignItems: "center", padding: 14, background: "var(--ok-soft)", borderRadius: "var(--radius)" }}>
-              <QR data={inv.fiscalQr} size={104} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <Badge tone="ok" dot>{t("fs_fiscalized")}</Badge>
-                {inv.fiscalReceiptId && <div style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, color: "var(--ink-2)", fontWeight: 600 }}>{inv.fiscalReceiptId}</div>}
-                <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>OFD · QR</div>
-              </div>
-            </div>
-          ) : fiscal === "failed" ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: 14, background: "var(--danger-soft)", borderRadius: "var(--radius)", color: "var(--danger)", fontWeight: 600, fontSize: 14 }}>
-              <Icon name="alert" size={18} /> {t("fs_failed")}
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 16, background: "var(--warn-soft)", borderRadius: "var(--radius)", color: "var(--warn)" }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>{t("fiscalizing")}</span>
-            </div>
-          )}
+          {/* The complete fiscal check, rendered inline (same component as the print page). */}
+          <FiscalCheck invoice={inv} wo={wo} shop={loadShopProfile()} />
 
           {!inv.paid && (
             <div>
