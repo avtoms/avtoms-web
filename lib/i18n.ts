@@ -183,6 +183,14 @@ export const STR: Record<string, Triple> = {
   cancel_wo: ["Buyurtmani bekor qilish", "Буюртмани бекор қилиш", "Отменить заказ"],
   cancel_wo_confirm: ["Bu buyurtmani bekor qilasizmi? Bu amalni qaytarib bo'lmaydi.", "Бу буюртмани бекор қиласизми? Бу амални қайтариб бўлмайди.", "Отменить этот заказ-наряд? Это действие нельзя отменить."],
   no: ["Yo'q", "Йўқ", "Нет"],
+  yes: ["Ha", "Ҳа", "Да"],
+  // Staff permission: let a mechanic create work orders (in addition to their board).
+  perm_create_orders: ["Buyurtma yaratish", "Буюртма яратиш", "Создание заказов"],
+  perm_create_orders_hint: [
+    "Bu ustaga buyurtma yaratishga ruxsat beradi (o'z doskasidan tashqari).",
+    "Бу устага буюртма яратишга рухсат беради (ўз доскасидан ташқари).",
+    "Разрешает механику создавать заказы (помимо своей доски).",
+  ],
   approve: ["Tasdiqlash", "Тасдиқлаш", "Подтвердить"],
   decline: ["Rad etish", "Рад этиш", "Отклонить"],
   start_timer: ["Vaqtni boshlash", "Вақтни бошлаш", "Запустить таймер"],

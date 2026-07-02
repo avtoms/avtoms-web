@@ -10,6 +10,7 @@ export interface Staff {
   active: boolean;
   createdAt?: string;
   avatarUrl?: string;
+  canCreateOrders?: boolean; // owner-granted: this worker may create work orders
 }
 
 export interface TokenPair {
