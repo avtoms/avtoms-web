@@ -247,6 +247,45 @@ export function Spinner({ size = 18 }: { size?: number }) {
   return <span className="an-spin" style={{ display: "inline-block", width: size, height: size, border: "2px solid color-mix(in oklch, currentColor 28%, transparent)", borderTopColor: "currentColor", borderRadius: "50%" }} />;
 }
 
+// Skeleton primitive: a soft shimmering placeholder box. Use it to reserve a page's layout
+// while data loads, so real content never "pops in" and shifts the page (the spinner→content
+// vertical jump). Deterministic widths keep SSR/CSR markup identical (no hydration mismatch).
+export function Skeleton({ w = "100%", h = 14, r = 6, style }: { w?: number | string; h?: number | string; r?: number; style?: React.CSSProperties }) {
+  return <span className="an-skel" style={{ display: "block", width: w, height: h, borderRadius: r, flexShrink: 0, ...style }} />;
+}
+
+// SkeletonRows renders N placeholder list rows sized like real list rows, so a loading list
+// occupies roughly the same vertical space it will fill once loaded — no collapse/expand jump.
+export function SkeletonRows({ rows = 6, avatar = true }: { rows?: number; avatar?: boolean }) {
+  return (
+    <div aria-hidden>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
+          {avatar && <Skeleton w={40} h={40} r={12} />}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+            <Skeleton w={`${46 + ((i * 17) % 34)}%`} h={13} />
+            <Skeleton w={`${26 + ((i * 11) % 24)}%`} h={11} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// SkeletonCards renders a responsive grid of placeholder cards (for KPI/tile dashboards).
+export function SkeletonCards({ cards = 4, height = 92 }: { cards?: number; height?: number }) {
+  return (
+    <div aria-hidden style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+      {Array.from({ length: cards }).map((_, i) => (
+        <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)", padding: 18, boxShadow: "var(--shadow)", display: "flex", flexDirection: "column", gap: 12, height }}>
+          <Skeleton w="55%" h={11} />
+          <Skeleton w="70%" h={22} r={8} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Logo({ size = 40, light }: { size?: number; light?: boolean }) {
   return (
     <div style={{ width: size, height: size, borderRadius: size * 0.28, background: light ? "var(--accent-ink)" : "var(--accent)", color: light ? "var(--accent)" : "var(--accent-ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>

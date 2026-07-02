@@ -1,7 +1,7 @@
 "use client";
 // Appointments / scheduling: upcoming bookings grouped by day; add, mark done, cancel.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { apptStateFromProto, apptStateToProto } from "@/lib/enums";
@@ -55,7 +55,7 @@ export default function SchedulePage() {
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_appointment")}</Btn>
       </div>
-      {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+      {loading && list.length === 0 ? <Card pad={0}><SkeletonRows rows={5} /></Card>
         : list.length === 0 ? <Card pad={24}><Empty icon="clock" text={t("no_appointments")} /></Card>
         : groups.map(([day, items]) => (
           <div key={day} style={{ display: "flex", flexDirection: "column", gap: 8 }}>

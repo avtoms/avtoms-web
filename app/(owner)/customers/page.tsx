@@ -2,7 +2,7 @@
 // Customers (owner-pages.jsx CustomersPage): debounced search, new-customer modal,
 // detail modal with add-vehicle. Wired to api.listCustomers / createCustomer / createVehicle.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -70,7 +70,7 @@ export default function CustomersPage() {
         <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("new_customer")}</Btn>
       </div>
       <Card pad={0}>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        {loading && list.length === 0 ? <SkeletonRows rows={7} />
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="users" /></div>
           : list.map((c) => (
             <button key={c.id} onClick={() => setSel(c)} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 18px", border: "none", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>

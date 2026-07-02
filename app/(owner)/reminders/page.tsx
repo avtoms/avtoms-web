@@ -2,7 +2,7 @@
 // Service reminders: upcoming maintenance due per vehicle (oil change, inspection, ...).
 // Grouped into overdue / upcoming / no-date; add, mark done, dismiss.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -92,7 +92,7 @@ export default function RemindersPage() {
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_reminder")}</Btn>
       </div>
-      {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+      {loading && empty ? <Card pad={0}><SkeletonRows rows={5} /></Card>
         : empty ? <Card pad={24}><Empty icon="bell" text={t("no_reminders")} /></Card>
         : <>
             {section("overdue", overdue, "danger")}

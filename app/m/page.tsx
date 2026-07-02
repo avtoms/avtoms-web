@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useLang, useToast } from "@/components/providers";
-import { Badge, Spinner } from "@/components/ui";
+import { Badge, Card, SkeletonRows } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, woStateToProto, kindFromProto, kindIsMaterial, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemStatus } from "@/lib/enums";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
@@ -104,7 +104,11 @@ export default function MechanicBoardPage() {
   };
 
   if (orders === null) {
-    return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner size={28} /></div>;
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+        {[0, 1, 2].map((i) => <Card key={i} pad={0}><SkeletonRows rows={3} avatar={false} /></Card>)}
+      </div>
+    );
   }
 
   return (

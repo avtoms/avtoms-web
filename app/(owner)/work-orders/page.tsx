@@ -6,7 +6,7 @@
 // The Create-WO flow lives in the shared layout header button (_create-wo.tsx).
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Segmented, Spinner, Empty } from "@/components/ui";
+import { Card, Segmented, Empty, SkeletonRows } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { WO_STATES, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
@@ -94,7 +94,7 @@ export default function WorkOrdersPage() {
       </div>
 
       {list === null ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        <Card pad={0}><SkeletonRows rows={7} avatar={false} /></Card>
       ) : view === "board" ? (
         <WorkOrderBoard
           orders={list}

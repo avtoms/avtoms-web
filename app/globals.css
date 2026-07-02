@@ -57,4 +57,10 @@ button, input, select, textarea { font-family: inherit; }
 .an-spin { animation: an-spin .8s linear infinite; }
 @keyframes an-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
 .an-pulse { animation: an-pulse 1.4s ease-in-out infinite; }
+@keyframes an-skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.an-skel {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 40%, var(--surface-2) 55%);
+  background-size: 220% 100%;
+  animation: an-skel 1.5s ease-in-out infinite;
+}
 @media (max-width: 860px) { .an-hide-sm { display: none !important; } }

@@ -2,7 +2,7 @@
 // Invoices (owner-pages.jsx InvoicesPage): list with fiscal + paid badges, mark-paid,
 // and a fiscal-QR modal. Wired to api.listInvoices / markPaid.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Btn, Modal, Spinner, Empty, FiscalBadge, QR } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Empty, FiscalBadge, QR, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -54,7 +54,7 @@ export default function InvoicesPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Card pad={0}>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        {loading && list.length === 0 ? <SkeletonRows rows={6} avatar={false} />
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="receipt" /></div>
           : list.map((inv) => (
             <button key={inv.id} onClick={() => setSel(inv)} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, rowGap: 6, flexWrap: "wrap", width: "100%", padding: "13px 18px", border: "none", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
