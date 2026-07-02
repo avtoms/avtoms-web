@@ -77,9 +77,8 @@ export function MoneyInput({
           }}
         >000</button>
       </div>
-      {hint && (
-        <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{hint}</div>
-      )}
+      {/* Fixed-height hint row (empty when N/A) so the form never grows/shrinks while typing. */}
+      <div style={{ marginTop: 4, height: 12, fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", lineHeight: "12px", overflow: "hidden" }}>{hint || " "}</div>
     </div>
   );
 }
