@@ -13,6 +13,7 @@ import { Btn, IconBtn, Spinner } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import type { AiConversation } from "@/lib/types";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -104,6 +105,10 @@ export function ChatWidget() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<AiConversation[]>([]);
+  const [showThreads, setShowThreads] = useState(false);
+  const [loadingThread, setLoadingThread] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = session?.role === "admin";
@@ -113,6 +118,36 @@ export function ChatWidget() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [msgs, sending, open]);
 
+  const refreshThreads = useCallback(async () => {
+    try { setThreads(await api.listConversations()); } catch { /* ignore */ }
+  }, []);
+
+  // Load saved threads when the panel first opens.
+  useEffect(() => { if (open) refreshThreads(); }, [open, refreshThreads]);
+
+  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setInput(""); };
+
+  const openThread = async (id: string) => {
+    setShowThreads(false);
+    setLoadingThread(true);
+    try {
+      const r = await api.getConversation(id);
+      setMsgs((r.messages ?? []).map((m) => ({ role: m.role, content: m.content })));
+      setConversationId(id);
+    } catch {
+      toast(t("ai_error"), { icon: "alert", tone: "danger" });
+    } finally { setLoadingThread(false); }
+  };
+
+  const removeThread = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.deleteConversation(id);
+      setThreads((cur) => cur.filter((c) => c.id !== id));
+      if (conversationId === id) newChat();
+    } catch { toast(t("ai_error"), { icon: "alert", tone: "danger" }); }
+  };
+
   const send = useCallback(async (text: string) => {
     const q = text.trim();
     if (!q || sending) return;
@@ -120,16 +155,21 @@ export function ChatWidget() {
     setMsgs(next);
     setInput("");
     setSending(true);
+    const wasNew = !conversationId;
     try {
-      const r = await api.aiChat(next.map((m) => ({ role: m.role, content: m.content })));
+      const r = await api.aiChat(next.map((m) => ({ role: m.role, content: m.content })), conversationId ?? undefined);
       setMsgs((cur) => [...cur, { role: "assistant", content: r.reply || t("ai_no_reply") }]);
+      if (r.conversationId) {
+        setConversationId(r.conversationId);
+        if (wasNew) refreshThreads(); // surface the freshly created thread in the list
+      }
     } catch (e) {
       const em = e instanceof ApiError ? e.message : t("ai_error");
       setMsgs((cur) => [...cur, { role: "assistant", content: `<p class="ai-muted">${escapeText(em)}</p>` }]);
     } finally {
       setSending(false);
     }
-  }, [msgs, sending, t]);
+  }, [msgs, sending, t, conversationId, refreshThreads]);
 
   // Delegated navigation for buttons inside sanitized assistant HTML.
   const onHtmlClick = (e: React.MouseEvent) => {
@@ -200,14 +240,28 @@ export function ChatWidget() {
               <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", letterSpacing: "-0.01em" }}>{t("ai_assistant")}</div>
               <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{t("ai_readonly_note")}</div>
             </div>
-            {msgs.length > 0 && (
-              <IconBtn icon="history" size={16} onClick={() => setMsgs([])} aria-label={t("ai_clear")} style={{ width: 34, height: 34 }} />
-            )}
+            <IconBtn icon="history" size={16} active={showThreads} onClick={() => setShowThreads((v) => !v)} aria-label={t("ai_threads")} style={{ width: 34, height: 34 }} />
+            <IconBtn icon="plus" size={17} onClick={newChat} aria-label={t("ai_new_chat")} style={{ width: 34, height: 34 }} />
             <IconBtn icon="x" size={17} onClick={() => setOpen(false)} aria-label={t("close")} style={{ width: 34, height: 34 }} />
           </div>
 
           {/* Messages */}
           <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 12, background: "var(--bg)" }}>
+            {showThreads ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-3)", padding: "2px 2px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("ai_threads")}</div>
+                {threads.length === 0 && <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 2px" }}>{t("ai_no_threads")}</div>}
+                {threads.map((c) => (
+                  <div key={c.id} onClick={() => openThread(c.id)} className="an-btn" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 11px", borderRadius: "var(--radius-sm)", border: "1px solid var(--line)", background: c.id === conversationId ? "var(--accent-soft)" : "var(--surface)", cursor: "pointer" }}>
+                    <Icon name="chat" size={15} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title || t("ai_untitled")}</div>
+                    <IconBtn icon="trash" size={14} onClick={(e) => removeThread(c.id, e)} aria-label={t("ai_delete")} style={{ width: 28, height: 28 }} />
+                  </div>
+                ))}
+              </div>
+            ) : loadingThread ? (
+              <div style={{ margin: "auto", color: "var(--ink-3)" }}><Spinner size={22} /></div>
+            ) : (<>
             {msgs.length === 0 && (
               <div style={{ margin: "auto 0", display: "flex", flexDirection: "column", gap: 12, alignItems: "center", textAlign: "center", padding: "12px 6px" }}>
                 <div style={{ width: 52, height: 52, borderRadius: 16, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -245,9 +299,11 @@ export function ChatWidget() {
                 <Spinner size={14} /> {t("ai_thinking")}
               </div>
             )}
+            </>)}
           </div>
 
           {/* Composer */}
+          {!showThreads && (
           <div style={{ borderTop: "1px solid var(--line)", padding: 10, background: "var(--surface)" }}>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
               <textarea
@@ -265,6 +321,7 @@ export function ChatWidget() {
               <Btn variant="primary" icon="send" disabled={sending || !input.trim()} onClick={() => send(input)} aria-label={t("send")} style={{ height: 40 }} />
             </div>
           </div>
+          )}
         </div>
       )}
     </>

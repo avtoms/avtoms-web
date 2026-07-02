@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -400,8 +400,15 @@ export const api = {
   // read-only, shop-scoped tool registry (same tools the MCP endpoint exposes) and returns
   // an HTML fragment to render in the chat. Owners are scoped to their shop; super-admins
   // see all shops.
-  aiChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
-    call<{ reply?: string; error?: string }>("POST", "/v1/ai/chat", { messages }),
+  aiChat: (messages: { role: "user" | "assistant"; content: string }[], conversationId?: string) =>
+    call<{ reply?: string; conversationId?: string; error?: string }>("POST", "/v1/ai/chat", { conversationId, messages }),
+  // Saved chat threads (scoped to the caller server-side).
+  listConversations: () =>
+    call<{ conversations?: AiConversation[] }>("GET", "/v1/ai/conversations").then((r) => r.conversations ?? []),
+  getConversation: (id: string) =>
+    call<{ conversation?: AiConversation; messages?: AiChatMessage[] }>("GET", `/v1/ai/conversations/${id}`),
+  deleteConversation: (id: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/ai/conversations/${id}/delete`, {}),
 };
 
 interface TimeEntryResp { id: string; workOrderId: string; mechanicId: string; startedAt?: string; stoppedAt?: string }

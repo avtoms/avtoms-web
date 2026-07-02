@@ -79,6 +79,23 @@ export interface Lead {
   updatedAt?: string;
 }
 
+// A saved AI-assistant chat thread + its turns (owner/super-admin history).
+export interface AiConversation {
+  id: string;
+  staffId?: string;
+  shopId?: string;
+  title: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface AiChatMessage {
+  id?: string;
+  conversationId?: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: string;
+}
+
 export interface CarModel {
   id: string;
   makeId: string;
