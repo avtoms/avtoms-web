@@ -155,7 +155,14 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 520, 
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose?.(); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Lock page scroll while the modal is open — with scrollbar-gutter (globals.css) this
+    // stops the background layout from shifting when a modal opens/closes.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [open, onClose]);
   if (!open) return null;
   const sheet = isMobile && mobileSheet;

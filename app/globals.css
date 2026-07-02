@@ -14,6 +14,16 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+/* Reserve the scrollbar track permanently so the layout never shifts sideways when content
+   height changes or a modal locks scrolling (classic "everything jumps" cause). The public
+   landing hides its scrollbar entirely, so it is excluded. */
+html:not(:has(.lp)) { scrollbar-gutter: stable; }
+/* Mobile browsers auto-zoom the page when a focused input's font-size is under 16px, which
+   reads as the UI "minimizing/maximizing". Force 16px on touch devices (stylesheet !important
+   beats the inline 14.5px style). */
+@media (pointer: coarse) {
+  input.an-input, select.an-input, textarea.an-input { font-size: 16px !important; }
+}
 body {
   font-family: var(--font-sans); background: var(--bg); color: var(--ink);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
