@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -89,6 +89,13 @@ const qs = (params: Record<string, string | undefined>) => {
   const s = p.toString();
   return s ? `?${s}` : "";
 };
+
+// Serialize a lead for the API: every field present, deal_price as a string (int64).
+const leadBody = (l: Partial<Lead>) => ({
+  name: l.name ?? "", phone: l.phone ?? "", email: l.email ?? "", company: l.company ?? "",
+  imageUrl: l.imageUrl ?? "", city: l.city ?? "", address: l.address ?? "", source: l.source ?? "",
+  status: l.status ?? "new", dealPrice: String(l.dealPrice ?? 0), notes: l.notes ?? "",
+});
 
 export const api = {
   // ── uploads (multipart, returns the stored object's public URL) ──
@@ -364,6 +371,16 @@ export const api = {
     call<{ requests?: DemoRequest[] }>("GET", "/v1/admin/demo-requests").then((r) => r.requests ?? []),
   setDemoRequestStatus: (id: string, status: string) =>
     call<DemoRequest>("POST", `/v1/admin/demo-requests/${id}/status`, { status }),
+
+  // ── sales CRM leads (super-admin) ──
+  listLeads: () =>
+    call<{ leads?: Lead[] }>("GET", "/v1/admin/leads").then((r) => r.leads ?? []),
+  createLead: (l: Partial<Lead>) =>
+    call<Lead>("POST", "/v1/admin/leads", leadBody(l)),
+  updateLead: (id: string, l: Partial<Lead>) =>
+    call<Lead>("POST", `/v1/admin/leads/${id}`, leadBody(l)),
+  deleteLead: (id: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/admin/leads/${id}/delete`, {}),
 
   createCarModel: (makeId: string, name: string, bodyType: string) =>
     call<CarModel>("POST", "/v1/admin/car-models", { makeId, name, bodyType }),
