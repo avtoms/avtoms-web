@@ -129,6 +129,11 @@ export const api = {
     call<Staff>("POST", "/v1/auth/staff/deactivate", { staffId }),
   updateStaff: (staffId: string, u: { name: string; phone: string; avatarUrl?: string }) =>
     call<Staff>("POST", `/v1/auth/staff/${staffId}`, { name: u.name, phone: u.phone, avatarUrl: u.avatarUrl ?? "" }),
+  // Owner grants/revokes a worker's create-orders capability.
+  setStaffPermissions: (staffId: string, canCreateOrders: boolean) =>
+    call<Staff>("POST", `/v1/auth/staff/${staffId}/permissions`, { canCreateOrders }),
+  // The caller's own live staff record (reflects owner-granted permissions without re-login).
+  getMe: () => call<Staff>("GET", "/v1/auth/me"),
 
   // ── customers + vehicles ──
   listCustomers: (shopId: string, query?: string) =>

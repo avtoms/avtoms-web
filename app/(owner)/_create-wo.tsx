@@ -17,7 +17,9 @@ import { orderLabel } from "@/lib/format";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
 
-export function CreateWOModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+// basePath is the detail-route prefix to navigate to after creation: owners land on
+// /work-orders/{id}, mechanics (who reach this via a granted permission) on /m/wo/{id}.
+export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { open: boolean; onClose: () => void; basePath?: string }) {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
   const { t } = useLang();
@@ -59,7 +61,7 @@ export function CreateWOModal({ open, onClose }: { open: boolean; onClose: () =>
       const wo = await api.createWorkOrder(shopId, vehicleId);
       toast(t("create_wo") + " · " + orderLabel(wo), { icon: "clipboard" });
       onClose();
-      router.push(`/work-orders/${wo.id}`);
+      router.push(`${basePath}/${wo.id}`);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
       setBusy(false);

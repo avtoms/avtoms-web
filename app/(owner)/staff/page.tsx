@@ -2,7 +2,7 @@
 // Staff (owner-pages.jsx StaffPage): list staff, invite-mechanic modal, deactivate.
 // Wired to api.listStaff / inviteMechanic / deactivateStaff.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
+import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, Spinner, Empty, SkeletonRows, Segmented } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -49,6 +49,7 @@ export default function StaffPage() {
                 <Avatar name={s.name} size={40} color={role === "mechanic" ? "var(--info)" : undefined} src={s.avatarUrl} />
                 <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{s.name}</div><div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{s.phone}</div></div>
                 <Badge tone={role === "owner" ? "accent" : "neutral"}>{t(role === "owner" ? "role_owner" : "role_mechanic")}</Badge>
+                {role === "mechanic" && s.canCreateOrders && <span className="an-hide-sm"><Badge tone="info">{t("perm_create_orders")}</Badge></span>}
                 <Badge tone={s.active ? "ok" : "danger"} dot>{s.active ? t("active") : t("inactive")}</Badge>
                 <button onClick={() => setEditing(s)} className="an-btn" style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", padding: 4, display: "flex" }} aria-label={t("edit")}><Icon name="edit" size={16} /></button>
                 {role !== "owner" && s.active && (
@@ -69,11 +70,13 @@ function EditModal({ staff, onClose, onSaved }: { staff: Staff | null; onClose: 
   const { toast } = useToast();
   const [f, setF] = useState({ name: "", phone: "" });
   const [avatar, setAvatar] = useState("");
+  const [canCreate, setCanCreate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (staff) { setF({ name: staff.name, phone: staff.phone }); setAvatar(staff.avatarUrl ?? ""); } }, [staff]);
+  useEffect(() => { if (staff) { setF({ name: staff.name, phone: staff.phone }); setAvatar(staff.avatarUrl ?? ""); setCanCreate(!!staff.canCreateOrders); } }, [staff]);
   if (!staff) return null;
+  const isMechanic = roleFromProto(staff.role) === "mechanic";
 
   const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,6 +95,8 @@ function EditModal({ staff, onClose, onSaved }: { staff: Staff | null; onClose: 
     setBusy(true);
     try {
       await api.updateStaff(staff.id, { name: f.name.trim(), phone: toE164(f.phone), avatarUrl: avatar });
+      // Persist the permission only for mechanics and only when it actually changed.
+      if (isMechanic && canCreate !== !!staff.canCreateOrders) await api.setStaffPermissions(staff.id, canCreate);
       toast(t("save"), { icon: "check" }); onSaved();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -111,6 +116,12 @@ function EditModal({ staff, onClose, onSaved }: { staff: Staff | null; onClose: 
         </div>
         <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
+        {isMechanic && (
+          <Field label={t("perm_create_orders")}>
+            <Segmented options={[{ value: "off", label: t("no") }, { value: "on", label: t("yes") }]} value={canCreate ? "on" : "off"} onChange={(v) => setCanCreate(v === "on")} style={{ width: "100%" }} />
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>{t("perm_create_orders_hint")}</div>
+          </Field>
+        )}
       </div>
     </Modal>
   );

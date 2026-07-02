@@ -2,7 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useLang, useToast } from "@/components/providers";
-import { Badge, Card, SkeletonRows } from "@/components/ui";
+import { Badge, Btn, Card, SkeletonRows } from "@/components/ui";
+import { CreateWOModal } from "@/app/(owner)/_create-wo";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, woStateToProto, kindFromProto, kindIsMaterial, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemStatus } from "@/lib/enums";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
@@ -28,6 +29,12 @@ export default function MechanicBoardPage() {
 
   const [orders, setOrders] = useState<WorkOrder[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Whether the owner granted this mechanic the create-orders capability. Read live from the
+  // backend (not the login session) so a fresh grant shows up without re-logging in.
+  const [canCreate, setCanCreate] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => { api.getMe().then((me) => setCanCreate(!!me.canCreateOrders)).catch(() => setCanCreate(false)); }, []);
 
   // Load the mechanic's orders WITH line items, so each card reflects the mechanic's own
   // progress (his services), not the shared order state.
@@ -118,12 +125,14 @@ export default function MechanicBoardPage() {
           <h2 style={{ margin: 0, fontSize: "calc(20px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.025em" }}>{t("my_jobs")}</h2>
           <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>{mechName}</div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {cols.map((c) => (
             <Badge key={c.key} tone={c.tone} dot>{c.label} · {byState(c.key).length}</Badge>
           ))}
+          {canCreate && <Btn variant="primary" size="sm" icon="plus" onClick={() => setCreateOpen(true)}>{t("new_wo")}</Btn>}
         </div>
       </div>
+      {canCreate && <CreateWOModal open={createOpen} onClose={() => setCreateOpen(false)} basePath="/m/wo" />}
       <WorkOrderBoard
         orders={boardOrders}
         cols={cols}
