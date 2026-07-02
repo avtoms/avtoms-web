@@ -363,6 +363,11 @@ export const api = {
   dashboard: (shopId: string) => call<Dashboard>("GET", "/v1/dashboard" + qs({ shopId })),
   report: (shopId: string, kindKey: string) =>
     call<Report>("GET", "/v1/reports" + qs({ shopId, kind: REPORT_KINDS[kindKey] || kindKey })),
+
+  // ── super-admin platform analytics ──
+  // Top-selling services aggregated across every shop. shop_id is intentionally not sent:
+  // the gateway forces the platform report kind, which aggregates across all tenants.
+  platformServiceStats: () => call<Report>("GET", "/v1/admin/reports/services"),
 };
 
 interface TimeEntryResp { id: string; workOrderId: string; mechanicId: string; startedAt?: string; stoppedAt?: string }

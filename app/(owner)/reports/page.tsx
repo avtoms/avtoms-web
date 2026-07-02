@@ -3,6 +3,7 @@
 // columns + rows from api.report, export current rows as CSV client-side.
 import React, { useCallback, useEffect, useState } from "react";
 import { Card, Btn, Empty, SkeletonRows } from "@/components/ui";
+import { ServiceInsights } from "@/components/service-insights";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -57,6 +58,7 @@ export default function ReportsPage() {
           </button>
         ))}
       </div>
+      {sel === "menu" && rep && rep.rows.length > 0 && <ServiceInsights rows={rep.rows} scope="shop" />}
       <Card pad={0}>
         <div style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", flexWrap: "wrap", gap: 10 }}>
           <h3 style={{ margin: 0, fontSize: "calc(16px * var(--scale))", fontWeight: 700, color: "var(--ink)" }}>{t(TITLE_KEY[sel] || sel)}</h3>
