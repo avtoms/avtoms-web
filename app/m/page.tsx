@@ -1,12 +1,12 @@
 "use client";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { Badge, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { woStateFromProto, type WoState } from "@/lib/enums";
+import { woStateFromProto, woStateToProto, kindFromProto, kindIsMaterial, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemStatus } from "@/lib/enums";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
-import type { WorkOrder } from "@/lib/types";
+import type { WorkOrder, LineItem } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
 
@@ -29,10 +29,14 @@ export default function MechanicBoardPage() {
   const [orders, setOrders] = useState<WorkOrder[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Load the mechanic's orders WITH line items, so each card reflects the mechanic's own
+  // progress (his services), not the shared order state.
   const load = useCallback(async () => {
     if (!shopId) return;
     try {
-      setOrders(await api.listWorkOrders(shopId, undefined, mechanicId));
+      const heads = await api.listWorkOrders(shopId, undefined, mechanicId);
+      const full = await Promise.all(heads.map((h) => api.getWorkOrder(h.id).catch(() => h)));
+      setOrders(full);
     } catch (e) {
       setOrders([]);
       toast(errMsg(e), { tone: "danger", icon: "alert" });
@@ -41,24 +45,54 @@ export default function MechanicBoardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const cols = COLS(t);
-  const byState = (s: WoState) => (orders || []).filter((w) => woStateFromProto(w.state) === s);
+  // The mechanic's own SERVICE lines on an order (his sub-work).
+  const myLines = useCallback((wo: WorkOrder): LineItem[] =>
+    (wo.lineItems || []).filter((li) => li.id && !kindIsMaterial(kindFromProto(li.kind)) && li.assignedMechanicId === mechanicId),
+    [mechanicId]);
 
-  // Move a work order to a target column. Handles timer side-effects:
-  // entering In Progress starts the timer; leaving it stops the timer.
+  // Which column a card sits in for THIS mechanic: driven by his own line progress. When he
+  // has no assigned lines (he's the order lead), fall back to the order state.
+  const myState = useCallback((wo: WorkOrder): WoState => {
+    const actual = woStateFromProto(wo.state);
+    // only reinterpret while the order is in the active work band (approved/in_progress/ready);
+    // draft/estimated/invoiced/closed keep their real state (and drop off the 3-column board).
+    if (actual !== "approved" && actual !== "in_progress" && actual !== "ready") return actual;
+    const lines = myLines(wo);
+    if (lines.length === 0) return actual;
+    const st = lines.map((li) => lineStatusFromProto(li.status));
+    if (st.every((s) => s === "done")) return "ready";
+    if (st.some((s) => s === "in_progress")) return "in_progress";
+    return "approved";
+  }, [myLines]);
+
+  // Board buckets by woStateFromProto(w.state); override it with the mechanic's effective state.
+  const boardOrders = useMemo(() => (orders || []).map((w) => ({ ...w, state: woStateToProto(myState(w)) })), [orders, myState]);
+
+  const cols = COLS(t);
+  const byState = (s: WoState) => boardOrders.filter((w) => woStateFromProto(w.state) === s);
+
+  // Moving a card only changes the mechanic's OWN service lines (start/finish). The order
+  // auto-readies on the backend once EVERY service is done — one mechanic can't ready it alone.
   const moveTo = async (woId: string, target: WoState) => {
     const wo = (orders || []).find((w) => w.id === woId);
-    if (!wo) return;
-    const current = woStateFromProto(wo.state);
-    if (current === target || busyId) return;
+    if (!wo || busyId) return;
+    const lines = myLines(wo);
+    const cur = myState(wo);
+    if (cur === target) return;
     setBusyId(woId);
     try {
-      if (current === "in_progress" && target !== "in_progress") {
-        try { await api.stopTimer(woId, mechanicId); } catch { /* may not be running */ }
-      }
-      await api.transition(woId, target);
-      if (target === "in_progress" && current !== "in_progress") {
-        try { await api.startTimer(woId, mechanicId); } catch { /* best effort */ }
+      if (lines.length === 0) {
+        // order lead without specific lines → move the whole order (legacy behavior)
+        const orderState = woStateFromProto(wo.state);
+        if (orderState === "in_progress" && target !== "in_progress") { try { await api.stopTimer(woId, mechanicId); } catch { /* */ } }
+        await api.transition(woId, target);
+        if (target === "in_progress" && orderState !== "in_progress") { try { await api.startTimer(woId, mechanicId); } catch { /* */ } }
+      } else {
+        // set only MY service lines; the backend rolls the whole order up when all are done
+        const ls: LineItemStatus = target === "ready" ? "done" : target === "in_progress" ? "in_progress" : "pending";
+        for (const li of lines) await api.setLineItemStatus(woId, li.id!, lineStatusToProto(ls));
+        if (target === "in_progress" && cur !== "in_progress") { try { await api.startTimer(woId, mechanicId); } catch { /* */ } }
+        if (cur === "in_progress" && target !== "in_progress") { try { await api.stopTimer(woId, mechanicId); } catch { /* */ } }
       }
       toast(cols.find((c) => c.key === target)?.label || target, { icon: "check" });
       await load();
@@ -87,7 +121,7 @@ export default function MechanicBoardPage() {
         </div>
       </div>
       <WorkOrderBoard
-        orders={orders}
+        orders={boardOrders}
         cols={cols}
         busyId={busyId}
         onMove={(id, s) => void moveTo(id, s)}
