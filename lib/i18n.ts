@@ -463,6 +463,25 @@ export const STR: Record<string, Triple> = {
   loading: ["Yuklanmoqda…", "Юкланмоқда…", "Загрузка…"],
   error: ["Xatolik yuz berdi", "Хатолик юз берди", "Произошла ошибка"],
   bad_phone: ["Noto'g'ri telefon raqam — masalan: +998 90 123 45 67", "Нотўғри телефон рақам — масалан: +998 90 123 45 67", "Неверный номер телефона — например: +998 90 123 45 67"],
+
+  // AI assistant
+  send: ["Yuborish", "Юбориш", "Отправить"],
+  ai_assistant: ["AI yordamchi", "AI ёрдамчи", "AI-помощник"],
+  ai_readonly_note: ["Faqat o'qish — sizning ma'lumotlaringiz", "Фақат ўқиш — сизнинг маълумотларингиз", "Только чтение — ваши данные"],
+  ai_greeting: ["Nima bilan yordam beray?", "Нима билан ёрдам берай?", "Чем могу помочь?"],
+  ai_greeting_sub: ["Biznesingiz haqida so'rang — buyurtmalar, daromad, mijozlar, hisobotlar. Men faqat o'qiy olaman.", "Бизнесингиз ҳақида сўранг — буюртмалар, даромад, мижозлар, ҳисоботлар. Мен фақат ўқий оламан.", "Спросите о вашем бизнесе — заказы, доход, клиенты, отчёты. Я работаю только на чтение."],
+  ai_placeholder: ["Savol yozing…", "Савол ёзинг…", "Напишите вопрос…"],
+  ai_thinking: ["O'ylayapman…", "Ўйлаяпман…", "Думаю…"],
+  ai_clear: ["Suhbatni tozalash", "Суҳбатни тозалаш", "Очистить чат"],
+  ai_error: ["Yordamchi bilan bog'lanib bo'lmadi", "Ёрдамчи билан боғланиб бўлмади", "Не удалось связаться с помощником"],
+  ai_no_reply: ["Javob bo'sh keldi", "Жавоб бўш келди", "Пустой ответ"],
+  ai_nav_blocked: ["Bu bo'limga kirish huquqingiz yo'q", "Бу бўлимга кириш ҳуқуқингиз йўқ", "Нет доступа к этому разделу"],
+  ai_sug_today: ["Bugungi ko'rsatkichlar qanday?", "Бугунги кўрсаткичлар қандай?", "Какие показатели за сегодня?"],
+  ai_sug_profit: ["Bu oy foyda qancha?", "Бу ой фойда қанча?", "Какая прибыль в этом месяце?"],
+  ai_sug_reminders: ["Yaqin eslatmalarni ko'rsat", "Яқин эслатмаларни кўрсат", "Покажи ближайшие напоминания"],
+  ai_sug_platform: ["Platforma bo'yicha eng ko'p sotilgan xizmatlar", "Платформа бўйича энг кўп сотилган хизматлар", "Самые продаваемые услуги по платформе"],
+  ai_sug_leads: ["Lidlar holati qanday?", "Лидлар ҳолати қандай?", "Какая ситуация по лидам?"],
+  ai_sug_shops: ["Qaysi servislar ro'yxatda?", "Қайси сервислар рўйхатда?", "Какие сервисы есть в системе?"],
 };
 
 export function translate(lang: Lang, key: string): string {

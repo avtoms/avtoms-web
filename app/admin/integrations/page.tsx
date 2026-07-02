@@ -42,6 +42,17 @@ const PROVIDERS: { provider: string; title: string; note: string; fields: FieldD
       { key: "public_url", label: "Public URL", placeholder: "https://pub-xxxx.r2.dev" },
     ],
   },
+  {
+    provider: "openai",
+    title: "OpenAI (AI yordamchi)",
+    note: "Egalar va superadmin uchun AI chat yordamchisini yoqadi. API kalitni kiriting, modelni tanlang va javob uchun token limitini belgilang. Faqat o'qish uchun — AI hech narsani o'zgartira olmaydi.",
+    fields: [
+      { key: "api_key", label: "API Key", secret: true, placeholder: "sk-…" },
+      { key: "model", label: "Model", placeholder: "gpt-4o-mini" },
+      { key: "max_tokens", label: "Javob uchun maksimal tokenlar", placeholder: "1200" },
+      { key: "base_url", label: "Base URL (ixtiyoriy)", placeholder: "https://api.openai.com/v1" },
+    ],
+  },
 ];
 
 export default function IntegrationsPage() {

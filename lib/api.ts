@@ -394,6 +394,14 @@ export const api = {
   // Top-selling services aggregated across every shop. shop_id is intentionally not sent:
   // the gateway forces the platform report kind, which aggregates across all tenants.
   platformServiceStats: () => call<Report>("GET", "/v1/admin/reports/services"),
+
+  // ── AI assistant ──
+  // One assistant turn. The gateway runs an OpenAI tool-calling loop against a strictly
+  // read-only, shop-scoped tool registry (same tools the MCP endpoint exposes) and returns
+  // an HTML fragment to render in the chat. Owners are scoped to their shop; super-admins
+  // see all shops.
+  aiChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
+    call<{ reply?: string; error?: string }>("POST", "/v1/ai/chat", { messages }),
 };
 
 interface TimeEntryResp { id: string; workOrderId: string; mechanicId: string; startedAt?: string; stoppedAt?: string }
