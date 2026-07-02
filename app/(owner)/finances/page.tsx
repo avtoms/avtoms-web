@@ -3,7 +3,7 @@
 // KPI cards, a 12-month revenue/expenses/profit trend, expense breakdown by category, and
 // the overhead-expense ledger. The period can be a month, quarter, year, or custom range.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Btn, IconBtn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty } from "@/components/ui";
+import { Card, Btn, IconBtn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonCards } from "@/components/ui";
 import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -143,7 +143,7 @@ export default function FinancesPage() {
         </div>
       </div>
 
-      {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+      {loading ? <SkeletonCards cards={6} />
         : tab === "stats" ? <>
           {/* KPI cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>

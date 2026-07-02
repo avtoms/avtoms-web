@@ -2,7 +2,7 @@
 // Reports (owner-pages.jsx ReportsPage): pick one of the 6 report kinds, render the
 // columns + rows from api.report, export current rows as CSV client-side.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Btn, Spinner, Empty } from "@/components/ui";
+import { Card, Btn, Empty, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -62,7 +62,7 @@ export default function ReportsPage() {
           <h3 style={{ margin: 0, fontSize: "calc(16px * var(--scale))", fontWeight: 700, color: "var(--ink)" }}>{t(TITLE_KEY[sel] || sel)}</h3>
           <Btn variant="secondary" size="sm" icon="download" onClick={exportCsv} disabled={!rep || rep.rows.length === 0}>{t("export_csv")}</Btn>
         </div>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        {loading && !rep ? <SkeletonRows rows={6} avatar={false} />
           : !rep || rep.rows.length === 0 ? <div style={{ padding: 24 }}><Empty icon="chart" /></div>
           : (
             <div style={{ overflowX: "auto" }}>

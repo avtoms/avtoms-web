@@ -3,7 +3,7 @@
 // each item. Editing logs a price-change history (viewable in the edit modal); existing
 // work orders keep the price they were created with (line-item snapshot), so edits are safe.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Btn, IconBtn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Btn, IconBtn, Modal, Field, TextInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -41,7 +41,7 @@ export default function MenuPage() {
         <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_service")}</Btn>
       </div>
       <Card pad={0}>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        {loading && list.length === 0 ? <SkeletonRows rows={7} avatar={false} />
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="list" /></div>
           : list.map((m) => (
             <div key={m.id} className="an-row-btn" onClick={() => setEditing(m)} style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)", opacity: m.active ? 1 : 0.55, cursor: "pointer" }}>

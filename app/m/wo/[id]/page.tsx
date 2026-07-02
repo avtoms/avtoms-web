@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import {
-  Btn, IconBtn, Card, StateBadge, Badge, Field, TextInput, TextArea, Segmented, Modal, Empty, Spinner, useIsMobile,
+  Btn, IconBtn, Card, StateBadge, Badge, Field, TextInput, TextArea, Segmented, Modal, Empty, Spinner, useIsMobile, Skeleton, SkeletonRows,
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { MoneyInput } from "@/components/catalog-fields";
@@ -320,7 +320,12 @@ export default function MechanicWoDetailPage() {
   };
 
   if (loading) {
-    return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner size={28} /></div>;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <Card><div style={{ display: "flex", flexDirection: "column", gap: 12 }}><Skeleton w="40%" h={20} r={8} /><Skeleton w="60%" h={13} /></div></Card>
+        <Card pad={0}><SkeletonRows rows={4} avatar={false} /></Card>
+      </div>
+    );
   }
   if (!wo) {
     return <Empty icon="clipboard" text={t("error")} />;

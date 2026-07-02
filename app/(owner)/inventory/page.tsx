@@ -1,7 +1,7 @@
 "use client";
 // Parts inventory: stock list with low-stock flag, add part, and receive/consume stock.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, Segmented, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Field, TextInput, Segmented, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -34,7 +34,7 @@ export default function InventoryPage() {
         <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_part")}</Btn>
       </div>
       <Card pad={0}>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        {loading && list.length === 0 ? <SkeletonRows rows={7} avatar={false} />
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="wrench" /></div>
           : list.map((p) => {
             const low = num(p.quantityOnHand) <= num(p.reorderLevel);

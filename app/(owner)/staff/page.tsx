@@ -2,7 +2,7 @@
 // Staff (owner-pages.jsx StaffPage): list staff, invite-mechanic modal, deactivate.
 // Wired to api.listStaff / inviteMechanic / deactivateStaff.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -40,7 +40,7 @@ export default function StaffPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn variant="primary" icon="plus" onClick={() => setInviting(true)}>{t("invite_mechanic")}</Btn></div>
       <Card pad={0}>
-        {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+        {loading && list.length === 0 ? <SkeletonRows rows={5} />
           : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="team" /></div>
           : list.map((s) => {
             const role = roleFromProto(s.role);

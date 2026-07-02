@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card, Badge, Btn, IconBtn, Avatar, Modal, Field, TextInput, SelectInput, Segmented,
-  Spinner, Empty, StateBadge, FiscalBadge, QR, useIsMobile,
+  Spinner, Empty, StateBadge, FiscalBadge, QR, useIsMobile, Skeleton, SkeletonRows,
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -103,7 +103,12 @@ export default function WorkOrderDetailPage() {
     catch (e) { err(e); } finally { setBusy(false); }
   };
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner size={28} /></div>;
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Card><div style={{ display: "flex", flexDirection: "column", gap: 12 }}><Skeleton w="35%" h={22} r={8} /><Skeleton w="55%" h={13} /></div></Card>
+      <Card pad={0}><SkeletonRows rows={4} avatar={false} /></Card>
+    </div>
+  );
   if (!wo) return <Empty icon="alert" text={t("error")} />;
 
   const state = woStateFromProto(wo.state);

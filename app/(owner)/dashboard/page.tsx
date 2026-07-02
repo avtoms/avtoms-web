@@ -2,7 +2,7 @@
 // Dashboard (owner.jsx Dashboard): live widgets from api.dashboard, auto-refresh every 30s,
 // plus a recent work-order list from api.listWorkOrders.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Spinner, Empty, useIsMobile } from "@/components/ui";
+import { Card, Badge, Empty, useIsMobile, SkeletonCards, SkeletonRows } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money } from "@/lib/format";
@@ -45,7 +45,12 @@ export default function DashboardPage() {
     return () => { clearInterval(tick); clearInterval(refresh); };
   }, [load]);
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Spinner size={28} /></div>;
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <SkeletonCards cards={4} />
+      <Card pad={0}><SkeletonRows rows={6} avatar={false} /></Card>
+    </div>
+  );
   if (err && !data) return <Empty icon="alert" text={t("error")} />;
 
   const d = data!;

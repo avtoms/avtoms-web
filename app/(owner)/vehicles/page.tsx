@@ -5,7 +5,7 @@
 // by customerId. A row deep-links to the owner (customers?focus=<id>).
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Btn, Spinner, Empty, TextInput } from "@/components/ui";
+import { Card, Btn, Empty, TextInput, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -64,7 +64,7 @@ export default function VehiclesPage() {
       </div>
       <Card pad={0}>
         {vehicles === null ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner size={24} /></div>
+          <SkeletonRows rows={7} />
         ) : filtered.length === 0 ? (
           <div style={{ padding: 24 }}><Empty icon="car" /></div>
         ) : filtered.map((v) => {
