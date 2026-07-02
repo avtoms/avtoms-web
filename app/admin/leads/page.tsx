@@ -2,7 +2,7 @@
 // Super-admin sales CRM: potential customers (leads) managed by hand — full contact + company
 // + photo, the pipeline status and the deal price actually negotiated. Add / edit / delete.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Avatar, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
+import { Card, Avatar, Badge, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonRows, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { MoneyInput } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
@@ -16,6 +16,15 @@ type StatusTone = "neutral" | "info" | "accent" | "warn" | "ok" | "danger";
 const STATUS_TONE: Record<string, StatusTone> = {
   new: "neutral", contacted: "info", qualified: "accent", negotiating: "warn", won: "ok", lost: "danger",
 };
+// Board column colours per pipeline status.
+const COL_COLOR: Record<string, { accent: string; soft: string }> = {
+  new: { accent: "var(--ink-3)", soft: "var(--surface-2)" },
+  contacted: { accent: "var(--info)", soft: "var(--info-soft)" },
+  qualified: { accent: "var(--accent-2)", soft: "var(--accent-soft)" },
+  negotiating: { accent: "var(--warn)", soft: "var(--warn-soft)" },
+  won: { accent: "var(--ok)", soft: "var(--ok-soft)" },
+  lost: { accent: "var(--danger)", soft: "var(--danger-soft)" },
+};
 
 const empty: Partial<Lead> = { name: "", phone: "", email: "", company: "", imageUrl: "", city: "", address: "", source: "landing", status: "new", dealPrice: "", notes: "" };
 
@@ -25,6 +34,8 @@ export default function AdminLeadsPage() {
   const [list, setList] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<Lead> | null>(null);
+  const [view, setView] = useState<"list" | "board">("board");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,15 +52,31 @@ export default function AdminLeadsPage() {
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
   };
 
+  // Change a lead's pipeline status (board drag or per-card menu). Optimistic; the whole lead
+  // is sent because the API is a full overwrite.
+  const move = async (id: string, status: string) => {
+    const lead = list.find((l) => l.id === id);
+    if (!lead || lead.status === status || busyId) return;
+    setBusyId(id);
+    setList((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
+    try { await api.updateLead(id, { ...lead, status }); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); load(); }
+    finally { setBusyId(null); }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <Segmented options={[{ value: "board", label: t("view_board") }, { value: "list", label: t("view_list") }]} value={view} onChange={(v) => setView(v as "list" | "board")} />
         <Btn variant="primary" icon="plus" onClick={() => setEditing({ ...empty })}>{t("lead_add")}</Btn>
       </div>
+
+      {loading && list.length === 0 ? <Card pad={0}><SkeletonRows rows={6} /></Card>
+        : list.length === 0 ? <Card pad={24}><Empty icon="users" text={t("no_leads")} /></Card>
+        : view === "board" ? <LeadBoard leads={list} busyId={busyId} onMove={move} onOpen={setEditing} />
+        : (
       <Card pad={0}>
-        {loading && list.length === 0 ? <SkeletonRows rows={6} />
-          : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="users" text={t("no_leads")} /></div>
-          : list.map((l) => {
+        {list.map((l) => {
             const st = l.status || "new";
             const deal = num(l.dealPrice);
             return (
@@ -73,6 +100,7 @@ export default function AdminLeadsPage() {
             );
           })}
       </Card>
+      )}
       <LeadModal lead={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
     </div>
   );
@@ -152,5 +180,104 @@ function LeadModal({ lead, onClose, onSaved }: { lead: Partial<Lead> | null; onC
         </Field>
       </div>
     </Modal>
+  );
+}
+
+// ── Jira-style pipeline board: drag a lead card between status columns, or change its status
+// from the per-card menu (works on mobile / without dragging). ──
+function LeadBoard({ leads, busyId, onMove, onOpen }: {
+  leads: Lead[]; busyId: string | null; onMove: (id: string, status: string) => void; onOpen: (l: Lead) => void;
+}) {
+  const { t } = useLang();
+  const isMobile = useIsMobile();
+  const [tab, setTab] = useState<string>("new");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overCol, setOverCol] = useState<string | null>(null);
+  const dragRef = useRef<string | null>(null);
+
+  const byStatus = (s: string) => leads.filter((l) => (l.status || "new") === s);
+  const start = (id: string) => { dragRef.current = id; setDragId(id); };
+  const end = () => { dragRef.current = null; setDragId(null); setOverCol(null); };
+  const drop = (s: string) => { const id = dragRef.current; setOverCol(null); if (id) onMove(id, s); };
+
+  if (isMobile) {
+    const active = (STATUSES as readonly string[]).includes(tab) ? tab : "new";
+    const items = byStatus(active);
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ overflowX: "auto" }}>
+          <Segmented options={STATUSES.map((s) => ({ value: s, label: `${t("lead_" + s)} · ${byStatus(s).length}` }))} value={active} onChange={setTab} size="sm" style={{ flexWrap: "nowrap" }} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+          {items.length === 0 ? <div style={{ padding: "28px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>{t("no_leads")}</div>
+            : items.map((l) => <LeadCard key={l.id} l={l} busy={busyId === l.id} dragging={false} onOpen={() => onOpen(l)} onMove={(s) => onMove(l.id, s)} onDragStart={() => {}} onDragEnd={() => {}} t={t} />)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${STATUSES.length}, minmax(230px, 300px))`, gap: 14, alignItems: "start", justifyContent: "start" }}>
+        {STATUSES.map((s) => {
+          const c = COL_COLOR[s]; const items = byStatus(s); const isOver = overCol === s;
+          return (
+            <div key={s}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== s) setOverCol(s); }}
+              onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
+              onDrop={(e) => { e.preventDefault(); drop(s); }}
+              style={{ display: "flex", flexDirection: "column", gap: 11 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "var(--radius-sm)", background: c.soft, color: c.accent }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: "currentColor" }} /> {t("lead_" + s)}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: 12.5, minWidth: 22, height: 22, borderRadius: 999, background: "var(--surface)", color: c.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 7px" }}>{items.length}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 11, minHeight: 120, borderRadius: "var(--radius)", padding: 11, background: isOver ? c.soft : "var(--surface-2)", outline: isOver ? `2px dashed ${c.accent}` : "2px dashed transparent", transition: "background .12s, outline-color .12s" }}>
+                {items.length === 0 ? <div style={{ padding: "26px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 12.5 }}>{isOver ? t("drop_here") : "—"}</div>
+                  : items.map((l) => <LeadCard key={l.id} l={l} busy={busyId === l.id} dragging={dragId === l.id} onOpen={() => onOpen(l)} onMove={(st) => onMove(l.id, st)} onDragStart={() => start(l.id)} onDragEnd={end} t={t} />)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LeadCard({ l, busy, dragging, onOpen, onMove, onDragStart, onDragEnd, t }: {
+  l: Lead; busy: boolean; dragging: boolean; onOpen: () => void; onMove: (s: string) => void;
+  onDragStart: () => void; onDragEnd: () => void; t: (k: string) => string;
+}) {
+  const deal = num(l.dealPrice);
+  const c = COL_COLOR[l.status || "new"];
+  return (
+    <div draggable={!busy}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", l.id); onDragStart(); }}
+      onDragEnd={onDragEnd}
+      className="an-card-hover"
+      style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)", boxShadow: dragging ? "var(--shadow-lg)" : "var(--shadow)", padding: "12px 13px 12px 15px", cursor: busy ? "wait" : "grab", opacity: dragging ? 0.5 : busy ? 0.7 : 1, transition: "box-shadow .12s, opacity .12s" }}
+    >
+      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: c.accent, borderTopLeftRadius: "var(--radius)", borderBottomLeftRadius: "var(--radius)" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <Avatar name={l.name || l.company || "?"} size={38} src={l.imageUrl || undefined} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.name || "—"}</div>
+          {l.company && <div style={{ fontSize: 12, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.company}</div>}
+        </div>
+      </div>
+      {(l.phone || l.city) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12, color: "var(--ink-3)", marginBottom: 10 }}>
+          {l.phone && <span style={{ fontFamily: "var(--font-mono)" }}>{l.phone}</span>}
+          {l.city && <span>· {l.city}</span>}
+        </div>
+      )}
+      {deal > 0 && <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14, marginBottom: 10 }}>{money(deal)} <span style={{ fontSize: 11, fontWeight: 500, color: "var(--ink-3)" }}>{t("soum")}</span></div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <SelectInput value={l.status || "new"} onChange={(e) => onMove(e.target.value)} disabled={busy} style={{ flex: 1, fontSize: 12.5, padding: "5px 8px" }}>
+          {STATUSES.map((s) => <option key={s} value={s}>{t("lead_" + s)}</option>)}
+        </SelectInput>
+        <button onClick={onOpen} className="an-btn" style={{ border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer", padding: "6px 8px", borderRadius: "var(--radius-sm)", display: "flex" }} aria-label={t("edit")}><Icon name="edit" size={14} /></button>
+      </div>
+    </div>
   );
 }
