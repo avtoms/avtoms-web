@@ -121,6 +121,16 @@ export default function WorkOrderDetailPage() {
   const total = wo.total != null ? num(wo.total) : computed.total;
   const totalCost = num(wo.totalCost);
   const totalMargin = wo.totalMargin != null ? num(wo.totalMargin) : subtotal - totalCost;
+  // Negotiated discount across menu-priced lines: what the price-list total WAS (gross) vs what
+  // we actually charge (subtotal). Shown so the owner sees "was X → −discount (N%) → now Y".
+  const grossSubtotal = items.reduce((s, it) => {
+    const qty = it.quantity || 0;
+    const actualUnit = num(it.unitPrice);
+    const listUnit = num(it.defaultPrice) > actualUnit ? num(it.defaultPrice) : actualUnit;
+    return s + listUnit * qty;
+  }, 0);
+  const totalDiscount = Math.max(0, grossSubtotal - subtotal);
+  const discountPct = grossSubtotal > 0 ? Math.round((totalDiscount / grossSubtotal) * 100) : 0;
   // Line items can be added while the order is still open (matches the backend state guard).
   const editable = ["draft", "estimated", "approved", "in_progress", "ready"].includes(state);
   const mech = mechanics.find((m) => m.id === wo.assignedMechanicId);
@@ -208,6 +218,13 @@ export default function WorkOrderDetailPage() {
               })}
             </div>
             <div style={{ padding: "14px 18px", background: "var(--surface-2)" }}>
+              {totalDiscount > 0 && (
+                <>
+                  <Row label={t("before_discount")} value={money(grossSubtotal)} mono />
+                  <Row label={`${t("discount")} · ${discountPct}%`} value={<span style={{ color: "var(--ok)" }}>−{money(totalDiscount)}</span>} mono />
+                  <div style={{ height: 1, background: "var(--line)", margin: "6px 0" }} />
+                </>
+              )}
               <Row label={t("subtotal")} value={money(subtotal)} mono />
               <Row label={t("vat")} value={money(vat)} mono />
               <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
