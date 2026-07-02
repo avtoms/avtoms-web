@@ -95,6 +95,7 @@ export interface LineItem {
   menuItemId?: string; // source menu item, when added from the price list
   defaultPrice?: string; // menu price snapshot at add time, for discount audit (tiyin)
   assignedMechanicId?: string; // mechanic assigned to this specific service line
+  status?: string; // LINE_ITEM_STATUS_PENDING | _IN_PROGRESS | _DONE
 }
 
 export interface TimeEntry {
