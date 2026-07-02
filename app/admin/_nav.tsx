@@ -9,7 +9,13 @@ type Item = { href: string; label: string; icon: string; exact?: boolean };
 type Group = { title: string; items: Item[] };
 
 export const NAV_GROUPS: Group[] = [
-  { title: "Boshqaruv", items: [{ href: "/admin", label: "Umumiy", icon: "dashboard", exact: true }] },
+  {
+    title: "Boshqaruv",
+    items: [
+      { href: "/admin", label: "Umumiy", icon: "dashboard", exact: true },
+      { href: "/admin/services", label: "Xizmatlar tahlili", icon: "chart" },
+    ],
+  },
   { title: "Sotuv", items: [{ href: "/admin/demo-requests", label: "Demo so'rovlari", icon: "bell" }] },
   { title: "Foydalanuvchilar", items: [{ href: "/admin/users", label: "Xodimlar", icon: "users" }] },
   {
@@ -66,6 +72,7 @@ export function AdminNav() {
 
 const TITLES: { match: (p: string) => boolean; title: string }[] = [
   { match: (p) => p === "/admin", title: "Umumiy ko'rsatkichlar" },
+  { match: (p) => p.startsWith("/admin/services"), title: "Xizmatlar tahlili" },
   { match: (p) => p.startsWith("/admin/demo-requests"), title: "Demo so'rovlari" },
   { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar" },
   { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari" },
