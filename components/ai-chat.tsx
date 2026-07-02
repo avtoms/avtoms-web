@@ -66,7 +66,70 @@ function sanitizeHtml(html: string): string {
     });
   };
   walk(doc.body);
+  // Wrap every table so a wide one scrolls inside its own container instead of
+  // shattering the chat layout.
+  doc.body.querySelectorAll("table").forEach((tbl) => {
+    if (!tbl.classList.contains("ai-table")) tbl.classList.add("ai-table");
+    const wrap = doc.createElement("div");
+    wrap.className = "ai-tablewrap";
+    tbl.replaceWith(wrap);
+    wrap.appendChild(tbl);
+  });
   return doc.body.innerHTML;
+}
+
+// ── interactive "app" mode (games, simulations, calculators, drawings…) ──────
+// When the assistant returns rich content (script/canvas/style/svg/inputs or a
+// full document), we render it in a sandboxed iframe: allow-scripts WITHOUT
+// allow-same-origin, so the code runs in a null origin and can never read the
+// session token, cookies, or the parent DOM. The only channel back to the app is
+// postMessage (navigation + auto-height), handled by the bridge injected below.
+const THEME_VARS = [
+  "--bg", "--surface", "--surface-2", "--surface-3", "--ink", "--ink-2", "--ink-3",
+  "--line", "--line-2", "--accent", "--accent-2", "--accent-ink", "--accent-soft",
+  "--ok", "--ok-soft", "--warn", "--warn-soft", "--danger", "--danger-soft",
+  "--info", "--info-soft", "--radius", "--radius-sm", "--radius-lg", "--font-sans", "--font-mono",
+];
+
+function isInteractiveApp(html: string): boolean {
+  return /<script\b|<canvas\b|<style\b|<svg\b|<input\b|<form\b|<textarea\b|<select\b|<!doctype|<html\b|requestAnimationFrame/i.test(stripFence(html));
+}
+
+// extractAppContent normalizes either a fragment or a full document into body-level
+// content (preserving any <style> the model put in <head>).
+function extractAppContent(html: string): string {
+  if (typeof document === "undefined") return "";
+  if (!/<html|<!doctype/i.test(html)) return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const headStyles = Array.from(doc.head.querySelectorAll("style")).map((s) => s.outerHTML).join("");
+  return headStyles + doc.body.innerHTML;
+}
+
+// buildAppDoc wraps the model's interactive content in a self-contained srcdoc:
+// current theme variables + a base stylesheet + a bridge script (id-tagged so the
+// host can size each app iframe independently and follow its navigation).
+function buildAppDoc(html: string, id: number): string {
+  if (typeof document === "undefined") return "";
+  const root = getComputedStyle(document.documentElement);
+  const vars = THEME_VARS.map((v) => `${v}:${root.getPropertyValue(v).trim()}`).join(";");
+  const content = extractAppContent(stripFence(html));
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+:root{${vars}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{padding:12px;background:var(--bg);color:var(--ink);font-family:var(--font-sans,system-ui),sans-serif;font-size:14px;line-height:1.5}
+button{font-family:inherit;cursor:pointer}
+a{color:var(--accent-2)}
+canvas{max-width:100%}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px}
+</style></head><body>${content}
+<script>(function(){
+function send(m){parent.postMessage(Object.assign({__aichat:1,id:${id}},m),'*');}
+document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-nav]');if(el){e.preventDefault();send({type:'nav',path:el.getAttribute('data-nav')});}});
+function h(){send({type:'height',height:document.body.scrollHeight});}
+window.addEventListener('load',h);try{new ResizeObserver(h).observe(document.body);}catch(_){}
+setTimeout(h,60);setTimeout(h,400);setTimeout(h,1200);
+})();</script></body></html>`;
 }
 
 // ── styling for the assistant's rendered HTML ────────────────────────────────
@@ -83,10 +146,13 @@ const AI_CSS = `
 .ai-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 13px; margin: 8px 0; background: var(--surface); }
 .ai-title { font-weight: 700; color: var(--ink); margin-bottom: 4px; }
 .ai-kpi { font-size: calc(20px * var(--scale)); font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
-.ai-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: calc(12.5px * var(--scale)); }
-.ai-table th, .ai-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-.ai-table th { color: var(--ink-3); font-weight: 600; font-size: calc(11px * var(--scale)); text-transform: uppercase; letter-spacing: 0.04em; }
-.ai-table tr:last-child td { border-bottom: none; }
+.ai-tablewrap { margin: 9px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); -webkit-overflow-scrolling: touch; }
+.ai-html table { width: 100%; border-collapse: collapse; font-size: calc(12.5px * var(--scale)); }
+.ai-html th, .ai-html td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ai-html thead th { position: sticky; top: 0; background: var(--surface-2); color: var(--ink-3); font-weight: 700; font-size: calc(10.5px * var(--scale)); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.ai-html tbody tr:nth-child(even) td { background: color-mix(in oklch, var(--surface-2), transparent 55%); }
+.ai-html tbody tr:last-child td { border-bottom: none; }
+.ai-html td:not(:first-child), .ai-html th:not(:first-child) { white-space: nowrap; }
 .ai-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: calc(11px * var(--scale)); font-weight: 600; background: var(--surface-2); color: var(--ink-2); }
 .ai-badge.ai-ok { background: var(--ok-soft); color: var(--ok); }
 .ai-badge.ai-warn { background: var(--warn-soft); color: var(--warn); }
@@ -109,9 +175,34 @@ export function ChatWidget() {
   const [threads, setThreads] = useState<AiConversation[]>([]);
   const [showThreads, setShowThreads] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [heights, setHeights] = useState<Record<number, number>>({}); // per-message app-iframe heights
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = session?.role === "admin";
+
+  // Navigate the app, guarding cross-role links (owners → owner paths, admin → admin paths).
+  const navTo = useCallback((path: string) => {
+    if (!path.startsWith("/")) return;
+    const adminPath = path === "/admin" || path.startsWith("/admin/");
+    if (adminPath !== isAdmin) { toast(t("ai_nav_blocked"), { icon: "alert", tone: "danger" }); return; }
+    router.push(path);
+    setOpen(false);
+  }, [isAdmin, router, t, toast]);
+
+  // Bridge from sandboxed app iframes: in-app navigation + per-iframe auto-height.
+  useEffect(() => {
+    function onMsg(e: MessageEvent) {
+      const d = e.data as { __aichat?: number; type?: string; path?: string; id?: number; height?: number } | null;
+      if (!d || d.__aichat !== 1) return;
+      if (d.type === "nav" && typeof d.path === "string") navTo(d.path);
+      else if (d.type === "height" && typeof d.id === "number" && typeof d.height === "number") {
+        const h = Math.max(120, Math.min(Math.round(d.height) + 4, 2000));
+        setHeights((cur) => (cur[d.id!] === h ? cur : { ...cur, [d.id!]: h }));
+      }
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [navTo]);
 
   // Auto-scroll to the newest message.
   useEffect(() => {
@@ -125,11 +216,12 @@ export function ChatWidget() {
   // Load saved threads when the panel first opens.
   useEffect(() => { if (open) refreshThreads(); }, [open, refreshThreads]);
 
-  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setInput(""); };
+  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setInput(""); setHeights({}); };
 
   const openThread = async (id: string) => {
     setShowThreads(false);
     setLoadingThread(true);
+    setHeights({});
     try {
       const r = await api.getConversation(id);
       setMsgs((r.messages ?? []).map((m) => ({ role: m.role, content: m.content })));
@@ -171,18 +263,12 @@ export function ChatWidget() {
     }
   }, [msgs, sending, t, conversationId, refreshThreads]);
 
-  // Delegated navigation for buttons inside sanitized assistant HTML.
+  // Delegated navigation for buttons inside sanitized (inline) assistant HTML.
   const onHtmlClick = (e: React.MouseEvent) => {
     const el = (e.target as HTMLElement).closest("[data-nav]") as HTMLElement | null;
     if (!el) return;
-    const path = el.getAttribute("data-nav") || "";
-    if (!path.startsWith("/")) return;
-    // Role guard: only follow links the current user can actually reach.
-    const adminPath = path === "/admin" || path.startsWith("/admin/");
-    if (adminPath !== isAdmin) { toast(t("ai_nav_blocked"), { icon: "alert", tone: "danger" }); return; }
     e.preventDefault();
-    router.push(path);
-    setOpen(false);
+    navTo(el.getAttribute("data-nav") || "");
   };
 
   const suggestions = isAdmin
@@ -286,6 +372,13 @@ export function ChatWidget() {
                 <div key={i} style={{ alignSelf: "flex-end", maxWidth: "85%", padding: "9px 13px", borderRadius: "14px 14px 3px 14px", background: "var(--accent)", color: "var(--accent-ink)", fontSize: "calc(13.5px * var(--scale))", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {m.content}
                 </div>
+              ) : isInteractiveApp(m.content) ? (
+                // Rich/interactive content (games, simulations, calculators…) runs in a
+                // sandboxed iframe — isolated from the app's origin, session and cookies.
+                <iframe key={i} title={t("ai_assistant")} sandbox="allow-scripts allow-pointer-lock"
+                  srcDoc={buildAppDoc(m.content, i)}
+                  style={{ alignSelf: "stretch", width: "100%", border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", height: heights[i] ?? 260, maxHeight: "72vh" }}
+                />
               ) : (
                 <div key={i} className="ai-html" onClick={onHtmlClick}
                   style={{ alignSelf: "flex-start", maxWidth: "94%", padding: "10px 13px", borderRadius: "14px 14px 14px 3px", background: "var(--surface)", border: "1px solid var(--line)", wordBreak: "break-word" }}
