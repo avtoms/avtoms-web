@@ -588,6 +588,18 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
   if (!open) return null;
   const fiscal = inv ? fiscalFromProto(inv.fiscalStatus) : "pending";
 
+  // Discount breakdown (menu default_price vs agreed unit_price), mirrored from the printable
+  // check so the order-detail invoice shows the negotiated discount, not just the total.
+  const discRows = (wo.lineItems ?? []).map((it) => {
+    const qty = it.quantity || 0;
+    const actualUnit = num(it.unitPrice);
+    const listUnit = num(it.defaultPrice) > actualUnit ? num(it.defaultPrice) : actualUnit;
+    return { disc: Math.max(0, (listUnit - actualUnit) * qty), lineSum: actualUnit * qty };
+  });
+  const totalDiscount = discRows.reduce((s, r) => s + r.disc, 0);
+  const netSubtotal = wo.subtotal != null ? num(wo.subtotal) : discRows.reduce((s, r) => s + r.lineSum, 0);
+  const vatAmt = wo.vat != null ? num(wo.vat) : Math.round(netSubtotal * 0.12);
+
   return (
     <Modal open={open} onClose={onClose} title={t("invoice") + (inv ? " · " + inv.id.slice(0, 8) : "")} maxWidth={440}>
       {!inv ? (
@@ -600,6 +612,14 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
           </div>
           <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
             <Row label={t("work_order")} value={orderLabel(wo)} mono />
+            {totalDiscount > 0 && (
+              <>
+                <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
+                <Row label={t("subtotal")} value={money(netSubtotal)} mono />
+                <Row label={t("discount")} value={"−" + money(totalDiscount)} mono />
+                <Row label={t("vat")} value={money(vatAmt)} mono />
+              </>
+            )}
             <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
             <Row label={t("total")} value={money(inv.total) + " " + t("soum")} strong mono />
           </div>
@@ -636,7 +656,7 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
           {/* notify customer is a visual stub (no notify endpoint in the API client). */}
           <div style={{ display: "flex", gap: 10 }}>
             <Btn variant="secondary" size="sm" icon="send" style={{ flex: 1 }} onClick={() => toast(t("sent"), { icon: "send" })}>{t("notify_customer")}</Btn>
-            <Btn variant="secondary" size="sm" icon="printer" style={{ flex: 1 }} onClick={() => toast(t("print"), { icon: "printer" })}>{t("print")}</Btn>
+            <Btn variant="secondary" size="sm" icon="printer" style={{ flex: 1 }} onClick={() => window.open(`/print-invoice/${inv.id}`, "_blank")}>{t("print")}</Btn>
           </div>
         </div>
       )}
