@@ -9,7 +9,7 @@
 // Next router — so the assistant can build clickable, navigable answers.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Btn, IconBtn, Spinner } from "@/components/ui";
+import { Btn, IconBtn, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -24,6 +24,8 @@ const ALLOWED_TAGS = new Set([
 ]);
 // Only these attributes survive. class for styling; data-nav/data-action for interactivity.
 const ALLOWED_ATTRS = new Set(["class", "data-nav", "data-action"]);
+// Elements whose CONTENT must never leak into the chat as text (raw JS/CSS is not an answer).
+const DROP_WITH_CONTENT = new Set(["script", "style", "iframe", "object", "embed", "link", "meta", "title", "noscript", "head"]);
 
 // Strip a leading/trailing markdown code fence if the model wrapped its HTML in one.
 function stripFence(s: string): string {
@@ -45,9 +47,12 @@ function sanitizeHtml(html: string): string {
         const el = child as HTMLElement;
         const tag = el.tagName.toLowerCase();
         if (!ALLOWED_TAGS.has(tag)) {
-          // Drop the element but keep its (sanitized) text content.
-          const text = doc.createTextNode(el.textContent || "");
-          el.replaceWith(text);
+          if (DROP_WITH_CONTENT.has(tag)) { el.remove(); return; } // never show raw code as text
+          // Unknown-but-harmless tag (section, article, h1…): unwrap it, keeping its
+          // sanitized children, so the answer's structure survives.
+          walk(el);
+          while (el.firstChild) el.parentNode?.insertBefore(el.firstChild, el);
+          el.remove();
           return;
         }
         // Strip every attribute except the allowlist.
@@ -92,13 +97,23 @@ const THEME_VARS = [
 ];
 
 function isInteractiveApp(html: string): boolean {
-  return /<script\b|<canvas\b|<style\b|<svg\b|<input\b|<form\b|<textarea\b|<select\b|<!doctype|<html\b|requestAnimationFrame/i.test(stripFence(html));
+  const t = stripFence(html);
+  // Any executable/app-shaped content routes to the sandboxed iframe: script tags
+  // (even escaped or fenced), inline event handlers, form controls, canvas/svg, a
+  // style block, or a full document. The inline path must NEVER receive code.
+  return /<script\b|&lt;script\b|<canvas\b|<style\b|<svg\b|<input\b|<form\b|<textarea\b|<select\b|<!doctype|<html\b|requestAnimationFrame|addEventListener|\son[a-z]+\s*=\s*["']/i.test(t);
 }
 
 // extractAppContent normalizes either a fragment or a full document into body-level
-// content (preserving any <style> the model put in <head>).
+// content (preserving any <style> the model put in <head>). If the model HTML-escaped
+// its whole reply (&lt;div&gt;…), decode it first so the app actually runs.
 function extractAppContent(html: string): string {
   if (typeof document === "undefined") return "";
+  if (!/</.test(html) && /&lt;/.test(html)) {
+    const ta = document.createElement("textarea");
+    ta.innerHTML = html;
+    html = ta.value;
+  }
   if (!/<html|<!doctype/i.test(html)) return html;
   const doc = new DOMParser().parseFromString(html, "text/html");
   const headStyles = Array.from(doc.head.querySelectorAll("style")).map((s) => s.outerHTML).join("");
@@ -118,15 +133,46 @@ function buildAppDoc(html: string, id: number): string {
 *{box-sizing:border-box}
 html,body{margin:0}
 body{padding:12px;background:var(--bg);color:var(--ink);font-family:var(--font-sans,system-ui),sans-serif;font-size:14px;line-height:1.5}
-button{font-family:inherit;cursor:pointer}
+h3{font-size:16px;font-weight:800;margin:2px 0 8px;letter-spacing:-.02em}
+h4{font-size:13.5px;font-weight:700;margin:8px 0 5px}
+p{margin:6px 0}
+hr{border:none;border-top:1px solid var(--line);margin:10px 0}
+small,.ai-muted{color:var(--ink-3);font-size:11.5px}
+code{font-family:var(--font-mono,monospace);background:var(--surface-2);padding:1px 5px;border-radius:5px;font-size:.92em}
 a{color:var(--accent-2)}
-canvas{max-width:100%}
+canvas{max-width:100%;display:block}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;outline:none;max-width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+button{font-family:inherit;cursor:pointer}
+button:not([class]),.ai-btn{display:inline-flex;align-items:center;gap:6px;margin:4px 6px 4px 0;padding:8px 14px;border:1px solid var(--line-2);border-radius:8px;background:var(--accent);color:var(--accent-ink,#fff);font-weight:700;font-size:13px}
+button:not([class]):hover,.ai-btn:hover{filter:brightness(1.06)}
+.ai-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0;background:var(--surface)}
+.ai-title{font-weight:700;margin-bottom:4px}
+.ai-kpi{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.ai-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--ink-2)}
+.ai-badge.ai-ok{background:var(--ok-soft);color:var(--ok)}
+.ai-badge.ai-warn{background:var(--warn-soft);color:var(--warn)}
+.ai-badge.ai-danger{background:var(--danger-soft);color:var(--danger)}
+.ai-tablewrap{margin:9px 0;overflow-x:auto;border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch;background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--surface)}
+th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{position:sticky;top:0;background:var(--surface-2);color:var(--ink-3);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+tbody tr:nth-child(even) td{background:color-mix(in oklch,var(--surface-2),transparent 55%)}
+tbody tr:last-child td{border-bottom:none}
+td:not(:first-child),th:not(:first-child){white-space:nowrap}
 ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px}
 </style></head><body>${content}
 <script>(function(){
 function send(m){parent.postMessage(Object.assign({__aichat:1,id:${id}},m),'*');}
 document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-nav]');if(el){e.preventDefault();send({type:'nav',path:el.getAttribute('data-nav')});}});
-function h(){send({type:'height',height:document.body.scrollHeight});}
+// Give every bare table its own scrolling, bordered container so wide data never
+// shatters the layout inside apps either.
+document.querySelectorAll('table').forEach(function(t){
+  if(t.parentElement&&t.parentElement.classList.contains('ai-tablewrap'))return;
+  var w=document.createElement('div');w.className='ai-tablewrap';
+  t.parentNode.insertBefore(w,t);w.appendChild(t);
+});
+function h(){send({type:'height',height:document.documentElement.scrollHeight});}
 window.addEventListener('load',h);try{new ResizeObserver(h).observe(document.body);}catch(_){}
 setTimeout(h,60);setTimeout(h,400);setTimeout(h,1200);
 })();</script></body></html>`;
@@ -177,6 +223,7 @@ export function ChatWidget() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [heights, setHeights] = useState<Record<number, number>>({}); // per-message app-iframe heights
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const isMobile = useIsMobile();
 
   const isAdmin = session?.role === "admin";
 
@@ -306,15 +353,20 @@ export function ChatWidget() {
           aria-label={t("ai_assistant")}
           style={{
             position: "fixed", zIndex: 210, background: "var(--surface)",
-            border: "1px solid var(--line)", boxShadow: "var(--shadow-lg)",
+            border: isMobile ? "none" : "1px solid var(--line)", boxShadow: "var(--shadow-lg)",
             display: "flex", flexDirection: "column", overflow: "hidden",
-            // Desktop: floating card bottom-right. Mobile: full-screen sheet.
-            right: "max(env(safe-area-inset-right,0px), 16px)",
-            bottom: btnBottom,
-            top: "auto",
-            width: "min(420px, calc(100vw - 32px))",
-            height: "min(620px, calc(100vh - 96px))",
-            borderRadius: "var(--radius-lg)",
+            // Mobile: true full-screen sheet — games and tables need every pixel.
+            // Desktop: a roomy floating card bottom-right.
+            ...(isMobile
+              ? { inset: 0, borderRadius: 0 }
+              : {
+                  right: "max(env(safe-area-inset-right,0px), 16px)",
+                  bottom: btnBottom,
+                  top: "auto",
+                  width: "min(480px, calc(100vw - 32px))",
+                  height: "min(700px, calc(100vh - 90px))",
+                  borderRadius: "var(--radius-lg)",
+                }),
           }}
         >
           {/* Header */}
@@ -377,11 +429,11 @@ export function ChatWidget() {
                 // sandboxed iframe — isolated from the app's origin, session and cookies.
                 <iframe key={i} title={t("ai_assistant")} sandbox="allow-scripts allow-pointer-lock"
                   srcDoc={buildAppDoc(m.content, i)}
-                  style={{ alignSelf: "stretch", width: "100%", border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", height: heights[i] ?? 260, maxHeight: "72vh" }}
+                  style={{ alignSelf: "stretch", width: "100%", border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", height: heights[i] ?? 320, maxHeight: "76vh" }}
                 />
               ) : (
                 <div key={i} className="ai-html" onClick={onHtmlClick}
-                  style={{ alignSelf: "flex-start", maxWidth: "94%", padding: "10px 13px", borderRadius: "14px 14px 14px 3px", background: "var(--surface)", border: "1px solid var(--line)", wordBreak: "break-word" }}
+                  style={{ alignSelf: "flex-start", maxWidth: m.content.includes("<table") ? "100%" : "94%", width: m.content.includes("<table") ? "100%" : undefined, padding: "10px 13px", borderRadius: "14px 14px 14px 3px", background: "var(--surface)", border: "1px solid var(--line)", wordBreak: "break-word" }}
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.content) }}
                 />
               )
