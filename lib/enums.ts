@@ -81,6 +81,23 @@ export const kindFromProto = (s?: string): LineItemKind => {
 // Materials/parts are stock-like (info tone); services/labor are work (neutral tone).
 export const kindIsMaterial = (k: LineItemKind): boolean => k === "material" || k === "part";
 
+// Per-line progress a mechanic drives (mirror avtoms.workorder.v1.LineItemStatus).
+export type LineItemStatus = "pending" | "in_progress" | "done";
+export const lineStatusFromProto = (s?: string): LineItemStatus => {
+  switch (s) {
+    case "LINE_ITEM_STATUS_IN_PROGRESS": return "in_progress";
+    case "LINE_ITEM_STATUS_DONE": return "done";
+    default: return "pending";
+  }
+};
+export const lineStatusToProto = (s: LineItemStatus): string => {
+  switch (s) {
+    case "in_progress": return "LINE_ITEM_STATUS_IN_PROGRESS";
+    case "done": return "LINE_ITEM_STATUS_DONE";
+    default: return "LINE_ITEM_STATUS_PENDING";
+  }
+};
+
 // Appointment states (mirror avtoms.workorder.v1.AppointmentState).
 export type ApptState = "scheduled" | "done" | "canceled";
 const APPT_PREFIX = "APPOINTMENT_STATE_";

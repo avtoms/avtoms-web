@@ -202,6 +202,8 @@ export const api = {
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/assign`, { mechanicId }),
   assignLineItem: (woId: string, lineItemId: string, mechanicId: string) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items/${lineItemId}/assign`, { mechanicId }),
+  setLineItemStatus: (woId: string, lineItemId: string, status: string) =>
+    call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items/${lineItemId}/status`, { status }),
   startTimer: (woId: string, mechanicId: string) =>
     call<TimeEntryResp>("POST", `/v1/work-orders/${woId}/timer/start`, { mechanicId }),
   stopTimer: (woId: string, mechanicId: string) =>

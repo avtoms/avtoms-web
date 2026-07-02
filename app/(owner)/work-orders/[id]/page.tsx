@@ -13,7 +13,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
 import {
-  woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto,
+  woStateFromProto, kindFromProto, kindIsMaterial, fiscalFromProto, lineStatusFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem, AuditEntry, Part } from "@/lib/types";
@@ -182,6 +182,14 @@ export default function WorkOrderDetailPage() {
                       ) : it.assignedMechanicId ? (
                         <div style={{ marginTop: 5, fontSize: 12, color: "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="team" size={13} />{mechanics.find((m) => m.id === it.assignedMechanicId)?.name ?? "—"}</div>
                       ) : null)}
+                      {/* per-service progress (mechanics drive it; owner sees it here) */}
+                      {kind === "service" && (() => {
+                        const ls = lineStatusFromProto(it.status);
+                        const m = ls === "done" ? { tone: "ok" as const, label: t("ln_done") }
+                          : ls === "in_progress" ? { tone: "warn" as const, label: t("ln_inprogress") }
+                          : { tone: "neutral" as const, label: t("ln_pending") };
+                        return <div style={{ marginTop: 6 }}><Badge tone={m.tone} dot>{m.label}</Badge></div>;
+                      })()}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>

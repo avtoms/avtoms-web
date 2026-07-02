@@ -8,7 +8,7 @@ import {
 import { Icon } from "@/components/icons";
 import { MoneyInput } from "@/components/catalog-fields";
 import { api, ApiError } from "@/lib/api";
-import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, type WoState, type LineItemKind } from "@/lib/enums";
+import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemKind, type LineItemStatus } from "@/lib/enums";
 import { money, num, durationFmt, minutesBetween, orderLabel, vehicleTitle } from "@/lib/format";
 import { PlatePreview } from "@/components/plate";
 import type { WorkOrder, MenuItem } from "@/lib/types";
@@ -48,6 +48,35 @@ function useElapsed(startedAt: string | null) {
     return () => clearInterval(iv);
   }, [startedAt]);
   return startedAt ? minutesBetween(startedAt, undefined) : 0;
+}
+
+// Per-service-line progress control for the mechanic. Editable lines (assigned to me or
+// unassigned) get Start/Finish buttons; others show a read-only status badge.
+function LineStatusControl({ status, editable, busy, t, onSet }: {
+  status: LineItemStatus; editable: boolean; busy: boolean; t: (k: string) => string;
+  onSet: (next: LineItemStatus) => void;
+}) {
+  if (!editable) {
+    const m = status === "done" ? { tone: "ok" as const, label: t("ln_done") }
+      : status === "in_progress" ? { tone: "warn" as const, label: t("ln_inprogress") }
+      : { tone: "neutral" as const, label: t("ln_pending") };
+    return <Badge tone={m.tone} dot>{m.label}</Badge>;
+  }
+  if (status === "pending")
+    return <Btn variant="soft" size="sm" icon="play" disabled={busy} onClick={() => onSet("in_progress")}>{t("ln_start")}</Btn>;
+  if (status === "in_progress")
+    return (
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <Badge tone="warn" dot>{t("ln_inprogress")}</Badge>
+        <Btn variant="primary" size="sm" icon="check" disabled={busy} onClick={() => onSet("done")}>{t("ln_finish")}</Btn>
+      </div>
+    );
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <Badge tone="ok" dot>{t("ln_done")}</Badge>
+      <Btn variant="ghost" size="sm" disabled={busy} onClick={() => onSet("in_progress")} style={{ color: "var(--ink-3)" }}>{t("ln_reopen")}</Btn>
+    </div>
+  );
 }
 
 function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
@@ -236,6 +265,24 @@ export default function MechanicWoDetailPage() {
     }
   };
 
+  // A mechanic advances their service line (pending → in progress → done). The backend rolls
+  // the order up automatically — all services done makes the whole order Ready.
+  const setLineStatus = async (lineId: string, next: LineItemStatus) => {
+    if (!wo || busy) return;
+    setBusy(true);
+    try {
+      const before = woStateFromProto(wo.state);
+      const r = await api.setLineItemStatus(wo.id, lineId, lineStatusToProto(next));
+      setWo(r);
+      if (before !== "ready" && woStateFromProto(r.state) === "ready") toast(t("order_ready_all_done"), { icon: "check" });
+      else toast(t("save"), { icon: "check" });
+    } catch (e) {
+      toast(errMsg(e), { tone: "danger", icon: "alert" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doTransition = async (target: WoState, label: string) => {
     if (!wo) return;
     setBusy(true);
@@ -328,16 +375,26 @@ export default function MechanicWoDetailPage() {
             </div>
             <div>
               {items.length === 0 && <div style={{ padding: 20 }}><Empty icon="list" text={t("empty")} /></div>}
-              {items.map((it, i) => (
-                <div key={it.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
+              {items.map((it, i) => {
+                const isService = !kindIsMaterial(kindFromProto(it.kind));
+                const mine = !it.assignedMechanicId || it.assignedMechanicId === mechanicId;
+                return (
+                <div key={it.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)", flexWrap: "wrap", rowGap: 8 }}>
                   <Badge tone={kindIsMaterial(kindFromProto(it.kind)) ? "info" : "neutral"}>{t(kindFromProto(it.kind))}</Badge>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{it.description}</div>
                     <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{money(it.unitPrice)} × {it.quantity}</div>
                   </div>
                   <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>
+                  {isService && it.id && (
+                    <div style={{ flexBasis: "100%" }}>
+                      <LineStatusControl status={lineStatusFromProto(it.status)} editable={mine} busy={busy} t={t}
+                        onSet={(next) => setLineStatus(it.id!, next)} />
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div style={{ padding: "14px 18px", background: "var(--surface-2)" }}>
               <Row label={t("subtotal")} value={`${money(wo.subtotal !== undefined ? num(wo.subtotal) : subtotal)} ${t("soum")}`} mono />
