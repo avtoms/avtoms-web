@@ -61,6 +61,24 @@ export interface DemoRequest {
   createdAt?: string;
 }
 
+// Lead is a sales-CRM potential customer managed by the super-admin.
+export interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  company?: string;
+  imageUrl?: string;
+  city?: string;
+  address?: string;
+  source?: string; // landing | referral | cold | telegram | instagram | walk_in | other
+  status: string;  // new | contacted | qualified | negotiating | won | lost
+  dealPrice?: string | number; // int64 (soum); protojson serializes as string
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface CarModel {
   id: string;
   makeId: string;
