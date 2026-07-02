@@ -100,12 +100,14 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
     >
       {/* accent bar — rounded to match the card so no overflow:hidden is needed (keeps the status dropdown un-clipped) */}
       <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: col.accent, borderTopLeftRadius: "var(--radius)", borderBottomLeftRadius: "var(--radius)" }} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 11 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 12.5 }}>
+      {/* order number + status-change control side by side (status menu opens downward) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, rowGap: 8, flexWrap: "wrap", marginBottom: 11 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 12.5, flexShrink: 0 }}>
           <Icon name="clipboard" size={14} style={{ color: "var(--ink-3)" }} /> {shortId}
         </span>
+        <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} />
         {running && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--warn)", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)", background: "var(--warn-soft)", padding: "3px 8px", borderRadius: 999 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--warn)", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)", background: "var(--warn-soft)", padding: "3px 8px", borderRadius: 999, marginLeft: "auto" }}>
             <span className="an-pulse" style={{ width: 7, height: 7, borderRadius: 99, background: "currentColor" }} />
             <Icon name="clock" size={13} />
             {elapsed ?? t("timer_running")}
@@ -140,8 +142,7 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
-        <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <button onClick={onOpen} className="an-btn" style={{
           display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: "var(--radius-sm)", flexShrink: 0, marginLeft: "auto",
           border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer",
