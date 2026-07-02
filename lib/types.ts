@@ -237,6 +237,9 @@ export interface ServiceReminder {
   notes?: string;
   state: string; // SERVICE_REMINDER_STATE_*
   createdAt: string;
+  repeatMonths?: number; // recurrence interval (calendar months); 0/undefined = one-off
+  repeatKm?: number;     // recurrence interval (odometer km)
+  seriesId?: string;     // groups a recurring reminder's occurrences (history)
 }
 
 export interface AuditEntry {

@@ -2,7 +2,7 @@
 // Service reminders: upcoming maintenance due per vehicle (oil change, inspection, ...).
 // Grouped into overdue / upcoming / no-date; add, mark done, dismiss.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonRows } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -11,6 +11,7 @@ import { PlatePreview } from "@/components/plate";
 import type { ServiceReminder, Customer, Vehicle } from "@/lib/types";
 
 const dateStr = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "");
+const isRecurring = (m: ServiceReminder) => !!(m.repeatMonths || m.repeatKm);
 
 export default function RemindersPage() {
   const { session } = useAuth();
@@ -67,6 +68,11 @@ export default function RemindersPage() {
                 <div style={{ fontSize: 12, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {m.dueDate ? <span>{dateStr(m.dueDate)}</span> : <span>{t("no_due_date")}</span>}
                   {!!m.dueMileage && <span style={{ fontFamily: "var(--font-mono)" }}>· {m.dueMileage.toLocaleString()} km</span>}
+                  {isRecurring(m) && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--accent-2)", fontWeight: 600 }}>
+                      <Icon name="history" size={12} /> {t("rem_every")} {[m.repeatMonths ? `${m.repeatMonths} ${t("rem_months_n")}` : "", m.repeatKm ? `${m.repeatKm.toLocaleString()} km` : ""].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                   {m.customerName && <span>· {m.customerName}</span>}
                   {m.plate && <PlatePreview plate={m.plate} size="sm" />}
                 </div>
@@ -108,14 +114,14 @@ export default function RemindersPage() {
 function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [f, setF] = useState({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "" });
+  const [f, setF] = useState({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "", repeat: false, repMonths: "", repKm: "" });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setF({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "" });
+    setF({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "", repeat: false, repMonths: "", repKm: "" });
     setVehicles([]);
     api.listCustomers(shopId).then((c) => setCustomers(c.filter((x) => !x.walkIn))).catch(() => {});
   }, [open, shopId]);
@@ -133,8 +139,13 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
     setF((s) => ({ ...s, vehicleId: vid, plate: v?.plate ?? "" }));
   };
 
+  const repMonths = parseInt(f.repMonths, 10) || 0;
+  const repKm = parseInt(f.repKm, 10) || 0;
+
   const save = async () => {
     if (!f.title.trim() || busy) return;
+    // A recurring reminder needs an interval, otherwise there is nothing to advance by.
+    if (f.repeat && repMonths <= 0 && repKm <= 0) { toast(t("rem_interval_hint"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
       await api.createReminder(shopId, {
@@ -142,6 +153,7 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
         customerName: f.customerName.trim(), phone: f.phone.trim(), plate: f.plate.trim(),
         dueDate: f.due ? new Date(f.due + "T12:00:00").toISOString() : undefined,
         dueMileage: parseInt(f.mileage, 10) || 0, notes: "",
+        repeatMonths: f.repeat ? repMonths : 0, repeatKm: f.repeat ? repKm : 0,
       });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
@@ -172,6 +184,33 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
           <Field label={t("due_date")}><TextInput type="date" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></Field>
           <Field label={t("due_mileage")}><TextInput value={f.mileage} onChange={(e) => setF({ ...f, mileage: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
         </div>
+
+        {/* Recurrence: optional. When on, completing the reminder auto-creates the next one. */}
+        <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ fontSize: "calc(14px * var(--scale))", fontWeight: 600, color: "var(--ink)" }}>{t("rem_repeat")}</span>
+            <Segmented options={[{ value: "off", label: t("no") }, { value: "on", label: t("yes") }]} value={f.repeat ? "on" : "off"} onChange={(v) => setF({ ...f, repeat: v === "on" })} />
+          </div>
+          {f.repeat && (
+            <>
+              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("rem_repeat_hint")}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[3, 6, 12].map((n) => (
+                  <button key={n} type="button" onClick={() => setF((s) => ({ ...s, repMonths: String(n) }))} className="an-btn" style={{
+                    padding: "6px 12px", borderRadius: "var(--radius-sm)", cursor: "pointer", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 13,
+                    border: "1px solid " + (repMonths === n ? "var(--accent)" : "var(--line)"), background: repMonths === n ? "var(--accent-soft)" : "var(--surface)", color: repMonths === n ? "var(--accent-2)" : "var(--ink-2)",
+                  }}>{n} {t("rem_months_n")}</button>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label={t("rem_interval_months")}><TextInput value={f.repMonths} onChange={(e) => setF({ ...f, repMonths: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="6" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+                <Field label={t("rem_interval_km")}><TextInput value={f.repKm} onChange={(e) => setF({ ...f, repKm: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="10000" style={{ fontFamily: "var(--font-mono)" }} /></Field>
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{t("rem_interval_hint")}</div>
+            </>
+          )}
+        </div>
+
         <div style={{ fontSize: 12, color: "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Icon name="tg" size={14} /> {t("reminder_tg_hint")}
         </div>
