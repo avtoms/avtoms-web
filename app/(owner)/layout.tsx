@@ -8,6 +8,7 @@ import { Logo, Avatar, IconBtn, LangSwitcher, Btn, Spinner, useIsMobile } from "
 import { Icon } from "@/components/icons";
 import { useAuth, useLang } from "@/components/providers";
 import { CreateWOModal } from "./_create-wo";
+import { ChatWidget } from "@/components/ai-chat";
 
 type NavItem = { key: string; route: string; icon: string; labelKey: string };
 const ITEMS: NavItem[] = [
@@ -109,6 +110,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           </div>
         )}
         {modal}
+        <ChatWidget />
       </div>
     );
   }
@@ -137,6 +139,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         <main style={{ flex: 1, padding: "24px 28px", maxWidth: 1240, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>{children}</main>
       </div>
       {modal}
+      <ChatWidget />
     </div>
   );
 }

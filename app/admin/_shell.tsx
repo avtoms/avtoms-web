@@ -10,6 +10,7 @@ import { Avatar, IconBtn, useIsMobile } from "@/components/ui";
 import { AdminTopbar } from "./_topbar";
 import { AdminNav, AdminPageTitle } from "./_nav";
 import { usePathname } from "next/navigation";
+import { ChatWidget } from "@/components/ai-chat";
 
 function SidebarInner({ name, phone }: { name: string; phone: string }) {
   return (
@@ -130,6 +131,8 @@ export function AdminShell({ name, phone, children }: { name: string; phone: str
           </aside>
         </div>
       )}
+
+      <ChatWidget />
     </div>
   );
 }
