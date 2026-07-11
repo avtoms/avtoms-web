@@ -68,7 +68,122 @@ const COPY = {
   ai_a_title: { uz: "Sof foyda: 38,6 mln so‘m", ru: "Чистая прибыль: 38,6 млн сум", en: "Net profit: 38.6M UZS" },
   ai_a_sub: { uz: "O‘tgan oyga nisbatan +18%", ru: "На 18% больше, чем в прошлом месяце", en: "+18% vs last month" },
   ai_a_btn: { uz: "Moliyani ochish →", ru: "Открыть финансы →", en: "Open finances →" },
+  // product window
+  pw_kicker: { uz: "Mahsulot ichida", ru: "Внутри продукта", en: "Inside the product" },
+  pw_title: { uz: "Servisingiz shunday ko‘rinadi", ru: "Так выглядит ваш сервис", en: "This is your shop, live" },
+  pw_sub: {
+    uz: "Boshqaruv paneli, jonli doska va moliya — hammasi bitta oynada.",
+    ru: "Панель управления, живая доска и финансы — в одном окне.",
+    en: "Dashboard, live board and finances — in one window.",
+  },
+  an1: { uz: "Boshqaruv", ru: "Панель", en: "Dashboard" },
+  an2: { uz: "Buyurtmalar", ru: "Заказы", en: "Orders" },
+  an3: { uz: "Mijozlar", ru: "Клиенты", en: "Clients" },
+  an4: { uz: "Moliya", ru: "Финансы", en: "Finance" },
+  an5: { uz: "Ombor", ru: "Склад", en: "Inventory" },
+  ak1: { uz: "Bugungi tushum", ru: "Выручка сегодня", en: "Today’s revenue" },
+  ak2: { uz: "Jarayonda", ru: "В работе", en: "In progress" },
+  ak3: { uz: "Tayyor", ru: "Готово", en: "Ready" },
+  // how it works
+  hw_kicker: { uz: "Qanday boshlanadi", ru: "Как начать", en: "How it works" },
+  hw_title: { uz: "3 qadam — va servis raqamda", ru: "3 шага — и сервис в цифре", en: "3 steps to go digital" },
+  hw1t: { uz: "Demo so‘rov qoldiring", ru: "Оставьте заявку", en: "Request a demo" },
+  hw1d: { uz: "30 soniya — quyidagi forma orqali.", ru: "30 секунд — через форму ниже.", en: "Takes 30 seconds via the form below." },
+  hw2t: { uz: "Birga sozlaymiz", ru: "Настроим вместе", en: "We set it up with you" },
+  hw2d: { uz: "Bir kunda: xizmatlar menyusi, jamoa va Telegram bot.", ru: "За один день: меню услуг, команда и Telegram-бот.", en: "One day: service menu, team and the Telegram bot." },
+  hw3t: { uz: "Ishlashni boshlang", ru: "Начинайте работать", en: "Start working" },
+  hw3d: { uz: "Birinchi kundanoq buyurtmalar doskada, mijozlar Telegramda.", ru: "С первого дня заказы на доске, клиенты в Telegram.", en: "From day one: jobs on the board, clients on Telegram." },
+  // pricing
+  pr_kicker: { uz: "Tariflar", ru: "Тарифы", en: "Plans" },
+  pr_title: { uz: "Har bir servisga mos reja", ru: "План под каждый сервис", en: "A plan for every shop" },
+  pr_sub: {
+    uz: "Narx servis hajmiga qarab — demo paytida aniq taklif beramiz.",
+    ru: "Цена зависит от размера сервиса — точное предложение на демо.",
+    en: "Pricing depends on shop size — you’ll get an exact quote at the demo.",
+  },
+  pr_pop: { uz: "Ommabop", ru: "Популярный", en: "Popular" },
+  pr_cta: { uz: "Narxni bilish", ru: "Узнать цену", en: "Get a quote" },
+  // FAQ
+  faq_kicker: { uz: "Savol-javob", ru: "Вопросы и ответы", en: "FAQ" },
+  faq_title: { uz: "Ko‘p so‘raladigan savollar", ru: "Частые вопросы", en: "Frequently asked" },
 };
+
+// Pricing tiers — deliberately number-free (quotes are given at the demo), so nothing on
+// the page can go stale or mislead.
+const TIERS: { name: Tri; popular?: boolean; feats: Tri[] }[] = [
+  {
+    name: { uz: "Start", ru: "Старт", en: "Start" },
+    feats: [
+      { uz: "1 filial", ru: "1 филиал", en: "1 location" },
+      { uz: "3 tagacha usta", ru: "До 3 мастеров", en: "Up to 3 mechanics" },
+      { uz: "Buyurtmalar + mijozlar", ru: "Заказы и клиенты", en: "Orders & clients" },
+      { uz: "Fiskal cheklar", ru: "Фискальные чеки", en: "Fiscal receipts" },
+    ],
+  },
+  {
+    name: { uz: "Biznes", ru: "Бизнес", en: "Business" },
+    popular: true,
+    feats: [
+      { uz: "Cheklanmagan ustalar", ru: "Без лимита мастеров", en: "Unlimited mechanics" },
+      { uz: "Telegram bot + eslatmalar", ru: "Telegram-бот и напоминания", en: "Telegram bot & reminders" },
+      { uz: "Moliya va foyda hisoboti", ru: "Финансы и P&L", en: "Finance & P&L" },
+      { uz: "AI yordamchi", ru: "AI-помощник", en: "AI assistant" },
+    ],
+  },
+  {
+    name: { uz: "Tarmoq", ru: "Сеть", en: "Network" },
+    feats: [
+      { uz: "Bir nechta filial", ru: "Несколько филиалов", en: "Multiple locations" },
+      { uz: "Yagona nazorat paneli", ru: "Единая панель контроля", en: "One control panel" },
+      { uz: "Individual integratsiyalar", ru: "Индивидуальные интеграции", en: "Custom integrations" },
+      { uz: "Ustuvor qo‘llab-quvvatlash", ru: "Приоритетная поддержка", en: "Priority support" },
+    ],
+  },
+];
+
+// FAQ — truthful answers about how the product actually works today.
+const FAQS: { q: Tri; a: Tri }[] = [
+  {
+    q: { uz: "Qancha vaqtda ishga tushadi?", ru: "Как быстро всё запускается?", en: "How fast is the setup?" },
+    a: {
+      uz: "Bir kun ichida. Xizmatlar menyusi, jamoa va Telegram botni birga sozlaymiz — ertasiga ishlaysiz.",
+      ru: "За один день. Вместе настроим меню услуг, команду и Telegram-бота — на следующий день работаете.",
+      en: "One day. We set up your service menu, team and the Telegram bot together — you work the next day.",
+    },
+  },
+  {
+    q: { uz: "Ustalar uchun qiyin emasmi?", ru: "Не сложно ли мастерам?", en: "Is it hard for mechanics?" },
+    a: {
+      uz: "Yo‘q. Usta telefonida ochadi, faqat o‘ziga biriktirilgan ishlarni ko‘radi va 2 tugma bilan holatni yuritadi.",
+      ru: "Нет. Мастер открывает с телефона, видит только свои работы и ведёт статус в два нажатия.",
+      en: "No. A mechanic opens it on the phone, sees only their own jobs and updates status in two taps.",
+    },
+  },
+  {
+    q: { uz: "Mijozlarga ilova kerakmi?", ru: "Клиентам нужно приложение?", en: "Do clients need an app?" },
+    a: {
+      uz: "Kerak emas. Smeta tasdiqlash, “mashina tayyor” xabari va eslatmalar — hammasi Telegram orqali.",
+      ru: "Нет. Согласование сметы, «машина готова» и напоминания — всё через Telegram.",
+      en: "No. Estimate approval, “car is ready” and reminders all happen in Telegram.",
+    },
+  },
+  {
+    q: { uz: "Ma’lumotlarim xavfsizmi?", ru: "Мои данные в безопасности?", en: "Is my data safe?" },
+    a: {
+      uz: "Har servis faqat o‘z ma’lumotini ko‘radi. Usta narx va foydani ko‘rmaydi. AI yordamchi faqat o‘qiydi — hech narsani o‘zgartira olmaydi.",
+      ru: "Каждый сервис видит только свои данные. Мастер не видит цены и прибыль. AI-помощник только читает — ничего не меняет.",
+      en: "Each shop sees only its own data. Mechanics can’t see prices or profit. The AI assistant is read-only.",
+    },
+  },
+  {
+    q: { uz: "Qaysi davlatlarda ishlaydi?", ru: "В каких странах работает?", en: "Which countries are supported?" },
+    a: {
+      uz: "O‘zbekiston va butun MDH: 9 davlat raqam formati, 3 til (o‘zbek lotin, кирилл, русский).",
+      ru: "Узбекистан и все страны СНГ: 9 форматов госномеров, 3 языка интерфейса.",
+      en: "Uzbekistan and the wider CIS: 9 plate formats, 3 interface languages.",
+    },
+  },
+];
 
 // Authentic CIS passenger-plate formats (same order as the flag cycle), each with a popular
 // local car. `tab` is the coloured region/country band; `side` is where it sits (Russia &
@@ -236,6 +351,16 @@ export default function LandingPage() {
         <div className="lp-stat"><span className="lp-stat-n"><Counter to={1} prefix="<" /></span><span className="lp-stat-l">{tr(COPY.st4, lang)}</span></div>
       </section>
 
+      {/* ── product window: a full app-console mock in a browser frame ── */}
+      <section className="lp-wrap lp-product">
+        <div className="lp-sec-head lp-reveal" style={{ margin: "0 auto", textAlign: "center" }}>
+          <span className="lp-kicker">{tr(COPY.pw_kicker, lang)}</span>
+          <h2 className="lp-h2">{tr(COPY.pw_title, lang)}</h2>
+          <p className="lp-sec-sub">{tr(COPY.pw_sub, lang)}</p>
+        </div>
+        <div className="lp-reveal" style={{ transitionDelay: "140ms" }}><AppWindow lang={lang} /></div>
+      </section>
+
       {/* ── live flow demo: a job card moves across the board, then Telegram fires ── */}
       <section className="lp-wrap lp-flow">
         <div className="lp-sec-head lp-reveal">
@@ -263,6 +388,25 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── how it works: 3 steps with a connecting line ── */}
+      <section className="lp-wrap lp-how">
+        <div className="lp-sec-head lp-reveal">
+          <span className="lp-kicker">{tr(COPY.hw_kicker, lang)}</span>
+          <h2 className="lp-h2">{tr(COPY.hw_title, lang)}</h2>
+        </div>
+        <div className="lp-steps">
+          {[
+            { t: COPY.hw1t, d: COPY.hw1d }, { t: COPY.hw2t, d: COPY.hw2d }, { t: COPY.hw3t, d: COPY.hw3d },
+          ].map((s, i) => (
+            <div className="lp-step lp-reveal" key={i} style={{ transitionDelay: `${i * 130}ms` }}>
+              <span className="lp-step-n">{i + 1}</span>
+              <div className="lp-step-t">{tr(s.t, lang)}</div>
+              <div className="lp-step-d">{tr(s.d, lang)}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── AI assistant showcase (typed question → thinking → answer) ── */}
       <section className="lp-wrap lp-ai">
         <div className="lp-demo-copy lp-reveal">
@@ -271,6 +415,43 @@ export default function LandingPage() {
           <p className="lp-sec-sub">{tr(COPY.ai_sub, lang)}</p>
         </div>
         <div className="lp-reveal" style={{ transitionDelay: "120ms" }}><AiDemo lang={lang} /></div>
+      </section>
+
+      {/* ── pricing (number-free tiers; exact quote at the demo) ── */}
+      <section className="lp-wrap lp-pricing">
+        <div className="lp-sec-head lp-reveal" style={{ margin: "0 auto", textAlign: "center" }}>
+          <span className="lp-kicker">{tr(COPY.pr_kicker, lang)}</span>
+          <h2 className="lp-h2">{tr(COPY.pr_title, lang)}</h2>
+          <p className="lp-sec-sub">{tr(COPY.pr_sub, lang)}</p>
+        </div>
+        <div className="lp-tiers">
+          {TIERS.map((tier, i) => (
+            <div className={"lp-tier lp-reveal" + (tier.popular ? " pop" : "")} key={i} style={{ transitionDelay: `${i * 110}ms` }}>
+              {tier.popular && <span className="lp-tier-badge">{tr(COPY.pr_pop, lang)}</span>}
+              <div className="lp-tier-name">{tr(tier.name, lang)}</div>
+              <ul className="lp-tier-feats">
+                {tier.feats.map((f, j) => <li key={j}><span className="lp-tier-check">✓</span>{tr(f, lang)}</li>)}
+              </ul>
+              <a href="#demo" className={"lp-btn " + (tier.popular ? "lp-btn-primary" : "lp-btn-line")} style={{ justifyContent: "center" }}>{tr(COPY.pr_cta, lang)}</a>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="lp-wrap lp-faq">
+        <div className="lp-sec-head lp-reveal">
+          <span className="lp-kicker">{tr(COPY.faq_kicker, lang)}</span>
+          <h2 className="lp-h2">{tr(COPY.faq_title, lang)}</h2>
+        </div>
+        <div className="lp-faqs">
+          {FAQS.map((f, i) => (
+            <details className="lp-qa lp-reveal" key={i} style={{ transitionDelay: `${i * 70}ms` }}>
+              <summary>{tr(f.q, lang)}<span className="lp-qa-plus" aria-hidden>+</span></summary>
+              <p>{tr(f.a, lang)}</p>
+            </details>
+          ))}
+        </div>
       </section>
 
       {/* ── demo form ── */}
@@ -538,6 +719,55 @@ function AiDemo({ lang }: { lang: Lang }) {
   );
 }
 
+// AppWindow is a full console mock in a browser frame: sidebar nav, KPI row and a kanban
+// board with real plate chips. Pure markup — a living "screenshot" that is always crisp,
+// theme-matched and translated (unlike a PNG).
+function AppWindow({ lang }: { lang: Lang }) {
+  const nav = [COPY.an1, COPY.an2, COPY.an3, COPY.an4, COPY.an5];
+  const cards: { plate: PlateSpec; col: number }[] = [
+    { plate: CIS[0], col: 0 }, { plate: CIS[1], col: 0 },
+    { plate: CIS[2], col: 1 }, { plate: CIS[3], col: 1 }, { plate: CIS[5], col: 1 },
+    { plate: CIS[7], col: 2 },
+  ];
+  const cols = [COPY.col1, COPY.col2, COPY.col3];
+  return (
+    <div className="lp-appwin">
+      <div className="lp-appbar">
+        <span className="lp-appdot r" /><span className="lp-appdot y" /><span className="lp-appdot g" />
+        <span className="lp-appurl">app.auto-garaj.uz</span>
+      </div>
+      <div className="lp-appbody">
+        <aside className="lp-appside">
+          <span className="lp-appside-logo"><WrenchIcon /></span>
+          {nav.map((n, i) => (
+            <span key={i} className={"lp-appnav" + (i === 1 ? " on" : "")}>{tr(n, lang)}</span>
+          ))}
+        </aside>
+        <div className="lp-appmain">
+          <div className="lp-appkpis">
+            <div className="lp-appkpi"><span className="lp-appkpi-l">{tr(COPY.ak1, lang)}</span><span className="lp-appkpi-v ok">4 250 000</span></div>
+            <div className="lp-appkpi"><span className="lp-appkpi-l">{tr(COPY.ak2, lang)}</span><span className="lp-appkpi-v">7</span></div>
+            <div className="lp-appkpi"><span className="lp-appkpi-l">{tr(COPY.ak3, lang)}</span><span className="lp-appkpi-v">3</span></div>
+          </div>
+          <div className="lp-appboard">
+            {cols.map((c, ci) => (
+              <div key={ci} className="lp-appcol">
+                <span className="lp-appcol-h"><span className={"lp-fcol-dot d" + ci} />{tr(c, lang)}</span>
+                {cards.filter((k) => k.col === ci).map((k, i) => (
+                  <div key={i} className="lp-appcard">
+                    <Plate spec={k.plate} />
+                    <span className="lp-appcard-car">{k.plate.car}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── icons (inline, theme-independent) ── */
 function WrenchIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.4a4 4 0 0 0 5.3-5.4l-2.6 2.6-2.3-.6-.6-2.3 2.5-2.6Z" /></svg>; }
 function ArrowIcon() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
@@ -723,6 +953,63 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .lp-ai-up { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--ok); }
 .lp-ai-btn { align-self: flex-start; margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--amber2); background: oklch(0.66 0.16 256 / 0.12); border: 1px solid oklch(0.66 0.16 256 / 0.3); padding: 7px 12px; border-radius: 10px; }
 
+/* product window */
+.lp-product { padding-top: 52px; padding-bottom: 8px; }
+.lp-appwin { margin-top: 34px; border: 1px solid var(--line2); border-radius: 18px; overflow: hidden; background: linear-gradient(170deg, var(--panel2), var(--panel)); box-shadow: 0 40px 90px oklch(0.05 0.03 262 / 0.55), 0 0 0 1px oklch(0.66 0.16 256 / 0.08); }
+.lp-appbar { display: flex; align-items: center; gap: 7px; padding: 11px 15px; border-bottom: 1px solid var(--line); background: oklch(1 0 0 / 0.03); }
+.lp-appdot { width: 11px; height: 11px; border-radius: 99px; }
+.lp-appdot.r { background: oklch(0.65 0.19 25); } .lp-appdot.y { background: oklch(0.8 0.15 90); } .lp-appdot.g { background: oklch(0.72 0.17 150); }
+.lp-appurl { margin-left: 12px; flex: 1; max-width: 300px; text-align: center; font-family: var(--mono); font-size: 11.5px; color: var(--ink3); background: oklch(1 0 0 / 0.05); border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; }
+.lp-appbody { display: grid; grid-template-columns: 190px 1fr; min-height: 380px; }
+.lp-appside { border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 5px; background: oklch(1 0 0 / 0.02); }
+.lp-appside-logo { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(145deg, var(--amber), var(--amber2)); color: #fff; margin-bottom: 12px; }
+.lp-appnav { font-size: 13px; font-weight: 600; color: var(--ink3); padding: 8px 11px; border-radius: 9px; }
+.lp-appnav.on { color: var(--amber2); background: oklch(0.66 0.16 256 / 0.13); }
+.lp-appmain { padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.lp-appkpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.lp-appkpi { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: oklch(1 0 0 / 0.03); }
+.lp-appkpi-l { display: block; font-size: 11.5px; color: var(--ink3); }
+.lp-appkpi-v { display: block; margin-top: 4px; font-family: var(--mono); font-weight: 700; font-size: 20px; color: var(--ink); }
+.lp-appkpi-v.ok { color: var(--ok); }
+.lp-appboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; flex: 1; }
+.lp-appcol { border: 1px solid var(--line); border-radius: 12px; padding: 11px; background: oklch(1 0 0 / 0.02); display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.lp-appcol-h { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink3); }
+.lp-appcard { border: 1px solid var(--line); border-radius: 10px; background: oklch(1 0 0 / 0.045); padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; transition: transform .15s, border-color .15s; }
+.lp-appcard:hover { transform: translateY(-2px); border-color: oklch(0.66 0.16 256 / 0.45); }
+.lp-appcard-car { font-size: 12px; font-weight: 600; color: var(--ink2); }
+
+/* how it works */
+.lp-how { padding-top: 48px; padding-bottom: 8px; }
+.lp-steps { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+.lp-steps::before { content: ""; position: absolute; top: 24px; left: 12%; right: 12%; height: 2px; background: linear-gradient(90deg, var(--amber), var(--amber2), var(--ok)); opacity: .45; }
+.lp-step { position: relative; text-align: center; padding: 0 12px; }
+.lp-step-n { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; font-family: var(--disp); font-weight: 800; font-size: 19px; color: oklch(0.99 0.01 250); background: linear-gradient(145deg, var(--amber), var(--amber2)); box-shadow: 0 10px 26px oklch(0.62 0.18 258 / 0.35), 0 0 0 6px oklch(0.155 0.022 258); }
+.lp-step-t { margin-top: 14px; font-family: var(--disp); font-weight: 600; font-size: 17px; }
+.lp-step-d { margin-top: 7px; font-size: 14px; line-height: 1.5; color: var(--ink2); }
+
+/* pricing */
+.lp-pricing { padding-top: 52px; padding-bottom: 12px; }
+.lp-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 34px; align-items: stretch; }
+.lp-tier { position: relative; display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--line); border-radius: 18px; background: oklch(1 0 0 / 0.03); padding: 24px; transition: transform .16s, border-color .16s; }
+.lp-tier:hover { transform: translateY(-5px); border-color: var(--line2); }
+.lp-tier.pop { border-color: oklch(0.66 0.16 256 / 0.55); background: linear-gradient(170deg, oklch(0.66 0.16 256 / 0.10), oklch(1 0 0 / 0.03) 55%); box-shadow: 0 24px 60px oklch(0.06 0.03 262 / 0.5); }
+.lp-tier-badge { position: absolute; top: -12px; left: 24px; font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: oklch(0.99 0.01 250); background: linear-gradient(135deg, var(--amber), var(--amber2)); padding: 4px 12px; border-radius: 999px; box-shadow: 0 8px 20px oklch(0.62 0.18 258 / 0.4); }
+.lp-tier-name { font-family: var(--disp); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
+.lp-tier-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.lp-tier-feats li { display: flex; align-items: baseline; gap: 9px; font-size: 14.5px; color: var(--ink2); }
+.lp-tier-check { color: var(--ok); font-weight: 800; }
+
+/* FAQ */
+.lp-faq { padding-top: 48px; padding-bottom: 8px; }
+.lp-faqs { margin-top: 28px; max-width: 760px; display: flex; flex-direction: column; gap: 10px; }
+.lp-qa { border: 1px solid var(--line); border-radius: 14px; background: oklch(1 0 0 / 0.03); overflow: hidden; transition: border-color .2s; }
+.lp-qa[open] { border-color: oklch(0.66 0.16 256 / 0.45); }
+.lp-qa summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; list-style: none; padding: 16px 18px; font-family: var(--disp); font-weight: 600; font-size: 15.5px; color: var(--ink); }
+.lp-qa summary::-webkit-details-marker { display: none; }
+.lp-qa-plus { font-family: var(--mono); font-size: 19px; color: var(--amber2); transition: transform .25s; flex-shrink: 0; }
+.lp-qa[open] .lp-qa-plus { transform: rotate(45deg); }
+.lp-qa p { margin: 0; padding: 0 18px 16px; font-size: 14.5px; line-height: 1.6; color: var(--ink2); max-width: 62ch; }
+
 /* features */
 .lp-features { padding-top: 36px; padding-bottom: 40px; }
 .lp-sec-head { max-width: 620px; }
@@ -773,6 +1060,16 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
   .lp-demo, .lp-ai { grid-template-columns: 1fr; gap: 28px; }
   .lp-grid { grid-template-columns: 1fr 1fr; }
   .lp-stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .lp-appbody { grid-template-columns: 1fr; }
+  .lp-appside { flex-direction: row; align-items: center; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 10px 12px; }
+  .lp-appside-logo { margin-bottom: 0; flex-shrink: 0; }
+  .lp-appnav { white-space: nowrap; }
+  .lp-appboard, .lp-appkpis { grid-template-columns: 1fr; }
+  .lp-steps { grid-template-columns: 1fr; gap: 26px; }
+  .lp-steps::before { display: none; }
+  .lp-tiers { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .lp-flowboard { grid-template-columns: 1fr; }
