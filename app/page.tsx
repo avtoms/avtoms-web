@@ -3,7 +3,7 @@
 // "garage-signal" theme, fonts (Unbounded display + Golos Text body + JetBrains Mono),
 // and a trilingual (UZ / RU / EN) copy dictionary — it does NOT use the app's i18n/theme
 // providers so it can present a distinct brand world. Submits the demo form to /api/demo.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 type Tri = { uz: string; ru: string; en: string };
 type Lang = "uz" | "ru" | "en";
@@ -39,6 +39,35 @@ const COPY = {
   err: { uz: "Xatolik yuz berdi. Qayta urinib ko‘ring.", ru: "Произошла ошибка. Попробуйте снова.", en: "Something went wrong. Please try again." },
   again: { uz: "Yana yuborish", ru: "Отправить ещё", en: "Send another" },
   footer: { uz: "Avtoservislar uchun zamonaviy boshqaruv tizimi.", ru: "Современная система управления для автосервисов.", en: "Modern management for auto repair shops." },
+  // stats strip
+  st1: { uz: "davlat raqam formati", ru: "форматов госномеров", en: "plate formats" },
+  st2: { uz: "interfeys tili", ru: "языка интерфейса", en: "interface languages" },
+  st3: { uz: "Telegram yordamchi", ru: "Telegram-помощник", en: "Telegram assistant" },
+  st4: { uz: "soniyada qidiruv", ru: "секунда на поиск", en: "second to find a car" },
+  // live flow demo
+  flow_kicker: { uz: "Jonli jarayon", ru: "Живой процесс", en: "Live flow" },
+  flow_title: { uz: "Buyurtma o‘zi yuradi", ru: "Заказ движется сам", en: "Watch a job flow" },
+  flow_sub: {
+    uz: "Qabul qilingan mashina doskada bosqichma-bosqich harakatlanadi — tayyor bo‘lishi bilan mijozga Telegram xabari ketadi.",
+    ru: "Принятая машина движется по доске шаг за шагом — как только готова, клиенту уходит сообщение в Telegram.",
+    en: "A job moves across the board stage by stage — the moment it’s ready, the client gets a Telegram message.",
+  },
+  col1: { uz: "Qabul", ru: "Приём", en: "Intake" },
+  col2: { uz: "Jarayonda", ru: "В работе", en: "In progress" },
+  col3: { uz: "Tayyor", ru: "Готово", en: "Ready" },
+  tg_msg: { uz: "Mashinangiz tayyor! 🎉", ru: "Ваша машина готова! 🎉", en: "Your car is ready! 🎉" },
+  // AI showcase
+  ai_kicker: { uz: "AI yordamchi", ru: "AI-помощник", en: "AI assistant" },
+  ai_title: { uz: "Ma’lumotlaringiz bilan gaplashing", ru: "Говорите со своими данными", en: "Talk to your data" },
+  ai_sub: {
+    uz: "Savolni oddiy tilda bering — foyda, buyurtmalar va mijozlar bo‘yicha javob jadval va tugmalar bilan keladi. Faqat o‘qiydi — 100% xavfsiz.",
+    ru: "Задайте вопрос обычным языком — ответ придёт с таблицами и кнопками: прибыль, заказы, клиенты. Только чтение — 100% безопасно.",
+    en: "Ask in plain words — answers come with tables and buttons: profit, jobs, clients. Read-only — 100% safe.",
+  },
+  ai_q: { uz: "Bu oy foyda qancha?", ru: "Какая прибыль в этом месяце?", en: "How’s profit this month?" },
+  ai_a_title: { uz: "Sof foyda: 38,6 mln so‘m", ru: "Чистая прибыль: 38,6 млн сум", en: "Net profit: 38.6M UZS" },
+  ai_a_sub: { uz: "O‘tgan oyga nisbatan +18%", ru: "На 18% больше, чем в прошлом месяце", en: "+18% vs last month" },
+  ai_a_btn: { uz: "Moliyani ochish →", ru: "Открыть финансы →", en: "Open finances →" },
 };
 
 // Authentic CIS passenger-plate formats (same order as the flag cycle), each with a popular
@@ -106,6 +135,22 @@ const FEATURES: { icon: React.ReactNode; title: Tri; desc: Tri }[] = [
   },
 ];
 
+// useReveal makes every .lp-reveal element rise into view once it scrolls into the viewport
+// (adds the .in class; CSS does the animation). Elements are revealed once and left alone.
+function useReveal() {
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll(".lp-reveal"));
+    if (els.length === 0) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      }
+    }, { threshold: 0.15 });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
 export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("uz");
   // One shared cycle drives BOTH the CIS flag and the example plate, so the plate always
@@ -116,6 +161,15 @@ export default function LandingPage() {
     return () => clearInterval(iv);
   }, []);
   const country = CIS[ci];
+  useReveal();
+  // The nav frosts into glass once the page scrolls.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 14);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
   return (
     <div className="lp">
       <LandingStyle />
@@ -124,15 +178,17 @@ export default function LandingPage() {
       <div className="lp-aurora a2" aria-hidden />
       <div className="lp-glow" aria-hidden />
 
-      {/* ── top bar ── */}
-      <header className="lp-wrap lp-nav">
-        <a href="#top" className="lp-brand">
-          <span className="lp-mark"><WrenchIcon /></span>
-          <span className="lp-brand-name">Auto-Garaj</span>
-        </a>
-        <div className="lp-nav-right">
-          <LangSwitch lang={lang} setLang={setLang} />
-          <a href="/login" className="lp-btn lp-btn-ghost">{tr(COPY.nav_login, lang)}</a>
+      {/* ── top bar (sticky; frosts into glass on scroll) ── */}
+      <header className={"lp-navbar" + (scrolled ? " st" : "")}>
+        <div className="lp-wrap lp-nav">
+          <a href="#top" className="lp-brand">
+            <span className="lp-mark"><WrenchIcon /></span>
+            <span className="lp-brand-name">Auto-Garaj</span>
+          </a>
+          <div className="lp-nav-right">
+            <LangSwitch lang={lang} setLang={setLang} />
+            <a href="/login" className="lp-btn lp-btn-ghost">{tr(COPY.nav_login, lang)}</a>
+          </div>
         </div>
       </header>
 
@@ -172,15 +228,33 @@ export default function LandingPage() {
         </div>
       </div>
 
+      {/* ── stats strip (counters animate on scroll) ── */}
+      <section className="lp-wrap lp-stats lp-reveal">
+        <div className="lp-stat"><span className="lp-stat-n"><Counter to={9} /></span><span className="lp-stat-l">{tr(COPY.st1, lang)}</span></div>
+        <div className="lp-stat"><span className="lp-stat-n"><Counter to={3} /></span><span className="lp-stat-l">{tr(COPY.st2, lang)}</span></div>
+        <div className="lp-stat"><span className="lp-stat-n"><Counter to={24} suffix="/7" /></span><span className="lp-stat-l">{tr(COPY.st3, lang)}</span></div>
+        <div className="lp-stat"><span className="lp-stat-n"><Counter to={1} prefix="<" /></span><span className="lp-stat-l">{tr(COPY.st4, lang)}</span></div>
+      </section>
+
+      {/* ── live flow demo: a job card moves across the board, then Telegram fires ── */}
+      <section className="lp-wrap lp-flow">
+        <div className="lp-sec-head lp-reveal">
+          <span className="lp-kicker">{tr(COPY.flow_kicker, lang)}</span>
+          <h2 className="lp-h2">{tr(COPY.flow_title, lang)}</h2>
+          <p className="lp-sec-sub">{tr(COPY.flow_sub, lang)}</p>
+        </div>
+        <FlowDemo lang={lang} country={country} />
+      </section>
+
       {/* ── features ── */}
       <section className="lp-wrap lp-features">
-        <div className="lp-sec-head">
+        <div className="lp-sec-head lp-reveal">
           <h2 className="lp-h2">{tr(COPY.feat_title, lang)}</h2>
           <p className="lp-sec-sub">{tr(COPY.feat_sub, lang)}</p>
         </div>
         <div className="lp-grid">
           {FEATURES.map((f, i) => (
-            <div className="lp-card" key={i}>
+            <div className="lp-card lp-reveal" key={i} style={{ transitionDelay: `${(i % 3) * 90}ms` }}>
               <div className="lp-card-ico">{f.icon}</div>
               <div className="lp-card-title">{tr(f.title, lang)}</div>
               <div className="lp-card-desc">{tr(f.desc, lang)}</div>
@@ -189,15 +263,25 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── AI assistant showcase (typed question → thinking → answer) ── */}
+      <section className="lp-wrap lp-ai">
+        <div className="lp-demo-copy lp-reveal">
+          <span className="lp-kicker">{tr(COPY.ai_kicker, lang)}</span>
+          <h2 className="lp-h2">{tr(COPY.ai_title, lang)}</h2>
+          <p className="lp-sec-sub">{tr(COPY.ai_sub, lang)}</p>
+        </div>
+        <div className="lp-reveal" style={{ transitionDelay: "120ms" }}><AiDemo lang={lang} /></div>
+      </section>
+
       {/* ── demo form ── */}
       <section id="demo" className="lp-wrap lp-demo">
-        <div className="lp-demo-copy">
+        <div className="lp-demo-copy lp-reveal">
           <span className="lp-kicker">{tr(COPY.form_kicker, lang)}</span>
           <h2 className="lp-h2">{tr(COPY.form_title, lang)}</h2>
           <p className="lp-sec-sub">{tr(COPY.form_sub, lang)}</p>
           <div className="lp-tape" aria-hidden />
         </div>
-        <DemoForm lang={lang} />
+        <div className="lp-reveal" style={{ transitionDelay: "120ms" }}><DemoForm lang={lang} /></div>
       </section>
 
       <footer className="lp-wrap lp-footer">
@@ -236,12 +320,24 @@ function LangSwitch({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
 
 // Product motif: a work-order card echoing the real console (plate · model · client +
 // status pill), floating over a faint board column — ties the brand to the product.
+// The whole art block tilts gently toward the cursor (3D parallax); it resets on leave
+// and does nothing on touch devices (no mousemove).
 function HeroCard({ lang, country }: { lang: Lang; country: PlateSpec }) {
   const status: Tri = { uz: "Jarayonda", ru: "В работе", en: "In progress" };
   const total: Tri = { uz: "1 250 000 so‘m", ru: "1 250 000 сум", en: "1,250,000 UZS" };
   const client: Tri = { uz: "Islom N.", ru: "Ислом Н.", en: "Islom N." };
+  const ref = useRef<HTMLDivElement | null>(null);
+  const onMove = (e: React.MouseEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(900px) rotateY(${(x * 9).toFixed(2)}deg) rotateX(${(-y * 9).toFixed(2)}deg)`;
+  };
+  const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <div className="lp-art">
+    <div className="lp-art lp-tilt" ref={ref} onMouseMove={onMove} onMouseLeave={onLeave}>
       <div className="lp-art-col" aria-hidden>
         <span className="lp-art-bar" /><span className="lp-art-bar w2" /><span className="lp-art-bar w3" />
       </div>
@@ -329,6 +425,119 @@ function DemoForm({ lang }: { lang: Lang }) {
   );
 }
 
+// Counter animates a number from 0 to `to` (ease-out cubic, ~1.1s) the first time it
+// scrolls into view. Renders the final value immediately for reduced-motion users.
+function Counter({ to, prefix = "", suffix = "" }: { to: number; prefix?: string; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setV(to); return; }
+    let raf = 0;
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      const t0 = performance.now();
+      const tick = (t: number) => {
+        const p = Math.min(1, (t - t0) / 1100);
+        setV(to * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }, { threshold: 0.5 });
+    io.observe(el);
+    return () => { io.disconnect(); cancelAnimationFrame(raf); };
+  }, [to]);
+  return <span ref={ref}>{prefix}{Math.round(v)}{suffix}</span>;
+}
+
+// FlowDemo is the product story in one loop: a live job card hops Intake → In progress →
+// Ready on a mini kanban board; when it reaches Ready, the client's Telegram toast pops.
+// Stage 0/1/2 = column the card sits in; stage 3 keeps it in Ready while the toast shows.
+function FlowDemo({ lang, country }: { lang: Lang; country: PlateSpec }) {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setStage((s) => (s + 1) % 4), 2000);
+    return () => clearInterval(iv);
+  }, []);
+  const col = Math.min(stage, 2);
+  const cols: { key: number; label: Tri }[] = [
+    { key: 0, label: COPY.col1 }, { key: 1, label: COPY.col2 }, { key: 2, label: COPY.col3 },
+  ];
+  return (
+    <div className="lp-flowboard lp-reveal" style={{ transitionDelay: "100ms" }}>
+      {cols.map((c) => (
+        <div key={c.key} className={"lp-fcol" + (col === c.key ? " on" : "")}>
+          <div className="lp-fcol-head">
+            <span className={"lp-fcol-dot d" + c.key} /> {tr(c.label, lang)}
+          </div>
+          <span className="lp-fghost" /><span className="lp-fghost g2" />
+          {col === c.key && (
+            <div key={stage} className="lp-fcard">
+              <div className="lp-fcard-top">
+                <span className="lp-wo-id">Z-0142</span>
+                {c.key === 2 ? <span className="lp-fdone"><CheckIcon /></span> : <span className="lp-pulse" />}
+              </div>
+              <div><Plate spec={country} /></div>
+              <div className="lp-fcard-model">{country.car}</div>
+            </div>
+          )}
+        </div>
+      ))}
+      {/* Telegram toast fires as the job lands in Ready */}
+      <div className={"lp-tgtoast" + (stage === 3 ? " show" : "")} aria-hidden>
+        <span className="lp-tgtoast-ico"><BellIcon /></span>
+        <span>
+          <b>Telegram</b>
+          <span className="lp-tgtoast-msg">{tr(COPY.tg_msg, lang)}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// AiDemo loops a tiny scripted conversation: the question types itself, the assistant
+// "thinks", then the KPI answer pops in — a living preview of the in-app AI chat.
+function AiDemo({ lang }: { lang: Lang }) {
+  const q = tr(COPY.ai_q, lang);
+  const [n, setN] = useState(0); // typed characters
+  const [phase, setPhase] = useState<"typing" | "thinking" | "answer">("typing");
+  // restart the script when the language changes
+  useEffect(() => { setN(0); setPhase("typing"); }, [lang]);
+  useEffect(() => {
+    if (phase === "typing") {
+      if (n >= q.length) { const t = setTimeout(() => setPhase("thinking"), 350); return () => clearTimeout(t); }
+      const t = setTimeout(() => setN((x) => x + 1), 42);
+      return () => clearTimeout(t);
+    }
+    if (phase === "thinking") {
+      const t = setTimeout(() => setPhase("answer"), 900);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => { setN(0); setPhase("typing"); }, 4200);
+    return () => clearTimeout(t);
+  }, [phase, n, q.length]);
+  return (
+    <div className="lp-aiwin">
+      <div className="lp-aiwin-head"><span className="lp-aiwin-spark">✦</span> Auto-Garaj AI</div>
+      <div className="lp-aiwin-body">
+        <div className="lp-aibub q">{q.slice(0, n)}<span className="lp-caret" /></div>
+        {phase === "thinking" && (
+          <div className="lp-aibub a lp-aidots"><span /><span /><span /></div>
+        )}
+        {phase === "answer" && (
+          <div className="lp-aibub a lp-aianswer">
+            <div className="lp-ai-kpi">{tr(COPY.ai_a_title, lang)}</div>
+            <div className="lp-ai-up">{tr(COPY.ai_a_sub, lang)}</div>
+            <span className="lp-ai-btn">{tr(COPY.ai_a_btn, lang)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── icons (inline, theme-independent) ── */
 function WrenchIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18l3 3 6.4-6.4a4 4 0 0 0 5.3-5.4l-2.6 2.6-2.3-.6-.6-2.3 2.5-2.6Z" /></svg>; }
 function ArrowIcon() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
@@ -389,8 +598,14 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 @keyframes lp-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .lp-rise { opacity: 0; animation: lp-rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
 
+/* scroll-reveal */
+.lp-reveal { opacity: 0; transform: translateY(26px); transition: opacity .75s ease, transform .75s cubic-bezier(.2,.7,.2,1); }
+.lp-reveal.in { opacity: 1; transform: none; }
+
 /* nav */
-.lp-nav { display: flex; align-items: center; justify-content: space-between; padding-top: 22px; padding-bottom: 22px; }
+.lp-navbar { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid transparent; transition: background .3s, border-color .3s, backdrop-filter .3s; }
+.lp-navbar.st { background: oklch(0.155 0.022 258 / 0.72); backdrop-filter: blur(14px); border-bottom-color: var(--line); }
+.lp-nav { display: flex; align-items: center; justify-content: space-between; padding-top: 16px; padding-bottom: 16px; }
 .lp-brand { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; color: var(--ink); }
 .lp-mark { width: 38px; height: 38px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
   background: linear-gradient(145deg, var(--amber), var(--amber2)); color: oklch(0.99 0.01 250);
@@ -431,6 +646,7 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 /* hero art */
 .lp-hero-art { display: flex; justify-content: center; }
 .lp-art { position: relative; width: 100%; max-width: 380px; }
+.lp-tilt { transition: transform .25s ease-out; transform-style: preserve-3d; will-change: transform; }
 .lp-art-col { position: absolute; inset: -18px -14px -22px -14px; border-radius: 22px; background: oklch(1 0 0 / 0.03); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; padding: 18px; transform: rotate(-3deg); }
 .lp-art-bar { height: 12px; border-radius: 6px; background: oklch(1 0 0 / 0.06); }
 .lp-art-bar.w2 { width: 70%; } .lp-art-bar.w3 { width: 45%; }
@@ -460,6 +676,52 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .lp-chip-plate { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--ink2); letter-spacing: .03em; }
 .lp-chip-plate b { color: var(--amber2); margin-right: 5px; }
 .lp-chip-model { font-family: var(--disp); font-weight: 500; font-size: 12.5px; color: var(--ink3); }
+
+/* stats strip */
+.lp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding-top: 34px; padding-bottom: 8px; }
+.lp-stat { text-align: center; padding: 20px 10px; border: 1px solid var(--line); border-radius: 16px; background: oklch(1 0 0 / 0.03); }
+.lp-stat-n { display: block; font-family: var(--disp); font-weight: 800; font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -0.03em;
+  background: linear-gradient(120deg, var(--amber), var(--amber2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lp-stat-l { display: block; margin-top: 6px; font-size: 13px; color: var(--ink3); }
+
+/* live flow demo */
+.lp-flow { padding-top: 44px; padding-bottom: 12px; }
+.lp-flowboard { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
+.lp-fcol { min-height: 216px; border: 1px solid var(--line); border-radius: 16px; background: oklch(1 0 0 / 0.03); padding: 14px; display: flex; flex-direction: column; gap: 10px; transition: border-color .3s, box-shadow .3s, background .3s; }
+.lp-fcol.on { border-color: oklch(0.66 0.16 256 / 0.55); background: oklch(1 0 0 / 0.05); box-shadow: 0 0 0 1px oklch(0.66 0.16 256 / 0.16), 0 18px 46px oklch(0.06 0.03 262 / 0.4); }
+.lp-fcol-head { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+.lp-fcol-dot { width: 8px; height: 8px; border-radius: 99px; }
+.lp-fcol-dot.d0 { background: var(--amber2); } .lp-fcol-dot.d1 { background: var(--amber); } .lp-fcol-dot.d2 { background: var(--ok); }
+.lp-fghost { height: 34px; border-radius: 10px; background: oklch(1 0 0 / 0.045); border: 1px dashed var(--line); }
+.lp-fghost.g2 { opacity: .55; }
+.lp-fcard { border: 1px solid var(--line2); border-radius: 13px; background: linear-gradient(160deg, var(--panel2), var(--panel)); padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 14px 34px oklch(0.05 0.03 262 / 0.45); animation: lp-pop .38s cubic-bezier(.2,1.3,.4,1); }
+.lp-fcard-top { display: flex; align-items: center; justify-content: space-between; }
+.lp-fcard-model { font-family: var(--disp); font-weight: 600; font-size: 14px; color: var(--ink); }
+.lp-fdone { color: var(--ok); display: inline-flex; }
+.lp-fdone svg { width: 18px; height: 18px; }
+.lp-tgtoast { position: absolute; right: 10px; bottom: -14px; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 11px 15px; border-radius: 14px; background: linear-gradient(160deg, var(--panel2), var(--panel)); border: 1px solid oklch(0.78 0.14 168 / 0.5); box-shadow: 0 18px 44px oklch(0.05 0.03 262 / 0.6); opacity: 0; transform: translateY(12px) scale(.94); transition: opacity .35s, transform .35s cubic-bezier(.2,1.3,.4,1); pointer-events: none; }
+.lp-tgtoast.show { opacity: 1; transform: none; }
+.lp-tgtoast-ico { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--ok); background: oklch(0.78 0.14 168 / 0.14); border: 1px solid oklch(0.78 0.14 168 / 0.3); flex-shrink: 0; }
+.lp-tgtoast b { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); font-family: var(--mono); }
+.lp-tgtoast-msg { font-size: 14px; font-weight: 700; color: var(--ink); }
+
+/* AI showcase */
+.lp-ai { display: grid; grid-template-columns: 0.92fr 1.08fr; gap: 48px; align-items: center; padding-top: 52px; padding-bottom: 20px; }
+.lp-aiwin { border: 1px solid var(--line2); border-radius: 20px; background: linear-gradient(165deg, var(--panel2), var(--panel)); box-shadow: 0 30px 70px oklch(0.05 0.03 262 / 0.45); overflow: hidden; }
+.lp-aiwin-head { display: flex; align-items: center; gap: 9px; padding: 13px 18px; border-bottom: 1px solid var(--line); font-family: var(--disp); font-weight: 600; font-size: 14px; color: var(--ink2); }
+.lp-aiwin-spark { color: var(--amber2); font-size: 16px; }
+.lp-aiwin-body { padding: 20px 18px 24px; display: flex; flex-direction: column; gap: 12px; min-height: 210px; }
+.lp-aibub { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 14.5px; line-height: 1.45; }
+.lp-aibub.q { align-self: flex-end; background: linear-gradient(135deg, var(--amber), var(--amber2)); color: oklch(0.99 0.01 250); border-bottom-right-radius: 4px; font-weight: 600; min-height: 40px; }
+.lp-aibub.a { align-self: flex-start; background: oklch(1 0 0 / 0.05); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.lp-caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -0.15em; background: oklch(0.99 0.01 250); animation: lp-blink 0.9s step-end infinite; }
+.lp-aidots { display: inline-flex; gap: 5px; padding: 14px 16px; }
+.lp-aidots span { width: 7px; height: 7px; border-radius: 99px; background: var(--ink3); animation: lp-blink 1.1s ease-in-out infinite; }
+.lp-aidots span:nth-child(2) { animation-delay: .18s; } .lp-aidots span:nth-child(3) { animation-delay: .36s; }
+.lp-aianswer { animation: lp-pop .38s cubic-bezier(.2,1.3,.4,1); display: flex; flex-direction: column; gap: 6px; }
+.lp-ai-kpi { font-family: var(--disp); font-weight: 700; font-size: 17px; color: var(--ink); letter-spacing: -0.01em; }
+.lp-ai-up { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--ok); }
+.lp-ai-btn { align-self: flex-start; margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--amber2); background: oklch(0.66 0.16 256 / 0.12); border: 1px solid oklch(0.66 0.16 256 / 0.3); padding: 7px 12px; border-radius: 10px; }
 
 /* features */
 .lp-features { padding-top: 36px; padding-bottom: 40px; }
@@ -508,8 +770,15 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 @media (max-width: 900px) {
   .lp-hero { grid-template-columns: 1fr; gap: 40px; padding-top: 32px; padding-bottom: 48px; }
   .lp-hero-art { order: -1; }
-  .lp-demo { grid-template-columns: 1fr; gap: 28px; }
+  .lp-demo, .lp-ai { grid-template-columns: 1fr; gap: 28px; }
   .lp-grid { grid-template-columns: 1fr 1fr; }
+  .lp-stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .lp-flowboard { grid-template-columns: 1fr; }
+  .lp-fcol { min-height: 0; }
+  .lp-fghost.g2 { display: none; }
+  .lp-tgtoast { position: static; margin-top: 4px; }
 }
 @media (max-width: 560px) {
   .lp-grid { grid-template-columns: 1fr; }
@@ -518,8 +787,10 @@ html:has(.lp)::-webkit-scrollbar { width: 0; height: 0; display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-rise, .lp-glow, .lp-wo, .lp-pulse, .lp-done-mark, .lp-aurora, .lp-bg::after,
-  .lp-h1-accent, .lp-btn-primary::after, .lp-marquee-track, .lp-flag { animation: none !important; }
-  .lp-rise { opacity: 1; transform: none; }
+  .lp-h1-accent, .lp-btn-primary::after, .lp-marquee-track, .lp-flag,
+  .lp-fcard, .lp-aianswer, .lp-aidots span, .lp-caret { animation: none !important; }
+  .lp-rise, .lp-reveal { opacity: 1; transform: none; transition: none; }
+  .lp-tilt { transition: none; }
   .lp-h1-accent { background-position: 0 0; }
 }
 `}</style>
