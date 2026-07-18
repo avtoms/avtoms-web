@@ -13,12 +13,15 @@ const TONE: Record<StatTone, string> = {
 };
 
 export function StatCard({
-  icon: Icon, tone = "neutral", value, label, className,
-}: { icon: LucideIcon; tone?: StatTone; value: React.ReactNode; label: string; className?: string }) {
+  icon: Icon, tone = "neutral", value, label, sub, className,
+}: { icon: LucideIcon; tone?: StatTone; value: React.ReactNode; label: string; sub?: React.ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col gap-3.5 rounded-[14px] border border-border bg-card p-4 shadow-[var(--shadow)]", className)}>
-      <div className={cn("grid size-10 place-items-center rounded-[11px]", TONE[tone])}>
-        <Icon className="size-[21px]" />
+      <div className="flex items-start justify-between gap-2">
+        <div className={cn("grid size-10 place-items-center rounded-[11px]", TONE[tone])}>
+          <Icon className="size-[21px]" />
+        </div>
+        {sub && <div className="text-right text-[12px] font-semibold leading-tight text-muted-foreground">{sub}</div>}
       </div>
       <div>
         <div className="text-[28px] font-extrabold leading-none tracking-[-0.03em] text-foreground">{value}</div>

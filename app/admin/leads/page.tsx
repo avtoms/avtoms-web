@@ -79,6 +79,7 @@ export default function AdminLeadsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {list.length > 0 && <LeadStats leads={list} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "board" | "list")}>
           <TabsList>
@@ -103,6 +104,31 @@ export default function AdminLeadsPage() {
       )}
 
       <LeadModal lead={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+    </div>
+  );
+}
+
+const OPEN_STAGES = new Set(["new", "contacted", "qualified", "negotiating"]);
+function LeadStats({ leads }: { leads: Lead[] }) {
+  const pipeline = leads.filter((l) => OPEN_STAGES.has(l.status || "new")).reduce((s, l) => s + num(l.dealPrice), 0);
+  const won = leads.filter((l) => (l.status || "new") === "won");
+  const wonValue = won.reduce((s, l) => s + num(l.dealPrice), 0);
+  const decided = won.length + leads.filter((l) => l.status === "lost").length;
+  const winRate = decided ? Math.round((won.length / decided) * 100) : 0;
+  const items = [
+    { label: "Jami lidlar", value: String(leads.length), tone: "text-foreground" },
+    { label: "Ochiq quvur", value: money(pipeline) + " so'm", tone: "text-info" },
+    { label: "Yutilgan", value: money(wonValue) + " so'm", tone: "text-success" },
+    { label: "Konversiya", value: winRate + "%", tone: "text-primary-emphasis" },
+  ];
+  return (
+    <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
+      {items.map((it) => (
+        <div key={it.label} className="rounded-[12px] border border-border bg-card px-4 py-3 shadow-[var(--shadow)]">
+          <div className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">{it.label}</div>
+          <div className={`mt-1 font-mono text-[18px] font-extrabold tracking-[-0.02em] ${it.tone}`}>{it.value}</div>
+        </div>
+      ))}
     </div>
   );
 }

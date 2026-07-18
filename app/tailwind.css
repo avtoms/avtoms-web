@@ -65,6 +65,24 @@
   --font-mono: var(--font-mono);
 }
 
+/* Categorical chart palette — validated with the dataviz colorblind/contrast checker
+   (blue / amber / violet: pairwise CVD ΔE ~29, no green↔red confusion). Light values are
+   the default; the Carbon dark theme re-steps them into the dark lightness band. Charts
+   always ship a legend + direct labels, so identity is never colour-alone. */
+.admin-scope,
+.admin-portal {
+  --chart-1: #3b6fe0;
+  --chart-2: #c07f1e;
+  --chart-3: #7c5cd6;
+  --chart-track: color-mix(in oklch, var(--ink-3), transparent 82%);
+}
+:root[data-theme="carbon"] .admin-scope,
+:root[data-theme="carbon"] .admin-portal {
+  --chart-1: #4a7ee4;
+  --chart-2: #b3822f;
+  --chart-3: #8768d6;
+}
+
 /* Scoped reset — mimics the essentials of Tailwind preflight, but only inside the
    admin console so the rest of the app is unaffected. Radix portals (dialogs,
    menus, selects, tooltips) render at <body> and style themselves entirely with
