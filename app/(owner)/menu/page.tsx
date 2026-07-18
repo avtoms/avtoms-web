@@ -2,13 +2,24 @@
 // Pricing menu (price list): list services with localized name + price; create AND edit
 // each item. Editing logs a price-change history (viewable in the edit modal); existing
 // work orders keep the price they were created with (line-item snapshot), so edits are safe.
-import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Btn, IconBtn, Modal, Field, TextInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
+import { DataTable, SortHeader } from "@/components/admin/data-table";
+import { Card } from "@/components/ui-kit/card";
+import { Badge } from "@/components/ui-kit/badge";
+import { Button } from "@/components/ui-kit/button";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Spinner, Switch } from "@/components/ui-kit/misc";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
+} from "@/components/ui-kit/dialog";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, durationFmt } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { MenuItem, MenuPriceChange } from "@/lib/types";
 
 function menuName(m: MenuItem, lang: string): string {
@@ -35,40 +46,83 @@ export default function MenuPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const columns = useMemo<ColumnDef<MenuItem>[]>(() => [
+    {
+      id: "name",
+      accessorFn: (m) => `${menuName(m, lang)} ${m.category || ""}`,
+      header: ({ column }) => <SortHeader column={column}>{t("service_name")}</SortHeader>,
+      cell: ({ row }) => {
+        const m = row.original;
+        return (
+          <div className={cn("min-w-0", !m.active && "opacity-55")}>
+            <div className="truncate text-[14px] font-semibold text-foreground">{menuName(m, lang)}</div>
+            {(m.category || num(m.estimatedMinutes) > 0) && (
+              <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
+                {m.category && <span>{m.category}</span>}
+                {num(m.estimatedMinutes) > 0 && <span>· {durationFmt(num(m.estimatedMinutes))}</span>}
+              </div>
+            )}
+            {m.materials && m.materials.length > 0 && (
+              <div className="mt-1 text-[11.5px] text-muted-foreground">
+                <span className="font-semibold">{t("materials_needed")}:</span>{" "}
+                {m.materials.map((x) => x.name + (x.unit ? ` · ${x.quantity} ${x.unit}` : x.quantity > 1 ? " ×" + x.quantity : "")).join(", ")}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: "price",
+      accessorFn: (m) => num(m.defaultPrice),
+      header: ({ column }) => <SortHeader column={column}>{t("price")}</SortHeader>,
+      cell: ({ row }) => {
+        const m = row.original;
+        return (
+          <div>
+            <div className="font-mono text-[14px] font-bold text-foreground">{money(m.defaultPrice)}</div>
+            {num(m.defaultCost) > 0 && <div className="font-mono text-[11.5px] text-muted-foreground">{t("cost")}: {money(m.defaultCost!)}</div>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "status",
+      accessorFn: (m) => (m.active ? "active" : "inactive"),
+      header: ({ column }) => <SortHeader column={column}>{t("status")}</SortHeader>,
+      cell: ({ row }) => (
+        <Badge tone={row.original.active ? "ok" : "neutral"} dot>{row.original.active ? t("active") : t("inactive")}</Badge>
+      ),
+    },
+    {
+      id: "actions",
+      enableHiding: false,
+      header: () => <span className="sr-only">{t("edit")}</span>,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end text-muted-foreground">
+          <Button variant="ghost" size="icon-sm" onClick={(ev) => { ev.stopPropagation(); setEditing(row.original); }} aria-label={t("edit")}><Pencil /></Button>
+          <ChevronRight className="size-4" />
+        </div>
+      ),
+    },
+  ], [lang, t]);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_service")}</Btn>
-      </div>
-      <Card pad={0}>
-        {loading && list.length === 0 ? <SkeletonRows rows={7} avatar={false} />
-          : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="list" /></div>
-          : list.map((m) => (
-            <div key={m.id} className="an-row-btn" onClick={() => setEditing(m)} style={{ display: "flex", alignItems: "flex-start", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)", opacity: m.active ? 1 : 0.55, cursor: "pointer" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{menuName(m, lang)}</div>
-                {(m.category || num(m.estimatedMinutes) > 0) && (
-                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
-                    {m.category && <span>{m.category}</span>}
-                    {num(m.estimatedMinutes) > 0 && <span>· {durationFmt(num(m.estimatedMinutes))}</span>}
-                  </div>
-                )}
-                {m.materials && m.materials.length > 0 && (
-                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 4 }}>
-                    <span style={{ fontWeight: 600 }}>{t("materials_needed")}:</span>{" "}
-                    {m.materials.map((x) => x.name + (x.unit ? ` · ${x.quantity} ${x.unit}` : x.quantity > 1 ? " ×" + x.quantity : "")).join(", ")}
-                  </div>
-                )}
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(m.defaultPrice)}</div>
-                {num(m.defaultCost) > 0 && <div style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--ink-3)" }}>{t("cost")}: {money(m.defaultCost!)}</div>}
-              </div>
-              <Badge tone={m.active ? "ok" : "neutral"} dot>{m.active ? t("active") : t("inactive")}</Badge>
-              <IconBtn icon="chevR" onClick={(ev) => { ev.stopPropagation(); setEditing(m); }} />
-            </div>
-          ))}
-      </Card>
+    <div className="flex flex-col gap-4">
+      {loading && list.length === 0 ? (
+        <Card className="gap-2.5 p-5">{Array.from({ length: 7 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={list}
+          searchPlaceholder={t("search") + "…"}
+          emptyText={t("empty")}
+          toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
+          columnLabels={{ name: t("service_name"), price: t("price"), status: t("status") }}
+          onRowClick={(m) => setEditing(m)}
+          pageSize={12}
+        />
+      )}
       <MenuModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onSaved={() => load()} />
       <MenuModal open={!!editing} item={editing} onClose={() => setEditing(null)} shopId={shopId} onSaved={() => load()} />
     </div>
@@ -128,72 +182,83 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
   };
 
   const numInput = (v: string, on: (s: string) => void, ph = "0") => (
-    <TextInput value={v} onChange={(e) => on(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={ph} style={{ fontFamily: "var(--font-mono)" }} />
+    <Input value={v} onChange={(e) => on(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={ph} className="font-mono" />
   );
 
+  const MAT_COLS = "1.2fr 56px 64px 1fr 1fr 28px";
+
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? t("edit") : t("add_service")} maxWidth={520}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-        <Field label={t("service_name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label={t("category")}><TextInput value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} /></Field>
-          <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label={t("default_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
-          <Field label={t("default_cost") + " (" + t("soum") + ")"}><MoneyInput value={f.cost} onChange={(v) => setF({ ...f, cost: v })} /></Field>
-        </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[520px]">
+        <DialogHeader><DialogTitle>{isEdit ? t("edit") : t("add_service")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <Field label={t("service_name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("category")}><Input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} /></Field>
+            <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("default_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
+            <Field label={t("default_cost") + " (" + t("soum") + ")"}><MoneyInput value={f.cost} onChange={(v) => setF({ ...f, cost: v })} /></Field>
+          </div>
 
-        {isEdit && (
-          <button onClick={() => setActive((a) => !a)} className="an-btn" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 13px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)" }}>
-            <span style={{ fontWeight: 600, color: "var(--ink-2)", fontSize: 13.5 }}>{t("active")}</span>
-            <Badge tone={active ? "ok" : "neutral"} dot>{active ? t("active") : t("inactive")}</Badge>
-          </button>
-        )}
-
-        {/* materials editor */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-3)" }}>{t("materials_needed")}</span>
-          <Btn variant="soft" size="sm" icon="plus" onClick={addMat}>{t("add_material")}</Btn>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {materials.map((m, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 56px 64px 1fr 1fr 28px", gap: 6, alignItems: "center" }}>
-              <TextInput value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
-              <TextInput value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} />
-              <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} />
-              <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} />
-              <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} />
-              <Btn variant="ghost" size="sm" icon="trash" onClick={() => delMat(i)} aria-label="remove" />
-            </div>
-          ))}
-          {materials.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 56px 64px 1fr 1fr 28px", gap: 6, fontSize: 10.5, color: "var(--ink-3)", padding: "0 2px" }}>
-              <span>{t("material_name")}</span><span>{t("qty")}</span><span>{t("unit")}</span><span>{t("cost")}</span><span>{t("price")}</span><span />
+          {isEdit && (
+            <div className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3.5 py-2.5">
+              <span className="text-[13.5px] font-semibold text-ink-2">{t("active")}</span>
+              <div className="flex items-center gap-2.5">
+                <Badge tone={active ? "ok" : "neutral"} dot>{active ? t("active") : t("inactive")}</Badge>
+                <Switch checked={active} onCheckedChange={setActive} />
+              </div>
             </div>
           )}
-        </div>
 
-        {/* price-change history (edit only) */}
-        {isEdit && (
-          <div style={{ marginTop: 4 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{t("price_history")}</div>
-            {history === null ? <div style={{ display: "flex", justifyContent: "center", padding: 14 }}><Spinner size={16} /></div>
-              : history.length === 0 ? <div style={{ fontSize: 12.5, color: "var(--ink-3)", padding: "4px 2px" }}>{t("no_price_changes")}</div>
-              : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {history.map((h) => (
-                  <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--ink-2)", background: "var(--surface-2)", borderRadius: 8, padding: "7px 10px" }}>
-                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink-3)" }}>{money(h.oldPrice)}</span>
-                    <Icon name="chevR" size={13} style={{ color: "var(--ink-3)" }} />
-                    <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)" }}>{money(h.newPrice)}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{new Date(h.changedAt).toLocaleDateString()}</span>
-                  </div>
-                ))}
-              </div>}
+          {/* materials editor */}
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-[12.5px] font-semibold text-muted-foreground">{t("materials_needed")}</span>
+            <Button variant="soft" size="sm" onClick={addMat}><Plus /> {t("add_material")}</Button>
           </div>
-        )}
-      </div>
-    </Modal>
+          <div className="flex flex-col gap-2">
+            {materials.map((m, i) => (
+              <div key={i} className="grid items-center gap-1.5" style={{ gridTemplateColumns: MAT_COLS }}>
+                <Input value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
+                <Input value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} className="font-mono text-center" />
+                <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} />
+                <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} />
+                <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} />
+                <Button variant="ghost" size="icon-sm" onClick={() => delMat(i)} aria-label="remove"><Trash2 /></Button>
+              </div>
+            ))}
+            {materials.length > 0 && (
+              <div className="grid gap-1.5 px-0.5 text-[10.5px] text-muted-foreground" style={{ gridTemplateColumns: MAT_COLS }}>
+                <span>{t("material_name")}</span><span>{t("qty")}</span><span>{t("unit")}</span><span>{t("cost")}</span><span>{t("price")}</span><span />
+              </div>
+            )}
+          </div>
+
+          {/* price-change history (edit only) */}
+          {isEdit && (
+            <div className="mt-1">
+              <div className="mb-1.5 text-[12.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{t("price_history")}</div>
+              {history === null ? <div className="flex justify-center py-3.5"><Spinner /></div>
+                : history.length === 0 ? <div className="px-0.5 py-1 text-[12.5px] text-muted-foreground">{t("no_price_changes")}</div>
+                : <div className="flex flex-col gap-1.5">
+                  {history.map((h) => (
+                    <div key={h.id} className="flex items-center gap-2 rounded-[8px] bg-secondary px-2.5 py-1.5 text-[12.5px] text-ink-2">
+                      <span className="font-mono text-muted-foreground">{money(h.oldPrice)}</span>
+                      <ChevronRight className="size-3.5 text-muted-foreground" />
+                      <span className="font-mono font-bold text-foreground">{money(h.newPrice)}</span>
+                      <span className="ml-auto font-mono text-[11.5px] text-muted-foreground">{new Date(h.changedAt).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>}
+            </div>
+          )}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

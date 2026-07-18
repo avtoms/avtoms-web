@@ -1,142 +1,249 @@
 "use client";
-// Owner console chrome (NavShell ported from owner.jsx): sidebar on desktop ≥860px,
-// bottom tab bar + drawer on mobile. Wired to next/link + usePathname and the live session.
-import React, { useState } from "react";
+// Owner console chrome, rebuilt on the shadcn/ui kit. Desktop (≥860px): grouped sticky
+// sidebar + content. Mobile (<860px): sticky header with a burger that opens a Sheet drawer,
+// plus a bottom tab bar. The root carries `app-scope`, which activates the Tailwind + shadcn
+// token bridge so everything inherits the runtime theme + dark mode.
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Logo, Avatar, IconBtn, LangSwitcher, Btn, Spinner, useIsMobile } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import {
+  LayoutDashboard, ClipboardList, CalendarClock, Users, Car, Receipt, BarChart3, Wallet,
+  Tags, Package, Bell, UsersRound, Settings, Menu as MenuIcon, Plus, Wrench, LogOut, Globe,
+  Check, ChevronDown, type LucideIcon,
+} from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
+import { LANGS } from "@/lib/i18n";
+import { useIsMobile } from "@/components/ui";
+import { Spinner } from "@/components/ui-kit/misc";
+import { Button } from "@/components/ui-kit/button";
+import { UserAvatar } from "@/components/ui-kit/avatar";
+import { Sheet, SheetContent } from "@/components/ui-kit/sheet";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui-kit/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { CreateWOModal } from "./_create-wo";
 import { ChatWidget } from "@/components/ai-chat";
 
-type NavItem = { key: string; route: string; icon: string; labelKey: string };
-const ITEMS: NavItem[] = [
-  { key: "dashboard", route: "/dashboard", icon: "dashboard", labelKey: "nav_dashboard" },
-  { key: "workorders", route: "/work-orders", icon: "clipboard", labelKey: "nav_workorders" },
-  { key: "schedule", route: "/schedule", icon: "clock", labelKey: "nav_schedule" },
-  { key: "customers", route: "/customers", icon: "users", labelKey: "nav_customers" },
-  { key: "vehicles", route: "/vehicles", icon: "car", labelKey: "nav_vehicles" },
-  { key: "invoices", route: "/invoices", icon: "receipt", labelKey: "nav_invoices" },
-  { key: "reports", route: "/reports", icon: "chart", labelKey: "nav_reports" },
-  { key: "finances", route: "/finances", icon: "money", labelKey: "nav_finances" },
-  { key: "menu", route: "/menu", icon: "list", labelKey: "nav_menu" },
-  { key: "inventory", route: "/inventory", icon: "wrench", labelKey: "nav_inventory" },
-  { key: "reminders", route: "/reminders", icon: "bell", labelKey: "nav_reminders" },
-  { key: "staff", route: "/staff", icon: "team", labelKey: "nav_staff" },
-  { key: "settings", route: "/settings", icon: "settings", labelKey: "nav_settings" },
+type NavItem = { key: string; route: string; icon: LucideIcon; labelKey: string };
+type NavGroup = { titleKey: string; items: NavItem[] };
+
+const GROUPS: NavGroup[] = [
+  { titleKey: "nav_grp_main", items: [
+    { key: "dashboard", route: "/dashboard", icon: LayoutDashboard, labelKey: "nav_dashboard" },
+    { key: "workorders", route: "/work-orders", icon: ClipboardList, labelKey: "nav_workorders" },
+    { key: "schedule", route: "/schedule", icon: CalendarClock, labelKey: "nav_schedule" },
+  ]},
+  { titleKey: "nav_grp_clients", items: [
+    { key: "customers", route: "/customers", icon: Users, labelKey: "nav_customers" },
+    { key: "vehicles", route: "/vehicles", icon: Car, labelKey: "nav_vehicles" },
+  ]},
+  { titleKey: "nav_grp_finance", items: [
+    { key: "invoices", route: "/invoices", icon: Receipt, labelKey: "nav_invoices" },
+    { key: "finances", route: "/finances", icon: Wallet, labelKey: "nav_finances" },
+    { key: "reports", route: "/reports", icon: BarChart3, labelKey: "nav_reports" },
+  ]},
+  { titleKey: "nav_grp_manage", items: [
+    { key: "menu", route: "/menu", icon: Tags, labelKey: "nav_menu" },
+    { key: "inventory", route: "/inventory", icon: Package, labelKey: "nav_inventory" },
+    { key: "reminders", route: "/reminders", icon: Bell, labelKey: "nav_reminders" },
+    { key: "staff", route: "/staff", icon: UsersRound, labelKey: "nav_staff" },
+    { key: "settings", route: "/settings", icon: Settings, labelKey: "nav_settings" },
+  ]},
 ];
+const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
+// Fallback labels if a group title key isn't in the dictionary yet.
+const GRP_FALLBACK: Record<string, string> = {
+  nav_grp_main: "Asosiy", nav_grp_clients: "Mijozlar", nav_grp_finance: "Moliya", nav_grp_manage: "Boshqaruv",
+};
+
+const isActive = (pathname: string, route: string) => pathname === route || pathname.startsWith(route + "/");
+
+function Brand({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="flex items-center gap-3 px-5 pb-4 pt-5">
+      <div className="grid size-9 place-items-center rounded-[10px] bg-primary text-primary-foreground shadow-[var(--shadow)]">
+        <Wrench className="size-[19px]" strokeWidth={2.2} />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[15px] font-extrabold tracking-[-0.02em] text-foreground">{t("app_name")}</div>
+        <div className="text-[11.5px] font-medium text-muted-foreground">{t("role_owner")}</div>
+      </div>
+    </div>
+  );
+}
+
+function NavList({ pathname, t, onNavigate }: { pathname: string; t: (k: string) => string; onNavigate?: () => void }) {
+  return (
+    <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-2">
+      {GROUPS.map((g) => (
+        <div key={g.titleKey}>
+          <div className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground/80">
+            {t(g.titleKey) === g.titleKey ? GRP_FALLBACK[g.titleKey] : t(g.titleKey)}
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {g.items.map((it) => {
+              const on = isActive(pathname, it.route);
+              const Icon = it.icon;
+              return (
+                <Link key={it.key} href={it.route} onClick={onNavigate}
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold tracking-[-0.01em] transition-colors",
+                    on ? "bg-primary-soft text-primary-emphasis" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}>
+                  {on && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
+                  <Icon className={cn("size-[18px] shrink-0", on ? "text-primary-emphasis" : "text-muted-foreground")} />
+                  {t(it.labelKey)}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function LangMenu({ lang, setLang }: { lang: string; setLang: (l: any) => void }) {
+  const cur = LANGS.find((l) => l.code === lang) || LANGS[0];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-border bg-card px-2.5 text-[13px] font-semibold text-foreground shadow-[var(--shadow)] outline-none transition-colors hover:bg-secondary">
+          <Globe className="size-4 text-muted-foreground" />
+          <span className="hidden sm:inline">{cur.short}</span>
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        {LANGS.map((l) => (
+          <DropdownMenuItem key={l.code} onClick={() => setLang(l.code)} className={cn(l.code === lang && "bg-primary-soft text-primary-emphasis")}>
+            <span className="flex-1">{l.label}</span>
+            {l.code === lang ? <Check className="size-4 !text-primary-emphasis" /> : <span className="text-[11px] font-bold text-muted-foreground">{l.short}</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
   const { session, logout, ready } = useAuth();
   const { lang, setLang, t } = useLang();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() || "/dashboard";
   const isMobile = useIsMobile();
   const [drawer, setDrawer] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Session hydrates from the cookie on mount (and is null during static prerender).
-  // Hold the chrome + child pages until it's available so pages can safely read shopId.
+  useEffect(() => { setDrawer(false); }, [pathname]);
+
   if (!ready || !session) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
-        <Spinner size={28} />
-      </div>
-    );
+    return <div className="flex min-h-screen items-center justify-center bg-background"><Spinner className="size-7" /></div>;
   }
 
-  const isActive = (route: string) => pathname === route || pathname.startsWith(route + "/");
-  const cur = ITEMS.find((i) => isActive(i.route));
-  const user = session?.staff ?? { name: "", phone: "" };
-
+  const cur = ALL_ITEMS.find((i) => isActive(pathname, i.route));
+  const user = session.staff ?? { name: "", phone: "" };
   const signOut = () => { logout(); router.replace("/login"); };
-
-  // "+ New WO" on dashboard + work-orders list (not on the detail page).
   const showNewWo = pathname === "/dashboard" || pathname === "/work-orders";
-  const newBtn = showNewWo ? (
-    <Btn variant="primary" size={isMobile ? "sm" : "md"} icon="plus" aria-label={isMobile ? t("new_wo") : undefined} onClick={() => setCreating(true)}>{isMobile ? "" : t("new_wo")}</Btn>
-  ) : null;
-
-  const navList = ITEMS.map((it) => {
-    const on = isActive(it.route);
-    return (
-      <Link key={it.key} href={it.route} onClick={() => setDrawer(false)} className="an-nav-item" style={{
-        display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", borderRadius: "var(--radius-sm)",
-        cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left", textDecoration: "none",
-        background: on ? "var(--accent-soft)" : "transparent", color: on ? "var(--accent-2)" : "var(--ink-2)",
-        fontWeight: on ? 700 : 600, fontSize: "calc(14.5px * var(--scale))",
-      }}>
-        <Icon name={it.icon} size={19} /> {t(it.labelKey)}
-      </Link>
-    );
-  });
-
+  const title = cur ? t(cur.labelKey) : t("app_name");
   const modal = <CreateWOModal open={creating} onClose={() => setCreating(false)} />;
 
-  if (isMobile) {
-    const primary = ITEMS.slice(0, 4);
-    return (
-      <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column" }}>
-        <header style={{ position: "sticky", top: 0, zIndex: 40, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "color-mix(in oklch, var(--bg), transparent 6%)", borderBottom: "1px solid var(--line)", backdropFilter: "blur(8px)" }}>
-          <Logo size={32} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: 16, letterSpacing: "-0.02em" }}>{cur ? t(cur.labelKey) : t("app_name")}</div>
+  const newBtn = showNewWo ? (
+    <Button size={isMobile ? "sm" : "default"} onClick={() => setCreating(true)}>
+      <Plus />{!isMobile && t("new_wo")}
+    </Button>
+  ) : null;
+
+  const userMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="inline-flex h-9 items-center gap-2 rounded-[9px] border border-border bg-card pl-1 pr-2.5 shadow-[var(--shadow)] outline-none transition-colors hover:bg-secondary">
+          <UserAvatar name={user.name} className="size-7" />
+          <span className="hidden max-w-[130px] truncate text-[13px] font-semibold text-foreground md:inline">{user.name}</span>
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[220px]">
+        <DropdownMenuLabel className="normal-case">
+          <div className="flex flex-col gap-0.5 py-0.5">
+            <span className="text-[13.5px] font-bold tracking-normal text-foreground">{user.name}</span>
+            {user.phone && <span className="font-mono text-[12px] font-medium tracking-normal text-muted-foreground">{user.phone}</span>}
           </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={signOut}><LogOut /> {t("sign_out")}</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // ── Mobile ──
+  if (isMobile) {
+    const primary = ALL_ITEMS.slice(0, 4);
+    return (
+      <div className="app-scope flex min-h-screen flex-col bg-background">
+        <header className="sticky top-0 z-40 flex items-center gap-2.5 border-b border-border bg-[color-mix(in_oklch,var(--bg),transparent_6%)] px-4 py-3 backdrop-blur-md">
+          <div className="grid size-8 place-items-center rounded-[9px] bg-primary text-primary-foreground"><Wrench className="size-4" strokeWidth={2.2} /></div>
+          <div className="min-w-0 flex-1"><div className="truncate text-[16px] font-extrabold tracking-[-0.02em] text-foreground">{title}</div></div>
           {newBtn}
-          <LangSwitcher lang={lang} onChange={setLang} compact />
+          <LangMenu lang={lang} setLang={setLang} />
         </header>
-        <main style={{ flex: 1, minWidth: 0, overflowX: "hidden", padding: "16px 16px calc(88px + env(safe-area-inset-bottom))" }}>{children}</main>
-        <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 45, display: "flex", background: "var(--surface)", borderTop: "1px solid var(--line)", padding: "8px 6px", paddingBottom: "calc(8px + env(safe-area-inset-bottom))" }}>
+        <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(84px+env(safe-area-inset-bottom))] pt-4">{children}</main>
+
+        <nav className="fixed inset-x-0 bottom-0 z-45 flex border-t border-border bg-card px-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5">
           {primary.map((it) => {
-            const on = isActive(it.route);
+            const on = isActive(pathname, it.route);
+            const Icon = it.icon;
             return (
-              <Link key={it.key} href={it.route} className="an-btn" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", color: on ? "var(--accent-2)" : "var(--ink-3)", cursor: "pointer", fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, padding: "4px 0", textDecoration: "none" }}>
-                <Icon name={it.icon} size={21} /> {t(it.labelKey).split(" ")[0]}
+              <Link key={it.key} href={it.route} className={cn("flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold", on ? "text-primary-emphasis" : "text-muted-foreground")}>
+                <Icon className="size-[21px]" /> {t(it.labelKey).split(" ")[0]}
               </Link>
             );
           })}
-          <button onClick={() => setDrawer(true)} aria-label="Menu" className="an-btn" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, padding: "4px 0" }}>
-            <Icon name="menu" size={21} /> •••
+          <button onClick={() => setDrawer(true)} aria-label={t("menu") || "Menu"} className="flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold text-muted-foreground">
+            <MenuIcon className="size-[21px]" /> •••
           </button>
         </nav>
-        {drawer && (
-          <div onClick={() => setDrawer(false)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "oklch(0.15 0.02 60 / 0.45)", display: "flex", alignItems: "flex-end" }}>
-            <div onClick={(e) => e.stopPropagation()} className="an-sheet-in" style={{ background: "var(--surface)", width: "100%", borderRadius: "var(--radius-lg) var(--radius-lg) 0 0", padding: 14, maxHeight: "80vh", overflowY: "auto" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{navList}</div>
-              <div style={{ height: 1, background: "var(--line)", margin: "12px 0" }} />
-              <button onClick={signOut} className="an-nav-item" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 13px", border: "none", borderRadius: "var(--radius-sm)", cursor: "pointer", fontFamily: "var(--font-sans)", background: "transparent", color: "var(--danger)", fontWeight: 600, fontSize: 14.5 }}><Icon name="logout" size={19} /> {t("sign_out")}</button>
+
+        <Sheet open={drawer} onOpenChange={setDrawer}>
+          <SheetContent side="left" className="p-0">
+            <Brand t={t} />
+            <NavList pathname={pathname} t={t} onNavigate={() => setDrawer(false)} />
+            <div className="border-t border-border p-3">
+              <button onClick={signOut} className="flex w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold text-destructive hover:bg-destructive-soft">
+                <LogOut className="size-[18px]" /> {t("sign_out")}
+              </button>
             </div>
-          </div>
-        )}
+          </SheetContent>
+        </Sheet>
         {modal}
         <ChatWidget />
       </div>
     );
   }
 
+  // ── Desktop ──
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "grid", gridTemplateColumns: "260px 1fr" }}>
-      <aside style={{ borderRight: "1px solid var(--line)", background: "var(--surface)", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "20px 18px" }}>
-          <Logo size={38} />
-          <div><div style={{ fontWeight: 800, color: "var(--ink)", fontSize: 17, letterSpacing: "-0.02em" }}>{t("app_name")}</div><div style={{ fontSize: 11.5, color: "var(--ink-3)", fontWeight: 500 }}>{t("role_owner")}</div></div>
-        </div>
-        <div style={{ flex: 1, padding: "6px 12px", display: "flex", flexDirection: "column", gap: 3, overflowY: "auto" }}>{navList}</div>
-        <div style={{ padding: 12, borderTop: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px" }}>
-            <Avatar name={user.name} size={36} />
-            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, color: "var(--ink)", fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div><div style={{ fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{user.phone}</div></div>
-            <IconBtn icon="logout" size={17} onClick={signOut} style={{ width: 34, height: 34 }} />
+    <div className="app-scope grid min-h-screen bg-background" style={{ gridTemplateColumns: "260px 1fr" }}>
+      <aside className="sticky top-0 flex h-screen flex-col border-r border-border bg-card">
+        <Brand t={t} />
+        <NavList pathname={pathname} t={t} />
+        <div className="m-3 flex items-center gap-2.5 rounded-[12px] bg-secondary/70 px-3 py-2.5">
+          <UserAvatar name={user.name} className="size-9" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-bold text-foreground">{user.name}</div>
+            <div className="truncate font-mono text-[12px] text-muted-foreground">{user.phone}</div>
           </div>
+          <button onClick={signOut} aria-label={t("sign_out")} className="grid size-8 shrink-0 place-items-center rounded-[8px] text-muted-foreground hover:bg-card hover:text-destructive"><LogOut className="size-4" /></button>
         </div>
       </aside>
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <header style={{ position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "16px 28px", background: "color-mix(in oklch, var(--bg), transparent 6%)", borderBottom: "1px solid var(--line)", backdropFilter: "blur(8px)" }}>
-          <h1 style={{ margin: 0, fontSize: "calc(21px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.025em" }}>{cur ? t(cur.labelKey) : ""}</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>{newBtn}<LangSwitcher lang={lang} onChange={setLang} /></div>
+
+      <div className="flex min-w-0 flex-col">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-[color-mix(in_oklch,var(--bg),transparent_6%)] px-7 py-3.5 backdrop-blur-md">
+          <h1 className="truncate text-[19px] font-extrabold tracking-[-0.025em] text-foreground">{title}</h1>
+          <div className="flex items-center gap-2">{newBtn}<LangMenu lang={lang} setLang={setLang} />{userMenu}</div>
         </header>
-        <main style={{ flex: 1, padding: "24px 28px", maxWidth: 1240, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>{children}</main>
+        <main className="mx-auto w-full max-w-[1240px] flex-1 px-7 py-6">{children}</main>
       </div>
       {modal}
       <ChatWidget />

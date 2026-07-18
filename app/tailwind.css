@@ -3,7 +3,7 @@
 
    The legacy owner / mechanic / landing surfaces keep their inline-style design
    system (globals.css). We deliberately DO NOT import Tailwind's global preflight,
-   so those surfaces are untouched. Instead a small reset is scoped to `.admin-scope`
+   so those surfaces are untouched. Instead a small reset is scoped to `.app-scope`
    (the admin shell root).
 
    shadcn design tokens are *bridged* to the existing runtime theme variables
@@ -69,14 +69,14 @@
    (blue / amber / violet: pairwise CVD ΔE ~29, no green↔red confusion). Light values are
    the default; the Carbon dark theme re-steps them into the dark lightness band. Charts
    always ship a legend + direct labels, so identity is never colour-alone. */
-.admin-scope,
+.app-scope,
 .admin-portal {
   --chart-1: #3b6fe0;
   --chart-2: #c07f1e;
   --chart-3: #7c5cd6;
   --chart-track: color-mix(in oklch, var(--ink-3), transparent 82%);
 }
-:root[data-theme="carbon"] .admin-scope,
+:root[data-theme="carbon"] .app-scope,
 :root[data-theme="carbon"] .admin-portal {
   --chart-1: #4a7ee4;
   --chart-2: #b3822f;
@@ -88,7 +88,7 @@
    menus, selects, tooltips) render at <body> and style themselves entirely with
    utility classes, so they don't need this reset. */
 @layer base {
-  .admin-scope,
+  .app-scope,
   .admin-portal {
     font-family: var(--font-sans);
     color: var(--ink);
@@ -97,9 +97,9 @@
   /* Tailwind's `border` utility only sets width; preflight normally provides the
      `border-style: solid` + `border-width: 0` baseline. We aren't loading global
      preflight, so re-establish it inside the admin scope + Radix portals only. */
-  .admin-scope *,
-  .admin-scope *::before,
-  .admin-scope *::after,
+  .app-scope *,
+  .app-scope *::before,
+  .app-scope *::after,
   .admin-portal,
   .admin-portal *,
   .admin-portal *::before,
@@ -109,17 +109,17 @@
     border-style: solid;
     border-color: var(--line);
   }
-  .admin-scope h1,
-  .admin-scope h2,
-  .admin-scope h3,
-  .admin-scope h4,
-  .admin-scope h5,
-  .admin-scope h6,
-  .admin-scope p,
-  .admin-scope figure {
+  .app-scope h1,
+  .app-scope h2,
+  .app-scope h3,
+  .app-scope h4,
+  .app-scope h5,
+  .app-scope h6,
+  .app-scope p,
+  .app-scope figure {
     margin: 0;
   }
-  .admin-scope button {
+  .app-scope button {
     background: none;
     border: 0;
     padding: 0;
@@ -128,22 +128,22 @@
     color: inherit;
     cursor: pointer;
   }
-  .admin-scope button:disabled {
+  .app-scope button:disabled {
     cursor: not-allowed;
   }
-  .admin-scope input,
-  .admin-scope textarea,
-  .admin-scope select {
+  .app-scope input,
+  .app-scope textarea,
+  .app-scope select {
     font: inherit;
     color: inherit;
   }
-  .admin-scope table {
+  .app-scope table {
     border-collapse: collapse;
   }
-  .admin-scope svg {
+  .app-scope svg {
     display: block;
   }
-  .admin-scope a {
+  .app-scope a {
     color: inherit;
     text-decoration: none;
   }

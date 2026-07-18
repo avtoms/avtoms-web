@@ -2,14 +2,27 @@
 // Service reminders: upcoming maintenance due per vehicle (oil change, inspection, ...).
 // Grouped into overdue / upcoming / no-date; add, mark done, dismiss.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonRows } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { Bell, Check, History, Plus, Send } from "lucide-react";
+import { Empty } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Badge } from "@/components/ui-kit/badge";
+import { Button } from "@/components/ui-kit/button";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Separator, Spinner } from "@/components/ui-kit/misc";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
+import { cn } from "@/lib/utils";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { reminderStateFromProto, reminderStateToProto } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
 import type { ServiceReminder, Customer, Vehicle } from "@/lib/types";
 
+// Radix Select forbids an empty-string item value, so "" (unset / reset) is represented by
+// this sentinel in the Select only and mapped back to "" at the state boundary.
+const NONE = "__none";
 const dateStr = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "");
 const isRecurring = (m: ServiceReminder) => !!(m.repeatMonths || m.repeatKm);
 
@@ -55,22 +68,24 @@ export default function RemindersPage() {
 
   const section = (key: string, items: ServiceReminder[], tone: "danger" | "accent" | "neutral", completed = false) =>
     items.length === 0 ? null : (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: tone === "danger" ? "var(--danger)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 4px" }}>{t(key)} · {items.length}</div>
-        <Card pad={0}>
+      <div className="flex flex-col gap-2">
+        <div className={cn("px-1 text-[12px] font-bold uppercase tracking-[0.05em]", tone === "danger" ? "text-destructive" : "text-muted-foreground")}>{t(key)} · {items.length}</div>
+        <Card className="overflow-hidden">
           {items.map((m) => {
             const st = reminderStateFromProto(m.state);
             return (
-            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "12px 18px", borderBottom: "1px solid var(--line)", opacity: completed ? 0.6 : 1 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: completed ? "var(--surface-2)" : "var(--accent-soft)", color: completed ? "var(--ink-3)" : "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={completed ? "check" : "bell"} size={18} /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", textDecoration: completed ? "line-through" : "none" }}>{m.title}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div key={m.id} className={cn("flex items-center gap-3.5 border-b border-border px-4 py-3 last:border-0 sm:px-5", completed && "opacity-60")}>
+              <div className={cn("grid size-9 shrink-0 place-items-center rounded-[10px]", completed ? "bg-secondary text-muted-foreground" : "bg-primary-soft text-primary-emphasis")}>
+                {completed ? <Check className="size-[18px]" /> : <Bell className="size-[18px]" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className={cn("text-[14.5px] font-semibold text-foreground", completed && "line-through")}>{m.title}</div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
                   {m.dueDate ? <span>{dateStr(m.dueDate)}</span> : <span>{t("no_due_date")}</span>}
-                  {!!m.dueMileage && <span style={{ fontFamily: "var(--font-mono)" }}>· {m.dueMileage.toLocaleString()} km</span>}
+                  {!!m.dueMileage && <span className="font-mono">· {m.dueMileage.toLocaleString()} km</span>}
                   {isRecurring(m) && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--accent-2)", fontWeight: 600 }}>
-                      <Icon name="history" size={12} /> {t("rem_every")} {[m.repeatMonths ? `${m.repeatMonths} ${t("rem_months_n")}` : "", m.repeatKm ? `${m.repeatKm.toLocaleString()} km` : ""].filter(Boolean).join(" · ")}
+                    <span className="inline-flex items-center gap-1 font-semibold text-primary-emphasis">
+                      <History className="size-3" /> {t("rem_every")} {[m.repeatMonths ? `${m.repeatMonths} ${t("rem_months_n")}` : "", m.repeatKm ? `${m.repeatKm.toLocaleString()} km` : ""].filter(Boolean).join(" · ")}
                     </span>
                   )}
                   {m.customerName && <span>· {m.customerName}</span>}
@@ -80,9 +95,9 @@ export default function RemindersPage() {
               {completed ? (
                 <Badge tone={st === "done" ? "ok" : "neutral"} dot>{st === "done" ? t("st_done") : t("st_dismissed")}</Badge>
               ) : (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <Btn variant="soft" size="sm" icon="check" disabled={busy} onClick={() => setState(m, "done")}>{t("mark_done")}</Btn>
-                  <Btn variant="ghost" size="sm" disabled={busy} onClick={() => setState(m, "dismissed")} style={{ color: "var(--ink-3)" }}>{t("dismiss")}</Btn>
+                <div className="flex shrink-0 gap-1.5">
+                  <Button variant="soft" size="sm" disabled={busy} onClick={() => setState(m, "done")}><Check /> {t("mark_done")}</Button>
+                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => setState(m, "dismissed")}>{t("dismiss")}</Button>
                 </div>
               )}
             </div>
@@ -94,18 +109,22 @@ export default function RemindersPage() {
   const empty = overdue.length === 0 && upcoming.length === 0 && undated.length === 0 && done.length === 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_reminder")}</Btn>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setAdding(true)}><Plus /> {t("add_reminder")}</Button>
       </div>
-      {loading && empty ? <Card pad={0}><SkeletonRows rows={5} /></Card>
-        : empty ? <Card pad={24}><Empty icon="bell" text={t("no_reminders")} /></Card>
-        : <>
-            {section("overdue", overdue, "danger")}
-            {section("upcoming", upcoming, "accent")}
-            {section("no_due_date", undated, "neutral")}
-            {section("reminders_done", done, "neutral", true)}
-          </>}
+      {loading && empty ? (
+        <Card className="gap-2.5 p-5">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="an-skel h-12 w-full rounded-[8px]" />)}</Card>
+      ) : empty ? (
+        <Card className="p-6"><Empty icon="bell" text={t("no_reminders")} /></Card>
+      ) : (
+        <>
+          {section("overdue", overdue, "danger")}
+          {section("upcoming", upcoming, "accent")}
+          {section("no_due_date", undated, "neutral")}
+          {section("reminders_done", done, "neutral", true)}
+        </>
+      )}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={load} />
     </div>
   );
@@ -161,60 +180,75 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("add_reminder")} maxWidth={480}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label={t("reminder_title")}><TextInput value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("reminder_title")} /></Field>
-        <Field label={t("nav_customers")}>
-          <SelectInput value={f.customerId} onChange={(e) => pickCustomer(e.target.value)}>
-            <option value="">—</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</option>)}
-          </SelectInput>
-        </Field>
-        {f.customerId && (
-          <Field label={t("vehicle")}>
-            <SelectInput value={f.vehicleId} onChange={(e) => pickVehicle(e.target.value)}>
-              <option value="">—</option>
-              {vehicles.map((v) => <option key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</option>)}
-            </SelectInput>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[480px]">
+        <DialogHeader><DialogTitle>{t("add_reminder")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <Field label={t("reminder_title")}><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("reminder_title")} /></Field>
+          <Field label={t("nav_customers")}>
+            <Select value={f.customerId || NONE} onValueChange={(v) => pickCustomer(v === NONE ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>—</SelectItem>
+                {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </Field>
-        )}
-        {f.plate && <span style={{ display: "inline-block" }}><PlatePreview plate={f.plate} size="sm" /></span>}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("due_date")}><TextInput type="date" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></Field>
-          <Field label={t("due_mileage")}><TextInput value={f.mileage} onChange={(e) => setF({ ...f, mileage: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-        </div>
-
-        {/* Recurrence: optional. When on, completing the reminder auto-creates the next one. */}
-        <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <span style={{ fontSize: "calc(14px * var(--scale))", fontWeight: 600, color: "var(--ink)" }}>{t("rem_repeat")}</span>
-            <Segmented options={[{ value: "off", label: t("no") }, { value: "on", label: t("yes") }]} value={f.repeat ? "on" : "off"} onChange={(v) => setF({ ...f, repeat: v === "on" })} />
-          </div>
-          {f.repeat && (
-            <>
-              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("rem_repeat_hint")}</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[3, 6, 12].map((n) => (
-                  <button key={n} type="button" onClick={() => setF((s) => ({ ...s, repMonths: String(n) }))} className="an-btn" style={{
-                    padding: "6px 12px", borderRadius: "var(--radius-sm)", cursor: "pointer", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 13,
-                    border: "1px solid " + (repMonths === n ? "var(--accent)" : "var(--line)"), background: repMonths === n ? "var(--accent-soft)" : "var(--surface)", color: repMonths === n ? "var(--accent-2)" : "var(--ink-2)",
-                  }}>{n} {t("rem_months_n")}</button>
-                ))}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Field label={t("rem_interval_months")}><TextInput value={f.repMonths} onChange={(e) => setF({ ...f, repMonths: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="6" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-                <Field label={t("rem_interval_km")}><TextInput value={f.repKm} onChange={(e) => setF({ ...f, repKm: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="10000" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{t("rem_interval_hint")}</div>
-            </>
+          {f.customerId && (
+            <Field label={t("vehicle")}>
+              <Select value={f.vehicleId || NONE} onValueChange={(v) => pickVehicle(v === NONE ? "" : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
           )}
-        </div>
+          {f.plate && <span className="inline-block"><PlatePreview plate={f.plate} size="sm" /></span>}
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label={t("due_date")}><Input type="date" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></Field>
+            <Field label={t("due_mileage")}><Input value={f.mileage} onChange={(e) => setF({ ...f, mileage: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+          </div>
 
-        <div style={{ fontSize: 12, color: "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Icon name="tg" size={14} /> {t("reminder_tg_hint")}
-        </div>
-      </div>
-    </Modal>
+          {/* Recurrence: optional. When on, completing the reminder auto-creates the next one. */}
+          <Separator className="mt-1" />
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[14px] font-semibold text-foreground">{t("rem_repeat")}</span>
+              <Tabs value={f.repeat ? "on" : "off"} onValueChange={(v) => setF({ ...f, repeat: v === "on" })}>
+                <TabsList>
+                  <TabsTrigger value="off">{t("no")}</TabsTrigger>
+                  <TabsTrigger value="on">{t("yes")}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            {f.repeat && (
+              <>
+                <div className="text-[12px] text-muted-foreground">{t("rem_repeat_hint")}</div>
+                <div className="flex gap-1.5">
+                  {[3, 6, 12].map((n) => (
+                    <Button key={n} type="button" variant={repMonths === n ? "soft" : "secondary"} size="sm" onClick={() => setF((s) => ({ ...s, repMonths: String(n) }))}>{n} {t("rem_months_n")}</Button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Field label={t("rem_interval_months")}><Input value={f.repMonths} onChange={(e) => setF({ ...f, repMonths: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="6" className="font-mono" /></Field>
+                  <Field label={t("rem_interval_km")}><Input value={f.repKm} onChange={(e) => setF({ ...f, repKm: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="10000" className="font-mono" /></Field>
+                </div>
+                <div className="text-[11.5px] text-muted-foreground">{t("rem_interval_hint")}</div>
+              </>
+            )}
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <Send className="size-3.5" /> {t("reminder_tg_hint")}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,11 +1,17 @@
 "use client";
-// Create-work-order flow (flows.jsx CreateWOModal). Search vehicles by plate via the
-// live backend; pick one to create the WO. If no vehicle matches, create a customer +
-// vehicle inline, then the WO.
+// Create-work-order flow. Search vehicles by plate via the live backend; pick one to create
+// the WO. If no vehicle matches, create a customer + vehicle inline, then the WO.
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Field, TextInput, SelectInput, Btn, Empty, Spinner, Segmented } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { Search, Plus, Car } from "lucide-react";
+import { Empty } from "@/components/ui";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Button } from "@/components/ui-kit/button";
+import { Spinner, Separator } from "@/components/ui-kit/misc";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
@@ -17,8 +23,6 @@ import { orderLabel } from "@/lib/format";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
 
-// basePath is the detail-route prefix to navigate to after creation: owners land on
-// /work-orders/{id}, mechanics (who reach this via a granted permission) on /m/wo/{id}.
 export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { open: boolean; onClose: () => void; basePath?: string }) {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
@@ -32,7 +36,6 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // new customer+vehicle form
   const [cf, setCf] = useState({ name: "", phone: "", telegram: "", language: "uz" as Lang });
   const [vf, setVf] = useState({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType });
 
@@ -40,7 +43,6 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
     if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); }
   }, [open]);
 
-  // debounced plate search
   React.useEffect(() => {
     if (mode !== "search") return;
     const plate = q.trim();
@@ -85,51 +87,75 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("new_wo")} maxWidth={480}
-      footer={mode === "new" ? <><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" icon="plus" onClick={createNew} disabled={busy}>{busy ? <Spinner /> : t("create_wo")}</Btn></> : undefined}>
-      <Segmented options={[{ value: "search", label: t("search_plate") }, { value: "new", label: t("new_customer") }]} value={mode} onChange={(v) => setMode(v as "search" | "new")} style={{ marginBottom: 16, width: "100%" }} />
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[480px]">
+        <DialogHeader><DialogTitle>{t("new_wo")}</DialogTitle></DialogHeader>
+        <DialogBody className="py-1">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "search" | "new")} className="mb-4">
+            <TabsList className="w-full">
+              <TabsTrigger value="search" className="flex-1">{t("search_plate")}</TabsTrigger>
+              <TabsTrigger value="new" className="flex-1">{t("new_customer")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-      {mode === "search" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label={t("search_plate")}>
-            <div style={{ position: "relative" }}>
-              <Icon name="search" size={17} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-3)" }} />
-              <TextInput autoFocus value={q} onChange={(e) => setQ(e.target.value.toUpperCase())} placeholder="01 A 777 AB" style={{ paddingLeft: 38, fontFamily: "var(--font-mono)" }} />
-            </div>
-          </Field>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 340, overflowY: "auto" }}>
-            {searching && <div style={{ display: "flex", justifyContent: "center", padding: 16 }}><Spinner /></div>}
-            {!searching && q.trim() && matches.length === 0 && <Empty icon="car" text={t("empty")} />}
-            {matches.map((v) => (
-              <button key={v.id} disabled={busy} onClick={() => createFor(v.id)} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, padding: "12px 14px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-2)" }}><Icon name="car" size={20} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{[v.make, v.model].filter(Boolean).join(" ") || t("vehicle")} {v.year ? <span style={{ color: "var(--ink-3)", fontWeight: 500 }}>· {v.year}</span> : null}</div>
-                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{v.vin || ""}</div>
+          {mode === "search" ? (
+            <div className="flex flex-col gap-3.5">
+              <Field label={t("search_plate")}>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input autoFocus value={q} onChange={(e) => setQ(e.target.value.toUpperCase())} placeholder="01 A 777 AB" className="pl-9 font-mono" />
                 </div>
-                <PlatePreview plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label={t("name")}><TextInput value={cf.name} onChange={(e) => setCf({ ...cf, name: e.target.value })} /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <PhoneField label={t("phone")} value={cf.phone} onChange={(p) => setCf({ ...cf, phone: p })} invalidHint={t("bad_phone")} />
-            <Field label={t("language")}><SelectInput value={cf.language} onChange={(e) => setCf({ ...cf, language: e.target.value as Lang })}>{LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</SelectInput></Field>
-          </div>
-          <div style={{ height: 1, background: "var(--line)", margin: "2px 0" }} />
-          <Field label={t("plate_type")}>
-            <Segmented options={PLATE_TYPES.map((p) => ({ value: p, label: t("pt_" + p) }))} value={vf.plateType} onChange={(v) => setVf((s) => ({ ...s, plateType: v as PlateType }))} style={{ width: "100%" }} />
-          </Field>
-          <PlateField value={vf.plate} onChange={(p) => setVf((s) => ({ ...s, plate: p }))} label={t("plate")} type={vf.plateType} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <MakeModelPicker make={vf.make} model={vf.model} onChange={(mk, md) => setVf((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
-          </div>
-          <Field label={t("year")}><TextInput value={vf.year} onChange={(e) => setVf({ ...vf, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-        </div>
-      )}
-    </Modal>
+              </Field>
+              <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto">
+                {searching && <div className="flex justify-center py-4"><Spinner /></div>}
+                {!searching && q.trim() && matches.length === 0 && <Empty icon="car" text={t("empty")} />}
+                {matches.map((v) => (
+                  <button key={v.id} disabled={busy} onClick={() => createFor(v.id)} className="flex items-center gap-3 rounded-[10px] border border-border bg-card px-3.5 py-3 text-left transition-colors hover:bg-secondary">
+                    <div className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-secondary text-ink-2"><Car className="size-5" /></div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[14.5px] font-bold text-foreground">{[v.make, v.model].filter(Boolean).join(" ") || t("vehicle")} {v.year ? <span className="font-medium text-muted-foreground">· {v.year}</span> : null}</div>
+                      <div className="font-mono text-[12.5px] text-muted-foreground">{v.vin || ""}</div>
+                    </div>
+                    <PlatePreview plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3.5">
+              <Field label={t("name")}><Input value={cf.name} onChange={(e) => setCf({ ...cf, name: e.target.value })} /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <PhoneField label={t("phone")} value={cf.phone} onChange={(p) => setCf({ ...cf, phone: p })} invalidHint={t("bad_phone")} />
+                <Field label={t("language")}>
+                  <Select value={cf.language} onValueChange={(v) => setCf({ ...cf, language: v as Lang })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{LANGS.map((l) => <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <Separator />
+              <Field label={t("plate_type")}>
+                <Tabs value={vf.plateType} onValueChange={(v) => setVf((s) => ({ ...s, plateType: v as PlateType }))}>
+                  <TabsList className="w-full flex-wrap">
+                    {PLATE_TYPES.map((p) => <TabsTrigger key={p} value={p} className="flex-1">{t("pt_" + p)}</TabsTrigger>)}
+                  </TabsList>
+                </Tabs>
+              </Field>
+              <PlateField value={vf.plate} onChange={(p) => setVf((s) => ({ ...s, plate: p }))} label={t("plate")} type={vf.plateType} />
+              <div className="grid grid-cols-2 gap-3">
+                <MakeModelPicker make={vf.make} model={vf.model} onChange={(mk, md) => setVf((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
+              </div>
+              <Field label={t("year")}><Input value={vf.year} onChange={(e) => setVf({ ...vf, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+            </div>
+          )}
+        </DialogBody>
+        {mode === "new" && (
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+            <Button onClick={createNew} disabled={busy}><Plus /> {busy ? <Spinner /> : t("create_wo")}</Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

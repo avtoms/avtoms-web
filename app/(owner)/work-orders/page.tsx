@@ -2,17 +2,23 @@
 // Work orders (owner): a Board / List toggle. The Board is the active cash pipeline
 // (Estimated → Approved → In progress → Ready → Invoiced) as a Jira-style kanban — great
 // for spotting bottlenecks (approvals piling up, jobs ready to invoice). The List is the
-// flat, filterable view that also covers draft / closed / canceled and search.
+// flat, filterable view (now a searchable/sortable DataTable) that also covers
+// draft / closed / canceled and search.
 // The Create-WO flow lives in the shared layout header button (_create-wo.tsx).
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Segmented, Empty, SkeletonRows } from "@/components/ui";
+import type { ColumnDef } from "@tanstack/react-table";
+import { SkeletonRows, StateBadge } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui-kit/select";
+import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { WO_STATES, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
+import { WO_STATES, STATE_LABEL, TRANSITIONS, woStateFromProto, type WoState } from "@/lib/enums";
+import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
-import { WORow } from "../_shared";
 
 // The owner board shows the full lifecycle, left to right — every status is a column,
 // including the terminal Closed/Canceled. Each card's status menu still offers only the
@@ -75,26 +81,69 @@ export default function WorkOrdersPage() {
   };
 
   const cols = PIPELINE.map((c) => ({ ...c, label: t(c.label) }));
-  const filters = [{ value: "all", label: t("all") }, ...WO_STATES.map((s) => ({ value: s, label: t(STATE_LABEL[s]) }))];
+
+  const columns = useMemo<ColumnDef<WorkOrder>[]>(() => [
+    {
+      id: "order",
+      accessorFn: (w) => orderLabel(w),
+      header: ({ column }) => <SortHeader column={column}>{t("work_order")}</SortHeader>,
+      cell: ({ row }) => {
+        const w = row.original;
+        const created = w.createdAt
+          ? new Date(w.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
+          : "";
+        return (
+          <div className="flex flex-col">
+            <span className="font-mono text-[13.5px] font-bold text-foreground">{orderLabel(w)}</span>
+            <span className="font-mono text-[11px] text-muted-foreground">{created}</span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "vehicle",
+      accessorFn: (w) => `${vehicleTitle(w)} ${w.customerName || ""}`,
+      header: ({ column }) => <SortHeader column={column}>{t("vehicle")}</SortHeader>,
+      cell: ({ row }) => {
+        const w = row.original;
+        return (
+          <div className="min-w-0">
+            <div className="truncate text-[14px] font-semibold text-foreground">{vehicleTitle(w) || t("work_order")}</div>
+            {w.customerName && <div className="truncate text-[12px] text-muted-foreground">{w.customerName}</div>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "total",
+      accessorFn: (w) => num(w.total),
+      header: ({ column }) => <SortHeader column={column}>{t("total")}</SortHeader>,
+      cell: ({ row }) => <span className="font-mono text-[13.5px] font-bold text-foreground">{money(num(row.original.total))}</span>,
+    },
+    {
+      id: "status",
+      accessorFn: (w) => t(STATE_LABEL[woStateFromProto(w.state)]),
+      header: ({ column }) => <SortHeader column={column}>{t("status")}</SortHeader>,
+      cell: ({ row }) => <StateBadge state={woStateFromProto(row.original.state)} />,
+    },
+  ], [t]);
+
+  const columnLabels = useMemo(
+    () => ({ order: t("work_order"), vehicle: t("vehicle"), total: t("total"), status: t("status") }),
+    [t],
+  );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <Segmented
-          options={[{ value: "board", label: t("view_board") }, { value: "list", label: t("view_list") }]}
-          value={view}
-          onChange={(v) => setView(v as "board" | "list")}
-          size="sm"
-        />
-        {view === "list" && (
-          <div style={{ overflowX: "auto", paddingBottom: 2, maxWidth: "100%" }}>
-            <Segmented options={filters} value={filter} onChange={(v) => setFilter(v as "all" | WoState)} size="sm" style={{ flexWrap: "nowrap" }} />
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-4">
+      <Tabs value={view} onValueChange={(v) => setView(v as "board" | "list")}>
+        <TabsList>
+          <TabsTrigger value="board">{t("view_board")}</TabsTrigger>
+          <TabsTrigger value="list">{t("view_list")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {list === null ? (
-        <Card pad={0}><SkeletonRows rows={7} avatar={false} /></Card>
+        <Card className="overflow-hidden"><SkeletonRows rows={7} avatar={false} /></Card>
       ) : view === "board" ? (
         <WorkOrderBoard
           orders={list}
@@ -107,10 +156,24 @@ export default function WorkOrdersPage() {
           moveTargets={(cur) => TRANSITIONS[cur] || []}
         />
       ) : (
-        <Card pad={0}>
-          {list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="clipboard" /></div>
-            : list.map((w) => <WORow key={w.id} wo={w} />)}
-        </Card>
+        <DataTable
+          columns={columns}
+          data={list}
+          searchPlaceholder={t("search")}
+          columnLabels={columnLabels}
+          emptyText={t("no_orders_col")}
+          onRowClick={(w) => router.push(`/work-orders/${w.id}`)}
+          pageSize={12}
+          toolbar={
+            <Select value={filter} onValueChange={(v) => setFilter(v as "all" | WoState)}>
+              <SelectTrigger size="sm" className="w-[170px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("all")}</SelectItem>
+                {WO_STATES.map((s) => <SelectItem key={s} value={s}>{t(STATE_LABEL[s])}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          }
+        />
       )}
     </div>
   );

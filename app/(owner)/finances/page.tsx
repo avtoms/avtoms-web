@@ -3,18 +3,27 @@
 // KPI cards, a 12-month revenue/expenses/profit trend, expense breakdown by category, and
 // the overhead-expense ledger. The period can be a month, quarter, year, or custom range.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Btn, IconBtn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonCards } from "@/components/ui";
+import { Plus, ChevronRight, Trash2, Wallet } from "lucide-react";
+import { Empty } from "@/components/ui";
+import { Card, CardContent } from "@/components/ui-kit/card";
+import { Button } from "@/components/ui-kit/button";
+import { Input } from "@/components/ui-kit/input";
+import { Field } from "@/components/ui-kit/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
 import { Row, StatCard } from "../_shared";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
 const PREDEFINED = new Set<string>(CATS);
 
-// A predefined category shows its translated label; a shop's custom one shows as typed.
 function catLabel(c: string, t: (k: string) => string): string {
   return PREDEFINED.has(c) ? t("cat_" + c) : c;
 }
@@ -22,7 +31,6 @@ function catLabel(c: string, t: (k: string) => string): string {
 const isoFrom = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 0, 0, 0)).toISOString();
 const isoTo = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 23, 59, 59)).toISOString();
 
-// First/last instant of a YYYY-MM string, as RFC3339.
 function monthRange(ym: string): { from: string; to: string } {
   const [y, m] = ym.split("-").map((n) => parseInt(n, 10));
   return { from: isoFrom(y, m - 1, 1), to: isoTo(y, m, 0) };
@@ -31,7 +39,6 @@ function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-// The trailing N months (oldest→newest), each as {ym, label}.
 function lastNMonths(n: number): { ym: string; label: string }[] {
   const out: { ym: string; label: string }[] = [];
   const now = new Date();
@@ -86,7 +93,6 @@ export default function FinancesPage() {
     api.listStaff(shopId).then((s) => setStaff(s.filter((x) => x.active))).catch(() => {});
   }, [shopId]);
 
-  // 12-month trend — independent of the selected period; refetched after mutations.
   const loadTrend = useCallback(async () => {
     const months = lastNMonths(12);
     const res = await Promise.all(months.map((m) =>
@@ -118,35 +124,47 @@ export default function FinancesPage() {
   const yearOpts = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="flex flex-col gap-4">
       {/* tabs + add */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Segmented options={[{ value: "stats", label: t("statistics") }, { value: "expenses", label: t("expenses") }]} value={tab} onChange={(v) => setTab(v as "stats" | "expenses")} />
-        {tab === "expenses" && <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_expense")}</Btn>}
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "stats" | "expenses")}>
+          <TabsList>
+            <TabsTrigger value="stats">{t("statistics")}</TabsTrigger>
+            <TabsTrigger value="expenses">{t("expenses")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {tab === "expenses" && <Button onClick={() => setAdding(true)}><Plus /> {t("add_expense")}</Button>}
       </div>
 
       {/* period controls */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Segmented size="sm" options={[{ value: "month", label: t("per_month") }, { value: "quarter", label: t("per_quarter") }, { value: "year", label: t("per_year") }, { value: "custom", label: t("per_custom") }]} value={gran} onChange={(v) => setGran(v as Gran)} />
-          {gran === "month" && <TextInput type="month" value={month} onChange={(e) => setMonth(e.target.value)} style={{ maxWidth: 160, fontFamily: "var(--font-mono)" }} />}
-          {gran === "quarter" && <>
-            <Segmented size="sm" options={[1, 2, 3, 4].map((q) => ({ value: String(q), label: "Q" + q }))} value={String(quarter)} onChange={(v) => setQuarter(parseInt(v, 10))} />
-            <SelectInput value={String(year)} onChange={(e) => setYear(parseInt(e.target.value, 10))} style={{ maxWidth: 110 }}>{yearOpts.map((y) => <option key={y} value={y}>{y}</option>)}</SelectInput>
-          </>}
-          {gran === "year" && <SelectInput value={String(year)} onChange={(e) => setYear(parseInt(e.target.value, 10))} style={{ maxWidth: 110 }}>{yearOpts.map((y) => <option key={y} value={y}>{y}</option>)}</SelectInput>}
-          {gran === "custom" && <>
-            <TextInput type="date" value={cFrom} onChange={(e) => setCFrom(e.target.value)} style={{ maxWidth: 150 }} />
-            <span style={{ color: "var(--ink-3)" }}>—</span>
-            <TextInput type="date" value={cTo} onChange={(e) => setCTo(e.target.value)} style={{ maxWidth: 150 }} />
-          </>}
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Tabs value={gran} onValueChange={(v) => setGran(v as Gran)}>
+          <TabsList>
+            <TabsTrigger value="month">{t("per_month")}</TabsTrigger>
+            <TabsTrigger value="quarter">{t("per_quarter")}</TabsTrigger>
+            <TabsTrigger value="year">{t("per_year")}</TabsTrigger>
+            <TabsTrigger value="custom">{t("per_custom")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {gran === "month" && <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[160px] font-mono" />}
+        {gran === "quarter" && <>
+          <Tabs value={String(quarter)} onValueChange={(v) => setQuarter(parseInt(v, 10))}>
+            <TabsList>{[1, 2, 3, 4].map((q) => <TabsTrigger key={q} value={String(q)}>Q{q}</TabsTrigger>)}</TabsList>
+          </Tabs>
+          <YearSelect year={year} setYear={setYear} opts={yearOpts} />
+        </>}
+        {gran === "year" && <YearSelect year={year} setYear={setYear} opts={yearOpts} />}
+        {gran === "custom" && <>
+          <Input type="date" value={cFrom} onChange={(e) => setCFrom(e.target.value)} className="max-w-[150px]" />
+          <span className="text-muted-foreground">—</span>
+          <Input type="date" value={cTo} onChange={(e) => setCTo(e.target.value)} className="max-w-[150px]" />
+        </>}
       </div>
 
-      {loading ? <SkeletonCards cards={6} />
+      {loading ? <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
         : tab === "stats" ? <>
           {/* KPI cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
             <StatCard label={t("revenue")} value={money(revenue)} sub={t("soum")} icon="money" tone="accent" big />
             <StatCard label={t("gross_margin")} value={money(gross)} sub={pct(gross, revenue) + "% " + t("margin")} icon="chart" tone="info" />
             <StatCard label={t("overhead")} value={money(overhead)} sub={pct(overhead, revenue) + "% " + t("of_revenue")} icon="receipt" tone="warn" />
@@ -155,53 +173,53 @@ export default function FinancesPage() {
             <StatCard label={t("avg_ticket")} value={money(avgTicket)} sub={t("soum")} icon="chart" tone="neutral" />
           </div>
 
-          {/* income statement (ACCA-style P&L with % of revenue) */}
-          <Card pad={0}>
-            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", fontWeight: 700, color: "var(--ink)" }}>{t("income_statement")}</div>
-            <div style={{ padding: "8px 18px" }}>
+          {/* income statement */}
+          <Card className="overflow-hidden">
+            <div className="border-b border-border px-5 py-3.5 text-[15px] font-bold text-foreground">{t("income_statement")}</div>
+            <div className="px-5 py-2">
               <PLRow label={t("revenue")} value={revenue} pct={100} />
               <PLRow label={t("cost_of_goods")} value={-cogs} pct={-pct(cogs, revenue)} />
-              <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
+              <Separator className="my-1.5" />
               <PLRow label={t("gross_margin")} value={gross} pct={pct(gross, revenue)} strong />
               {(pl?.byCategory ?? []).map((b) => (
                 <PLRow key={b.category} label={catLabel(b.category, t)} value={-num(b.amount)} pct={-pct(num(b.amount), revenue)} muted />
               ))}
               <PLRow label={t("overhead")} value={-overhead} pct={-pct(overhead, revenue)} />
-              <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
+              <Separator className="my-1.5" />
               <PLRow label={t("net_profit")} value={net} pct={pct(net, revenue)} strong tone={net >= 0 ? "ok" : "danger"} />
             </div>
           </Card>
 
           {/* 12-month trend */}
-          <Card>
-            <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>{t("trend_12m")}</div>
-            {trend ? <TrendChart data={trend} t={t} /> : <div style={{ display: "flex", justifyContent: "center", padding: 30 }}><Spinner size={20} /></div>}
+          <Card className="p-5">
+            <div className="mb-1 text-[15px] font-bold text-foreground">{t("trend_12m")}</div>
+            {trend ? <TrendChart data={trend} t={t} /> : <div className="flex justify-center py-8"><Spinner className="size-5" /></div>}
           </Card>
 
           {/* expense breakdown */}
           {!!pl?.byCategory?.length && (
-            <Card>
-              <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}>{t("expenses_by_category")}</div>
+            <Card className="p-5">
+              <div className="mb-3 text-[15px] font-bold text-foreground">{t("expenses_by_category")}</div>
               <CategoryBars data={pl.byCategory.map((b) => ({ label: catLabel(b.category, t), amount: num(b.amount) }))} />
             </Card>
           )}
         </> : <>
           {/* expense ledger */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 4px" }}>{t("expenses")}</div>
-            {expenses.length === 0 ? <Card pad={24}><Empty icon="money" text={t("no_expenses")} /></Card>
-              : <Card pad={0}>
+          <div className="flex flex-col gap-2">
+            <div className="px-1 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{t("expenses")}</div>
+            {expenses.length === 0 ? <Card className="p-6"><Empty icon="money" text={t("no_expenses")} /></Card>
+              : <Card className="overflow-hidden">
                 {expenses.map((e) => {
                   const receiver = staffName(e.staffId) || e.payee || "";
                   return (
-                  <div key={e.id} className="an-row-btn" onClick={() => setDetail(e)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)", cursor: "pointer" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{catLabel(e.category, t)}{receiver ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {receiver}</span> : null}{e.note ? <span style={{ fontWeight: 400, color: "var(--ink-3)" }}> · {e.note}</span> : null}</div>
-                      <div style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{dateStr(e.incurredOn)}</div>
+                  <button key={e.id} onClick={() => setDetail(e)} className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-secondary/60 sm:px-5">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[14px] font-semibold text-foreground">{catLabel(e.category, t)}{receiver ? <span className="font-normal text-muted-foreground"> · {receiver}</span> : null}{e.note ? <span className="font-normal text-muted-foreground"> · {e.note}</span> : null}</div>
+                      <div className="font-mono text-[12px] text-muted-foreground">{dateStr(e.incurredOn)}</div>
                     </div>
-                    <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{money(num(e.amount))}</div>
-                    <IconBtn icon="chevR" onClick={(ev) => { ev.stopPropagation(); setDetail(e); }} />
-                  </div>
+                    <div className="font-mono text-[14px] font-bold text-foreground">{money(num(e.amount))}</div>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  </button>
                   );
                 })}
               </Card>}
@@ -213,48 +231,54 @@ export default function FinancesPage() {
   );
 }
 
-// TrendChart: grouped monthly bars (revenue vs expenses) with the net-profit number below.
+function YearSelect({ year, setYear, opts }: { year: number; setYear: (y: number) => void; opts: number[] }) {
+  return (
+    <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v, 10))}>
+      <SelectTrigger className="max-w-[120px]"><SelectValue /></SelectTrigger>
+      <SelectContent>{opts.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+    </Select>
+  );
+}
+
+// TrendChart: grouped monthly bars (revenue vs expenses).
 function TrendChart({ data, t }: { data: { label: string; revenue: number; expenses: number; net: number }[]; t: (k: string) => string }) {
   const max = Math.max(1, ...data.map((d) => Math.max(d.revenue, d.expenses)));
-  const H = 130;
+  const H = 140;
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, marginBottom: 10, fontSize: 12, color: "var(--ink-2)" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--accent)" }} />{t("revenue")}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--warn)" }} />{t("expenses")}</span>
+      <div className="mb-3 flex gap-4 text-[12px] text-ink-2">
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-[var(--accent)]" />{t("revenue")}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-[var(--warn)]" />{t("expenses")}</span>
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: H, overflowX: "auto" }}>
+      <div className="flex items-end gap-1 overflow-x-auto" style={{ height: H }}>
         {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, minWidth: 24, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", gap: 4 }} title={`${d.label}: ${money(d.revenue)} / ${money(d.expenses)}`}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: H, width: "100%", justifyContent: "center" }}>
-              <div style={{ width: "42%", maxWidth: 14, height: Math.max(2, (d.revenue / max) * H), background: "var(--accent)", borderRadius: "3px 3px 0 0" }} />
-              <div style={{ width: "42%", maxWidth: 14, height: Math.max(2, (d.expenses / max) * H), background: "var(--warn)", borderRadius: "3px 3px 0 0" }} />
+          <div key={i} className="flex min-w-[24px] flex-1 flex-col items-center justify-end gap-1" style={{ height: "100%" }} title={`${d.label}: ${money(d.revenue)} / ${money(d.expenses)}`}>
+            <div className="flex w-full items-end justify-center gap-0.5" style={{ height: H }}>
+              <div className="w-[42%] max-w-[14px] rounded-t-[3px] bg-[var(--accent)]" style={{ height: Math.max(2, (d.revenue / max) * H) }} />
+              <div className="w-[42%] max-w-[14px] rounded-t-[3px] bg-[var(--warn)]" style={{ height: Math.max(2, (d.expenses / max) * H) }} />
             </div>
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, minWidth: 24, textAlign: "center", fontSize: 10.5, color: "var(--ink-3)" }}>{d.label}</div>
-        ))}
+      <div className="mt-1.5 flex gap-1">
+        {data.map((d, i) => <div key={i} className="min-w-[24px] flex-1 text-center text-[10.5px] text-muted-foreground">{d.label}</div>)}
       </div>
     </div>
   );
 }
 
-// CategoryBars: horizontal proportional bars of overhead by category.
 function CategoryBars({ data }: { data: { label: string; amount: number }[] }) {
   const sorted = [...data].sort((a, b) => b.amount - a.amount);
   const max = Math.max(1, ...sorted.map((d) => d.amount));
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+    <div className="flex flex-col gap-2.5">
       {sorted.map((d, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 96, fontSize: 12.5, color: "var(--ink-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{d.label}</div>
-          <div style={{ flex: 1, height: 14, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", minWidth: 0 }}>
-            <div style={{ width: `${(d.amount / max) * 100}%`, height: "100%", background: "var(--accent)", borderRadius: 99 }} />
+        <div key={i} className="flex items-center gap-2.5">
+          <div className="w-24 shrink-0 truncate text-[12.5px] text-ink-2">{d.label}</div>
+          <div className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary">
+            <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${(d.amount / max) * 100}%` }} />
           </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 12.5, color: "var(--ink)", minWidth: 80, textAlign: "right" }}>{money(d.amount)}</div>
+          <div className="w-20 text-right font-mono text-[12.5px] font-bold text-foreground">{money(d.amount)}</div>
         </div>
       ))}
     </div>
@@ -267,45 +291,62 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   useEffect(() => { if (expense) setConfirm(false); }, [expense]);
-  if (!expense) return null;
   const e = expense;
   const fullDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "long", year: "numeric" }) : "—");
-  const recorded = e.createdAt ? new Date(e.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const recorded = e?.createdAt ? new Date(e.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
   const remove = async () => {
-    if (busy) return; setBusy(true);
+    if (busy || !e) return; setBusy(true);
     try { await api.deleteExpense(e.id); onDeleted(); }
     catch (err) { toast(err instanceof ApiError ? err.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };
 
   return (
-    <Modal open={!!expense} onClose={onClose} title={catLabel(e.category, t)} maxWidth={420}
-      footer={confirm
-        ? <><span style={{ marginRight: "auto", color: "var(--ink-2)", fontSize: 13 }}>{t("delete") + "?"}</span><Btn variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>{t("no")}</Btn><Btn variant="primary" disabled={busy} style={{ background: "var(--danger)" }} onClick={remove}>{busy ? <Spinner /> : t("delete")}</Btn></>
-        : <><Btn variant="ghost" disabled={busy} onClick={() => setConfirm(true)} style={{ color: "var(--danger)", marginRight: "auto" }} icon="trash">{t("delete")}</Btn><Btn variant="primary" onClick={onClose}>{t("close") || "OK"}</Btn></>}>
-      <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
-        <Row label={t("amount")} value={money(num(e.amount)) + " " + t("soum")} strong mono />
-        <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
-        <Row label={t("category")} value={catLabel(e.category, t)} />
-        <Row label={t("date")} value={fullDate(e.incurredOn)} />
-        {receiver && <Row label={t("receiver")} value={receiver} />}
-        {paidByName && <Row label={t("paid_by")} value={paidByName} />}
-        {e.note && <Row label={t("notes")} value={e.note} />}
-        <Row label={t("created")} value={recorded} mono />
-      </div>
-    </Modal>
+    <Dialog open={!!expense} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[420px]">
+        <DialogHeader><DialogTitle>{e ? catLabel(e.category, t) : ""}</DialogTitle></DialogHeader>
+        <DialogBody className="py-1">
+          {e && (
+            <div className="rounded-[12px] bg-secondary/60 p-4">
+              <Row label={t("amount")} value={money(num(e.amount)) + " " + t("soum")} strong mono />
+              <Separator className="my-2" />
+              <Row label={t("category")} value={catLabel(e.category, t)} />
+              <Row label={t("date")} value={fullDate(e.incurredOn)} />
+              {receiver && <Row label={t("receiver")} value={receiver} />}
+              {paidByName && <Row label={t("paid_by")} value={paidByName} />}
+              {e.note && <Row label={t("notes")} value={e.note} />}
+              <Row label={t("created")} value={recorded} mono />
+            </div>
+          )}
+        </DialogBody>
+        <DialogFooter>
+          {confirm ? (
+            <>
+              <span className="mr-auto self-center text-[13px] text-ink-2">{t("delete") + "?"}</span>
+              <Button variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>{t("no")}</Button>
+              <Button variant="destructive" disabled={busy} onClick={remove}>{busy ? <Spinner /> : t("delete")}</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" className="mr-auto text-destructive hover:bg-destructive-soft" onClick={() => setConfirm(true)}><Trash2 /> {t("delete")}</Button>
+              <Button onClick={onClose}>{t("close") || "OK"}</Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function PLRow({ label, value, pct, strong, tone, muted }: { label: string; value: number; pct?: number; strong?: boolean; tone?: "ok" | "danger"; muted?: boolean }) {
-  const color = tone === "ok" ? "var(--ok, var(--accent-2))" : tone === "danger" ? "var(--danger)" : "var(--ink)";
+  const color = tone === "ok" ? "text-success" : tone === "danger" ? "text-destructive" : muted ? "text-ink-2" : "text-foreground";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: muted ? "3px 0 3px 14px" : "5px 0" }}>
-      <span style={{ fontSize: muted ? "calc(12.5px * var(--scale))" : "calc(13.5px * var(--scale))", color: muted ? "var(--ink-3)" : strong ? "var(--ink)" : "var(--ink-2)", fontWeight: strong ? 700 : 500 }}>{label}</span>
-      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
-        {pct !== undefined && <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--ink-3)", minWidth: 44, textAlign: "right" }}>{pct.toFixed(1)}%</span>}
-        <span style={{ fontFamily: "var(--font-mono)", fontWeight: strong ? 800 : 600, color: muted ? "var(--ink-2)" : color, fontSize: muted ? "calc(13px * var(--scale))" : "calc(14px * var(--scale))", minWidth: 90, textAlign: "right" }}>{money(value)}</span>
+    <div className={cn("flex items-center justify-between", muted ? "py-[3px] pl-3.5" : "py-[5px]")}>
+      <span className={cn(muted ? "text-[12.5px] text-muted-foreground" : strong ? "text-[13.5px] font-bold text-foreground" : "text-[13.5px] font-medium text-ink-2")}>{label}</span>
+      <span className="inline-flex items-baseline gap-2">
+        {pct !== undefined && <span className="w-11 text-right font-mono text-[11.5px] text-muted-foreground">{pct.toFixed(1)}%</span>}
+        <span className={cn("w-[90px] text-right font-mono", strong ? "text-[14px] font-extrabold" : "text-[14px] font-semibold", color)}>{money(value)}</span>
       </span>
     </div>
   );
@@ -317,7 +358,6 @@ function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open
   const { t } = useLang();
   const { toast } = useToast();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  // `category` is the selected option; when it's CUSTOM the owner types `customCat`.
   const blank = { category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "", payee: "", paidBy: "" };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
@@ -344,45 +384,53 @@ function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("add_expense")} maxWidth={440}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("category")}>
-            <SelectInput value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
-              {knownCats.map((c) => <option key={c} value={c}>{catLabel(c, t)}</option>)}
-              <option value={CUSTOM}>+ {t("custom_category")}</option>
-            </SelectInput>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[440px]">
+        <DialogHeader><DialogTitle>{t("add_expense")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label={t("category")}>
+              <Select value={f.category} onValueChange={(v) => setF({ ...f, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {knownCats.map((c) => <SelectItem key={c} value={c}>{catLabel(c, t)}</SelectItem>)}
+                  <SelectItem value={CUSTOM}>+ {t("custom_category")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label={t("date")}><Input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+          </div>
+          {f.category === CUSTOM && (
+            <Field label={t("custom_category")}>
+              <Input value={f.customCat} onChange={(e) => setF({ ...f, customCat: e.target.value })} placeholder={t("category")} autoFocus />
+            </Field>
+          )}
+          {isSalary ? (
+            <Field label={t("receiver") + " (" + t("worker") + ")"}>
+              <Select value={f.staffId} onValueChange={(v) => setF({ ...f, staffId: v })}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>{staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+          ) : (
+            <Field label={t("receiver")}>
+              <Input value={f.payee} onChange={(e) => setF({ ...f, payee: e.target.value })} placeholder={t("receiver_ph")} />
+            </Field>
+          )}
+          <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
+          <Field label={t("paid_by")}>
+            <Select value={f.paidBy} onValueChange={(v) => setF({ ...f, paidBy: v })}>
+              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectContent>{staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+            </Select>
           </Field>
-          <Field label={t("date")}><TextInput type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
-        </div>
-        {f.category === CUSTOM && (
-          <Field label={t("custom_category")}>
-            <TextInput value={f.customCat} onChange={(e) => setF({ ...f, customCat: e.target.value })} placeholder={t("category")} autoFocus />
-          </Field>
-        )}
-        {/* Receiver: a staff worker for salary, otherwise a free-text payee. */}
-        {isSalary ? (
-          <Field label={t("receiver") + " (" + t("worker") + ")"}>
-            <SelectInput value={f.staffId} onChange={(e) => setF({ ...f, staffId: e.target.value })}>
-              <option value="">—</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </SelectInput>
-          </Field>
-        ) : (
-          <Field label={t("receiver")}>
-            <TextInput value={f.payee} onChange={(e) => setF({ ...f, payee: e.target.value })} placeholder={t("receiver_ph")} />
-          </Field>
-        )}
-        <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
-        <Field label={t("paid_by")}>
-          <SelectInput value={f.paidBy} onChange={(e) => setF({ ...f, paidBy: e.target.value })}>
-            <option value="">—</option>
-            {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </SelectInput>
-        </Field>
-        <Field label={t("notes")}><TextInput value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
-      </div>
-    </Modal>
+          <Field label={t("notes")}><Input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

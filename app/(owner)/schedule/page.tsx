@@ -1,7 +1,17 @@
 "use client";
 // Appointments / scheduling: upcoming bookings grouped by day; add, mark done, cancel.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, SelectInput, Spinner, Empty, SkeletonRows } from "@/components/ui";
+import { Check, Plus } from "lucide-react";
+import { Empty } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Badge } from "@/components/ui-kit/badge";
+import { Button } from "@/components/ui-kit/button";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Spinner } from "@/components/ui-kit/misc";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
+import { cn } from "@/lib/utils";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { apptStateFromProto, apptStateToProto } from "@/lib/enums";
@@ -9,6 +19,9 @@ import { PhoneField, PlateField } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import type { Appointment, Staff, Customer, Vehicle } from "@/lib/types";
 
+// Radix Select forbids an empty-string item value, so "" (unset / reset) is represented by
+// this sentinel in the Select only and mapped back to "" at the state boundary.
+const NONE = "__none";
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
 const timeStr = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -51,24 +64,27 @@ export default function SchedulePage() {
   }, [list]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("add_appointment")}</Btn>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setAdding(true)}><Plus /> {t("add_appointment")}</Button>
       </div>
-      {loading && list.length === 0 ? <Card pad={0}><SkeletonRows rows={5} /></Card>
-        : list.length === 0 ? <Card pad={24}><Empty icon="clock" text={t("no_appointments")} /></Card>
-        : groups.map(([day, items]) => (
-          <div key={day} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 4px" }}>{day}</div>
-            <Card pad={0}>
+      {loading && list.length === 0 ? (
+        <Card className="gap-2.5 p-5">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="an-skel h-12 w-full rounded-[8px]" />)}</Card>
+      ) : list.length === 0 ? (
+        <Card className="p-6"><Empty icon="clock" text={t("no_appointments")} /></Card>
+      ) : (
+        groups.map(([day, items]) => (
+          <div key={day} className="flex flex-col gap-2">
+            <div className="px-1 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{day}</div>
+            <Card className="overflow-hidden">
               {items.map((a) => {
                 const st = apptStateFromProto(a.state);
                 return (
-                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "12px 18px", borderBottom: "1px solid var(--line)", opacity: st === "canceled" ? 0.5 : 1 }}>
-                    <div style={{ fontFamily: "var(--font-mono)", fontWeight: 800, color: "var(--ink)", fontSize: 15, minWidth: 52 }}>{timeStr(a.scheduledAt)}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{a.title || t("vehicle")}</div>
-                      <div style={{ fontSize: 12, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <div key={a.id} className={cn("flex items-center gap-3.5 border-b border-border px-4 py-3 last:border-0 sm:px-5", st === "canceled" && "opacity-50")}>
+                    <div className="min-w-[52px] font-mono text-[15px] font-extrabold text-foreground">{timeStr(a.scheduledAt)}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[14.5px] font-semibold text-foreground">{a.title || t("vehicle")}</div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
                         {a.customerName && <span>{a.customerName}</span>}
                         {a.plate && <PlatePreview plate={a.plate} size="sm" />}
                         {mechName(a.mechanicId) && <span>· {mechName(a.mechanicId)}</span>}
@@ -76,9 +92,9 @@ export default function SchedulePage() {
                       </div>
                     </div>
                     {st === "scheduled" ? (
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <Btn variant="soft" size="sm" icon="check" disabled={busy} onClick={() => setState(a, "done")}>{t("mark_done")}</Btn>
-                        <Btn variant="ghost" size="sm" disabled={busy} onClick={() => setState(a, "canceled")} style={{ color: "var(--danger)" }}>{t("cancel")}</Btn>
+                      <div className="flex shrink-0 gap-1.5">
+                        <Button variant="soft" size="sm" disabled={busy} onClick={() => setState(a, "done")}><Check /> {t("mark_done")}</Button>
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setState(a, "canceled")} className="text-destructive hover:text-destructive">{t("cancel")}</Button>
                       </div>
                     ) : <Badge tone={st === "done" ? "ok" : "neutral"} dot>{st === "done" ? t("st_done") : t("cancel")}</Badge>}
                   </div>
@@ -86,7 +102,8 @@ export default function SchedulePage() {
               })}
             </Card>
           </div>
-        ))}
+        ))
+      )}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} mechanics={mechanics} onCreated={load} />
     </div>
   );
@@ -154,42 +171,57 @@ function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boole
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("add_appointment")} maxWidth={480}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label={t("description")}><TextInput value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("service")} /></Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 10 }}>
-          <Field label={t("appt_when")}><TextInput type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} /></Field>
-          <Field label={t("duration_min")}><TextInput value={f.duration} onChange={(e) => setF({ ...f, duration: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-        </div>
-        <Field label={t("nav_customers")}>
-          <SelectInput value={f.customerId} onChange={(e) => pickCustomer(e.target.value)}>
-            <option value="">{t("appt_new_client")}</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</option>)}
-          </SelectInput>
-        </Field>
-        {f.customerId && vehicles.length > 0 && (
-          <Field label={t("vehicle")}>
-            <SelectInput value={f.vehicleId} onChange={(e) => pickVehicle(e.target.value)}>
-              <option value="">—</option>
-              {vehicles.map((v) => <option key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</option>)}
-            </SelectInput>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[480px]">
+        <DialogHeader><DialogTitle>{t("add_appointment")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <Field label={t("description")}><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("service")} /></Field>
+          <div className="grid grid-cols-[1fr_90px] gap-2.5">
+            <Field label={t("appt_when")}><Input type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} /></Field>
+            <Field label={t("duration_min")}><Input value={f.duration} onChange={(e) => setF({ ...f, duration: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+          </div>
+          <Field label={t("nav_customers")}>
+            <Select value={f.customerId || NONE} onValueChange={(v) => pickCustomer(v === NONE ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>{t("appt_new_client")}</SelectItem>
+                {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </Field>
-        )}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("name")}><TextInput value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} /></Field>
-          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <PlateField label={t("plate")} value={f.plate} onChange={(p) => setF({ ...f, plate: p })} />
-          <Field label={t("mechanic")}>
-            <SelectInput value={f.mechanicId} onChange={(e) => setF({ ...f, mechanicId: e.target.value })}>
-              <option value="">—</option>
-              {mechanics.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </SelectInput>
-          </Field>
-        </div>
-      </div>
-    </Modal>
+          {f.customerId && vehicles.length > 0 && (
+            <Field label={t("vehicle")}>
+              <Select value={f.vehicleId || NONE} onValueChange={(v) => pickVehicle(v === NONE ? "" : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label={t("name")}><Input value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} /></Field>
+            <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <PlateField label={t("plate")} value={f.plate} onChange={(p) => setF({ ...f, plate: p })} />
+            <Field label={t("mechanic")}>
+              <Select value={f.mechanicId || NONE} onValueChange={(v) => setF({ ...f, mechanicId: v === NONE ? "" : v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {mechanics.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,9 +1,20 @@
 "use client";
-// Customers (owner-pages.jsx CustomersPage): debounced search, new-customer modal,
+// Customers (owner-pages.jsx CustomersPage): searchable customer directory, new-customer modal,
 // detail modal with add-vehicle. Wired to api.listCustomers / createCustomer / createVehicle.
-import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Avatar, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonRows } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Plus, Pencil, Clock, ChevronRight, Car } from "lucide-react";
+import { DataTable, SortHeader } from "@/components/admin/data-table";
+import { Card } from "@/components/ui-kit/card";
+import { Badge } from "@/components/ui-kit/badge";
+import { Button } from "@/components/ui-kit/button";
+import { Input } from "@/components/ui-kit/input";
+import { UserAvatar } from "@/components/ui-kit/avatar";
+import { Field } from "@/components/ui-kit/label";
+import { Spinner, Skeleton, Switch } from "@/components/ui-kit/misc";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
+import { Empty, Segmented } from "@/components/ui";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
@@ -23,21 +34,19 @@ export default function CustomersPage() {
   const { t } = useLang();
   const { toast } = useToast();
 
-  const [q, setQ] = useState("");
   const [list, setList] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [sel, setSel] = useState<Customer | null>(null);
 
-  const load = useCallback(async (query: string) => {
+  const load = useCallback(async () => {
     setLoading(true);
-    try { setList(await api.listCustomers(shopId, query.trim() || undefined)); }
+    try { setList(await api.listCustomers(shopId)); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setLoading(false); }
   }, [shopId, t, toast]);
 
-  // debounced search
-  useEffect(() => { const h = setTimeout(() => load(q), 300); return () => clearTimeout(h); }, [q, load]);
+  useEffect(() => { load(); }, [load]);
 
   // Plates per customer for the little plate chips in the list — one shop-wide vehicle fetch.
   const [platesByCustomer, setPlatesByCustomer] = useState<Record<string, Vehicle[]>>({});
@@ -60,39 +69,75 @@ export default function CustomersPage() {
     return () => { on = false; };
   }, []);
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ position: "relative", flex: 1 }}>
-          <Icon name="search" size={17} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ink-3)" }} />
-          <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search") + "…"} style={{ paddingLeft: 38 }} />
-        </div>
-        <Btn variant="primary" icon="plus" onClick={() => setAdding(true)}>{t("new_customer")}</Btn>
-      </div>
-      <Card pad={0}>
-        {loading && list.length === 0 ? <SkeletonRows rows={7} />
-          : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="users" /></div>
-          : list.map((c) => (
-            <button key={c.id} onClick={() => setSel(c)} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", padding: "13px 18px", border: "none", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
-              <Avatar name={c.walkIn ? "?" : c.name} size={40} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", display: "flex", alignItems: "center", gap: 8 }}>{c.walkIn ? t("walk_in") : c.name}{c.walkIn && <Badge tone="neutral">{t("walk_in")}</Badge>}</div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{c.phone}{c.telegramHandle ? " · " + c.telegramHandle : ""}</div>
-                {!!platesByCustomer[c.id]?.length && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                    {platesByCustomer[c.id].slice(0, 4).map((v) => (
-                      <PlatePreview key={v.id} plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
-                    ))}
-                    {platesByCustomer[c.id].length > 4 && <span style={{ fontSize: 11.5, color: "var(--ink-3)", alignSelf: "center" }}>+{platesByCustomer[c.id].length - 4}</span>}
-                  </div>
-                )}
+  const columns = useMemo<ColumnDef<Customer>[]>(() => [
+    {
+      id: "customer",
+      accessorFn: (c) => `${c.walkIn ? t("walk_in") : c.name} ${c.phone} ${c.telegramHandle ?? ""}`,
+      header: ({ column }) => <SortHeader column={column}>{t("name")}</SortHeader>,
+      cell: ({ row }) => {
+        const c = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <UserAvatar name={c.walkIn ? "?" : c.name} className="size-10" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 truncate text-[14px] font-bold text-foreground">
+                {c.walkIn ? t("walk_in") : c.name}
+                {c.walkIn && <Badge tone="neutral">{t("walk_in")}</Badge>}
               </div>
-              <Icon name="chevR" size={16} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
-            </button>
-          ))}
-      </Card>
-      <AddCustomerModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={() => load(q)} />
-      <CustomerDetailModal customer={sel} onClose={() => setSel(null)} onChanged={() => { load(q); loadVehicles(); }} />
+              <div className="truncate font-mono text-[12.5px] text-muted-foreground">
+                {c.phone}{c.telegramHandle ? " · " + c.telegramHandle : ""}
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "vehicles",
+      enableSorting: false,
+      accessorFn: (c) => (platesByCustomer[c.id] ?? []).map((v) => v.plate).join(" "),
+      header: () => <span className="text-[11.5px] font-bold uppercase tracking-[0.04em] text-muted-foreground">{t("vehicles")}</span>,
+      cell: ({ row }) => {
+        const vs = platesByCustomer[row.original.id];
+        if (!vs?.length) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {vs.slice(0, 4).map((v) => (
+              <PlatePreview key={v.id} plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
+            ))}
+            {vs.length > 4 && <span className="text-[11.5px] text-muted-foreground">+{vs.length - 4}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "actions",
+      enableHiding: false,
+      header: () => null,
+      cell: () => <div className="flex justify-end"><ChevronRight className="size-4 text-muted-foreground" /></div>,
+    },
+  ], [t, platesByCustomer]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {loading && list.length === 0 ? (
+        <Card className="gap-3 p-5">
+          {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+        </Card>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={list}
+          searchPlaceholder={t("search") + "…"}
+          emptyText={t("empty")}
+          columnLabels={{ customer: t("name"), vehicles: t("vehicles") }}
+          pageSize={12}
+          onRowClick={(c) => setSel(c)}
+          toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("new_customer")}</Button>}
+        />
+      )}
+      <AddCustomerModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={() => load()} />
+      <CustomerDetailModal customer={sel} onClose={() => setSel(null)} onChanged={() => { load(); loadVehicles(); }} />
     </div>
   );
 }
@@ -116,23 +161,32 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("new_customer")} maxWidth={440}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label={t("telegram")}><TextInput value={f.telegram} onChange={(e) => setF({ ...f, telegram: e.target.value })} placeholder="@username" /></Field>
-          <Field label={t("language")}><SelectInput value={f.language} onChange={(e) => setF({ ...f, language: e.target.value as Lang })}>{LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</SelectInput></Field>
-        </div>
-        <button onClick={() => setF({ ...f, walkIn: !f.walkIn })} className="an-btn" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 13px", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)" }}>
-          <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14 }}>{t("walk_in")}</span>
-          <div style={{ width: 42, height: 24, borderRadius: 99, background: f.walkIn ? "var(--accent)" : "var(--surface-3)", position: "relative" }}>
-            <div style={{ position: "absolute", top: 3, left: f.walkIn ? 21 : 3, width: 18, height: 18, borderRadius: 99, background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[440px]">
+        <DialogHeader><DialogTitle>{t("new_customer")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3.5 py-1">
+          <Field label={t("name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("telegram")}><Input value={f.telegram} onChange={(e) => setF({ ...f, telegram: e.target.value })} placeholder="@username" /></Field>
+            <Field label={t("language")}>
+              <Select value={f.language} onValueChange={(v) => setF({ ...f, language: v as Lang })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{LANGS.map((l) => <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
           </div>
-        </button>
-      </div>
-    </Modal>
+          <div className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3 py-2.5">
+            <span className="text-[14px] font-semibold text-foreground">{t("walk_in")}</span>
+            <Switch checked={f.walkIn} onCheckedChange={(v) => setF({ ...f, walkIn: v })} />
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -165,41 +219,47 @@ function CustomerDetailModal({ customer, onClose, onChanged }: { customer: Custo
   const detailOpen = !!customer && !addV && !editCust && !editVeh;
   return (
     <>
-      <Modal open={detailOpen} onClose={onClose} title={cust.walkIn ? t("walk_in") : cust.name} maxWidth={460}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Avatar name={cust.walkIn ? "?" : cust.name} size={44} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: "calc(17px * var(--scale))" }}>{cust.walkIn ? t("walk_in") : cust.name}</div>
-              <div style={{ fontSize: 13, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{cust.phone}{cust.telegramHandle ? " · " + cust.telegramHandle : ""}{cust.telegramChatId ? " · TG ✓" : ""}</div>
-              {(cust.email || cust.address) && <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{[cust.email, cust.address].filter(Boolean).join(" · ")}</div>}
-              {cust.notes && <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2, fontStyle: "italic" }}>{cust.notes}</div>}
+      <Dialog open={detailOpen} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-[460px]">
+          <DialogHeader><DialogTitle>{cust.walkIn ? t("walk_in") : cust.name}</DialogTitle></DialogHeader>
+          <DialogBody className="flex flex-col gap-4 pt-1 pb-5">
+            <div className="flex items-center gap-3">
+              <UserAvatar name={cust.walkIn ? "?" : cust.name} className="size-11" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[17px] font-extrabold tracking-[-0.02em] text-foreground">{cust.walkIn ? t("walk_in") : cust.name}</div>
+                <div className="truncate font-mono text-[13px] text-muted-foreground">{cust.phone}{cust.telegramHandle ? " · " + cust.telegramHandle : ""}{cust.telegramChatId ? " · TG ✓" : ""}</div>
+                {(cust.email || cust.address) && <div className="truncate text-[12px] text-muted-foreground">{[cust.email, cust.address].filter(Boolean).join(" · ")}</div>}
+                {cust.notes && <div className="mt-0.5 truncate text-[12px] italic text-muted-foreground">{cust.notes}</div>}
+              </div>
+              <Button variant="soft" size="sm" onClick={() => setEditCust(true)}><Pencil /> {t("edit")}</Button>
             </div>
-            <Btn variant="soft" size="sm" icon="edit" onClick={() => setEditCust(true)}>{t("edit")}</Btn>
-          </div>
-          <Card pad={0}>
-            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <SecTitle>{t("vehicles")}</SecTitle><Btn variant="soft" size="sm" icon="plus" onClick={() => setAddV(true)}>{t("add_vehicle")}</Btn>
-            </div>
-            {vloading ? <div style={{ display: "flex", justifyContent: "center", padding: 20 }}><Spinner size={20} /></div>
-              : vehicles.length === 0 ? <div style={{ padding: 20 }}><Empty icon="car" text={t("empty")} /></div>
-              : vehicles.map((v) => (
-                <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="car" size={20} /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14px * var(--scale))" }}>{[v.make, v.model].filter(Boolean).join(" ") || t("vehicle")}{v.year ? " · " + v.year : ""}{v.color ? " · " + v.color : ""}</div>
-                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <SecTitle>{t("vehicles")}</SecTitle>
+                <Button variant="soft" size="sm" onClick={() => setAddV(true)}><Plus /> {t("add_vehicle")}</Button>
+              </div>
+              {vloading ? (
+                <div className="flex justify-center py-5"><Spinner className="size-5" /></div>
+              ) : vehicles.length === 0 ? (
+                <div className="p-5"><Empty icon="car" text={t("empty")} /></div>
+              ) : vehicles.map((v) => (
+                <div key={v.id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0">
+                  <div className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-primary-soft text-primary-emphasis"><Car className="size-5" /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-semibold text-foreground">{[v.make, v.model].filter(Boolean).join(" ") || t("vehicle")}{v.year ? " · " + v.year : ""}{v.color ? " · " + v.color : ""}</div>
+                    <div className="mt-1 flex items-center gap-2 font-mono text-[12.5px] text-muted-foreground">
                       <PlatePreview plate={v.plate} type={plateTypeFromProto(v.plateType)} size="sm" />
-                      {Number(v.mileage) > 0 ? " · " + v.mileage + " km" : ""}
+                      {Number(v.mileage) > 0 && <span>· {v.mileage} km</span>}
                     </div>
                   </div>
-                  <Btn variant="ghost" size="sm" icon="edit" onClick={() => setEditVeh(v)} aria-label={t("edit")} />
-                  <Btn variant="ghost" size="sm" icon="clock" onClick={() => setHistVehicle(v)}>{t("history")}</Btn>
+                  <Button variant="ghost" size="icon-sm" aria-label={t("edit")} onClick={() => setEditVeh(v)}><Pencil /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => setHistVehicle(v)}><Clock /> {t("history")}</Button>
                 </div>
               ))}
-          </Card>
-        </div>
-      </Modal>
+            </Card>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
       <EditCustomerModal customer={editCust ? cust : null} onClose={() => setEditCust(false)} onSaved={(updated) => { setCust(updated); setEditCust(false); onChanged(); }} />
       <EditVehicleModal vehicle={editVeh} onClose={() => setEditVeh(null)} onDone={() => { setEditVeh(null); }} />
       <AddVehicleModal open={addV} onClose={() => setAddV(false)} customerId={customer.id} onCreated={() => { toast(t("save"), { icon: "check" }); setAddV(false); }} />
@@ -237,23 +297,34 @@ function EditCustomerModal({ customer, onClose, onSaved }: { customer: Customer 
   };
 
   return (
-    <Modal open={!!customer} onClose={onClose} title={t("edit")} maxWidth={460}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label={t("name")}><TextInput value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("telegram")}><TextInput value={f.telegram} onChange={(e) => setF({ ...f, telegram: e.target.value })} placeholder="@username" /></Field>
-          <Field label={t("language")}><SelectInput value={f.language} onChange={(e) => setF({ ...f, language: e.target.value as Lang })}>{LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</SelectInput></Field>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("email")}><TextInput value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} inputMode="email" /></Field>
-          <Field label={t("birthday")}><TextInput type="date" value={f.birthday} onChange={(e) => setF({ ...f, birthday: e.target.value })} /></Field>
-        </div>
-        <Field label={t("address")}><TextInput value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
-        <Field label={t("notes")}><TextInput value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
-      </div>
-    </Modal>
+    <Dialog open={!!customer} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[460px]">
+        <DialogHeader><DialogTitle>{t("edit")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <Field label={t("name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label={t("telegram")}><Input value={f.telegram} onChange={(e) => setF({ ...f, telegram: e.target.value })} placeholder="@username" /></Field>
+            <Field label={t("language")}>
+              <Select value={f.language} onValueChange={(v) => setF({ ...f, language: v as Lang })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{LANGS.map((l) => <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label={t("email")}><Input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} inputMode="email" /></Field>
+            <Field label={t("birthday")}><Input type="date" value={f.birthday} onChange={(e) => setF({ ...f, birthday: e.target.value })} /></Field>
+          </div>
+          <Field label={t("address")}><Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+          <Field label={t("notes")}><Input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -277,23 +348,29 @@ function AddVehicleModal({ open, onClose, customerId, onCreated }: { open: boole
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("add_vehicle")} maxWidth={440}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <VehiclePhoto url={f.image} make={f.make} onChange={(u) => setF((s) => ({ ...s, image: u }))} />
-        <Field label={t("plate_type")}>
-          <Segmented options={PLATE_TYPES.map((p) => ({ value: p, label: t("pt_" + p) }))} value={f.plateType} onChange={(v) => setF((s) => ({ ...s, plateType: v as PlateType }))} style={{ width: "100%" }} />
-        </Field>
-        <PlateField value={f.plate} onChange={(p) => setF((s) => ({ ...s, plate: p }))} label={t("plate")} type={f.plateType} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px", gap: 12 }}>
-          <MakeModelPicker make={f.make} model={f.model} onChange={(mk, md) => setF((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
-          <Field label={t("year")}><TextInput value={f.year} onChange={(e) => setF({ ...f, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12 }}>
-          <Field label={t("vin")}><TextInput value={f.vin} onChange={(e) => setF({ ...f, vin: e.target.value.toUpperCase() })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
-          <Field label={t("mileage")}><TextInput value={f.mileage} onChange={(e) => setF({ ...f, mileage: e.target.value.replace(/\D/g, "") })} inputMode="numeric" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-        </div>
-      </div>
-    </Modal>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[440px]">
+        <DialogHeader><DialogTitle>{t("add_vehicle")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3.5 py-1">
+          <VehiclePhoto url={f.image} make={f.make} onChange={(u) => setF((s) => ({ ...s, image: u }))} />
+          <Field label={t("plate_type")}>
+            <Segmented options={PLATE_TYPES.map((p) => ({ value: p, label: t("pt_" + p) }))} value={f.plateType} onChange={(v) => setF((s) => ({ ...s, plateType: v as PlateType }))} style={{ width: "100%" }} />
+          </Field>
+          <PlateField value={f.plate} onChange={(p) => setF((s) => ({ ...s, plate: p }))} label={t("plate")} type={f.plateType} />
+          <div className="grid grid-cols-[1fr_1fr_90px] gap-3">
+            <MakeModelPicker make={f.make} model={f.model} onChange={(mk, md) => setF((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
+            <Field label={t("year")}><Input value={f.year} onChange={(e) => setF({ ...f, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+          </div>
+          <div className="grid grid-cols-[1.4fr_1fr] gap-3">
+            <Field label={t("vin")}><Input value={f.vin} onChange={(e) => setF({ ...f, vin: e.target.value.toUpperCase() })} className="font-mono" /></Field>
+            <Field label={t("mileage")}><Input value={f.mileage} onChange={(e) => setF({ ...f, mileage: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

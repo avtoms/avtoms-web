@@ -1,15 +1,21 @@
 "use client";
-// Invoices (owner-pages.jsx InvoicesPage): list with fiscal + paid badges, mark-paid,
-// and a fiscal-QR modal. Wired to api.listInvoices / markPaid.
-import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Btn, Modal, Empty, FiscalBadge, QR, SkeletonRows } from "@/components/ui";
-import { Icon } from "@/components/icons";
+// Invoices (owner-pages.jsx InvoicesPage): a searchable/sortable DataTable with fiscal +
+// paid badges, mark-paid, and a fiscal-QR modal. Wired to api.listInvoices / markPaid.
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Banknote, Printer } from "lucide-react";
+import { FiscalBadge, QR, SkeletonRows } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Button } from "@/components/ui-kit/button";
+import { Badge } from "@/components/ui-kit/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
+import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money, orderLabel, vehicleTitle } from "@/lib/format";
+import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import { fiscalFromProto, paymentFromProto, type PaymentMethod } from "@/lib/enums";
 import type { Invoice, WorkOrder } from "@/lib/types";
-import { Row } from "../_shared";
+import { Row, PaidBadge } from "../_shared";
 
 export default function InvoicesPage() {
   const { session } = useAuth();
@@ -51,28 +57,85 @@ export default function InvoicesPage() {
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
   };
 
+  const columns = useMemo<ColumnDef<Invoice>[]>(() => [
+    {
+      id: "order",
+      accessorFn: (inv) => { const w = woById[inv.workOrderId]; return w ? orderLabel(w) : "—"; },
+      header: ({ column }) => <SortHeader column={column}>{t("work_order")}</SortHeader>,
+      cell: ({ row }) => {
+        const inv = row.original;
+        const w = woById[inv.workOrderId];
+        return (
+          <div className="flex flex-col">
+            <span className="font-mono text-[13.5px] font-bold text-foreground">{w ? orderLabel(w) : "—"}</span>
+            <span className="font-mono text-[11px] text-muted-foreground">{t("invoice").toLowerCase()} {inv.id.slice(0, 6)}</span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "vehicle",
+      accessorFn: (inv) => { const w = woById[inv.workOrderId]; return w ? `${vehicleTitle(w)} ${w.customerName || ""}` : ""; },
+      header: ({ column }) => <SortHeader column={column}>{t("vehicle")}</SortHeader>,
+      cell: ({ row }) => {
+        const w = woById[row.original.workOrderId];
+        const title = w ? vehicleTitle(w) : "";
+        return (
+          <div className="min-w-0">
+            <div className="truncate text-[14px] font-semibold text-foreground">{title || "—"}</div>
+            {w?.customerName && <div className="truncate text-[12px] text-muted-foreground">{w.customerName}</div>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "total",
+      accessorFn: (inv) => num(inv.total),
+      header: ({ column }) => <SortHeader column={column}>{t("total")}</SortHeader>,
+      cell: ({ row }) => <span className="font-mono text-[13.5px] font-bold text-foreground">{money(row.original.total)}</span>,
+    },
+    {
+      id: "fiscal",
+      accessorFn: (inv) => fiscalFromProto(inv.fiscalStatus),
+      header: ({ column }) => <SortHeader column={column}>{t("fiscal_status")}</SortHeader>,
+      cell: ({ row }) => <FiscalBadge status={fiscalFromProto(row.original.fiscalStatus)} />,
+    },
+    {
+      id: "paid",
+      accessorFn: (inv) => (inv.paid ? t("paid") : t("unpaid")),
+      header: ({ column }) => <SortHeader column={column}>{t("paid")}</SortHeader>,
+      cell: ({ row }) => {
+        const inv = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <PaidBadge paid={inv.paid} />
+            {inv.paid && inv.paymentMethod && <Badge tone="neutral">{t(paymentFromProto(inv.paymentMethod) === "cash" ? "pay_cash" : "pay_other")}</Badge>}
+          </div>
+        );
+      },
+    },
+  ], [woById, t]);
+
+  const columnLabels = useMemo(
+    () => ({ order: t("work_order"), vehicle: t("vehicle"), total: t("total"), fiscal: t("fiscal_status"), paid: t("paid") }),
+    [t],
+  );
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Card pad={0}>
-        {loading && list.length === 0 ? <SkeletonRows rows={6} avatar={false} />
-          : list.length === 0 ? <div style={{ padding: 24 }}><Empty icon="receipt" /></div>
-          : list.map((inv) => (
-            <button key={inv.id} onClick={() => setSel(inv)} className="an-row-btn" style={{ display: "flex", alignItems: "center", gap: 13, rowGap: 6, flexWrap: "wrap", width: "100%", padding: "13px 18px", border: "none", borderBottom: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left" }}>
-              <div style={{ minWidth: 64, flexShrink: 0 }}><div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 13.5 }}>{orderNoFor(inv)}</div><div style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{t("invoice").toLowerCase()} {inv.id.slice(0, 6)}</div></div>
-              <div style={{ flex: 1, minWidth: 120 }}>
-                {(() => { const w = woFor(inv); const title = w ? vehicleTitle(w) : ""; return (<>
-                  <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(13.5px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title || "—"}</div>
-                  {w?.customerName && <div style={{ fontSize: 12, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.customerName}</div>}
-                </>); })()}
-              </div>
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(inv.total)}</span>
-              <span className="an-hide-sm"><FiscalBadge status={fiscalFromProto(inv.fiscalStatus)} /></span>
-              <Badge tone={inv.paid ? "ok" : "neutral"} dot>{inv.paid ? t("paid") : t("unpaid")}</Badge>
-              {inv.paid && inv.paymentMethod && <span className="an-hide-sm"><Badge tone="neutral">{t(paymentFromProto(inv.paymentMethod) === "cash" ? "pay_cash" : "pay_other")}</Badge></span>}
-              <Icon name="chevR" size={16} style={{ color: "var(--ink-3)" }} />
-            </button>
-          ))}
-      </Card>
+    <div className="flex flex-col gap-4">
+      {loading && list.length === 0 ? (
+        <Card className="overflow-hidden"><SkeletonRows rows={6} avatar={false} /></Card>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={list}
+          searchPlaceholder={t("search")}
+          columnLabels={columnLabels}
+          emptyText={t("empty")}
+          onRowClick={(inv) => setSel(inv)}
+          pageSize={12}
+        />
+      )}
       <InvoiceDetailModal invoice={sel} orderNo={orderNoFor(sel)} wo={woFor(sel)} onClose={() => setSel(null)} onPay={pay} />
     </div>
   );
@@ -84,42 +147,47 @@ function InvoiceDetailModal({ invoice, orderNo, wo, onClose, onPay }: { invoice:
   const fiscal = fiscalFromProto(invoice.fiscalStatus);
   const carTitle = wo ? vehicleTitle(wo) : "";
   return (
-    <Modal open={!!invoice} onClose={onClose} title={t("invoice") + " · " + orderNo} maxWidth={440}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <FiscalBadge status={fiscal} />
-          <Badge tone={invoice.paid ? "ok" : "neutral"} dot>{invoice.paid ? t("paid") : t("unpaid")}</Badge>
-        </div>
-        <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16 }}>
-          <Row label={t("work_order")} value={orderNo} mono />
-          {carTitle && <Row label={t("vehicle")} value={carTitle} />}
-          {wo?.customerName && <Row label={t("nav_customers")} value={wo.customerName} />}
-          <div style={{ height: 1, background: "var(--line)", margin: "8px 0" }} />
-          <Row label={t("total")} value={money(invoice.total) + " " + t("soum")} strong mono />
-        </div>
-
-        {fiscal === "fiscalized" && invoice.fiscalQr && (
-          <div style={{ display: "flex", gap: 16, alignItems: "center", padding: 14, background: "var(--ok-soft)", borderRadius: "var(--radius)" }}>
-            <QR data={invoice.fiscalQr} size={104} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Badge tone="ok" dot>{t("fiscal_qr")}</Badge>
-              {invoice.fiscalReceiptId && <div style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, color: "var(--ink-2)", fontWeight: 600 }}>{invoice.fiscalReceiptId}</div>}
-            </div>
+    <Dialog open={!!invoice} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>{t("invoice") + " · " + orderNo}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-4 pb-5">
+          <div className="flex items-center justify-between">
+            <FiscalBadge status={fiscal} />
+            <PaidBadge paid={invoice.paid} />
           </div>
-        )}
-
-        {!invoice.paid && (
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-3)", marginBottom: 8 }}>{t("mark_paid")} · {t("payment_method")}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Btn variant="soft" icon="money" onClick={() => onPay(invoice, "cash")}>{t("pay_cash")}</Btn>
-              <Btn variant="soft" onClick={() => onPay(invoice, "other")}>{t("pay_other")}</Btn>
-            </div>
+          <div className="rounded-[12px] bg-secondary/60 p-4">
+            <Row label={t("work_order")} value={orderNo} mono />
+            {carTitle && <Row label={t("vehicle")} value={carTitle} />}
+            {wo?.customerName && <Row label={t("nav_customers")} value={wo.customerName} />}
+            <div className="my-2 h-px bg-border" />
+            <Row label={t("total")} value={money(invoice.total) + " " + t("soum")} strong mono />
           </div>
-        )}
 
-        <Btn variant="ghost" icon="printer" onClick={() => window.open(`/print-invoice/${invoice.id}`, "_blank")}>{t("print")}</Btn>
-      </div>
-    </Modal>
+          {fiscal === "fiscalized" && invoice.fiscalQr && (
+            <div className="flex items-center gap-4 rounded-[12px] bg-success-soft p-3.5">
+              <QR data={invoice.fiscalQr} size={104} />
+              <div className="flex flex-col gap-1.5">
+                <Badge tone="ok" dot>{t("fiscal_qr")}</Badge>
+                {invoice.fiscalReceiptId && <div className="font-mono text-[12.5px] font-semibold text-ink-2">{invoice.fiscalReceiptId}</div>}
+              </div>
+            </div>
+          )}
+
+          {!invoice.paid && (
+            <div>
+              <div className="mb-2 text-[12.5px] font-semibold text-muted-foreground">{t("mark_paid")} · {t("payment_method")}</div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <Button variant="soft" onClick={() => onPay(invoice, "cash")}><Banknote /> {t("pay_cash")}</Button>
+                <Button variant="soft" onClick={() => onPay(invoice, "other")}>{t("pay_other")}</Button>
+              </div>
+            </div>
+          )}
+
+          <Button variant="ghost" onClick={() => window.open(`/print-invoice/${invoice.id}`, "_blank")}><Printer /> {t("print")}</Button>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,20 +1,29 @@
 "use client";
-// Reports (owner-pages.jsx ReportsPage): pick one of the 6 report kinds, render the
-// columns + rows from api.report, export current rows as CSV client-side.
-import React, { useCallback, useEffect, useState } from "react";
-import { Card, Btn, Empty, SkeletonRows } from "@/components/ui";
+// Reports: pick one of the 6 report kinds, render columns + rows as a searchable/sortable
+// DataTable, chart the primary numeric column when there is one, export CSV.
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Download, BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DataTable, SortHeader } from "@/components/admin/data-table";
+import { Button } from "@/components/ui-kit/button";
+import { Card } from "@/components/ui-kit/card";
+import { Skeleton } from "@/components/ui-kit/misc";
+import { ChartCard, HBarChart, type BarDatum } from "@/components/admin/charts";
 import { ServiceInsights } from "@/components/service-insights";
-import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { REPORT_KINDS } from "@/lib/enums";
-import type { Report } from "@/lib/types";
+import { money, num } from "@/lib/format";
+import type { Report, ReportRow } from "@/lib/types";
 
 const REPORT_KEYS = Object.keys(REPORT_KINDS);
 const TITLE_KEY: Record<string, string> = {
   daily_revenue: "rep_daily_revenue", weekly_wo: "rep_weekly_wo", mechanic: "rep_mechanic",
   menu: "rep_menu", fiscal: "rep_fiscal", retention: "rep_retention",
 };
+const MONEY_RE = /revenue|price|vat|total|amount|profit|margin|cost|net/i;
+const NUM_RE = /revenue|price|vat|total|amount|profit|margin|cost|net|count|hours|rate|orders|qty|quantity|compliance/i;
 
 export default function ReportsPage() {
   const { session } = useAuth();
@@ -35,6 +44,30 @@ export default function ReportsPage() {
 
   useEffect(() => { load(sel); }, [sel, load]);
 
+  const columns = useMemo<ColumnDef<ReportRow>[]>(() => {
+    if (!rep) return [];
+    return rep.columns.map((c, idx) => ({
+      id: c,
+      accessorFn: (r) => r.cells[c] ?? "",
+      sortingFn: NUM_RE.test(c) ? (a, b) => num(a.original.cells[c]) - num(b.original.cells[c]) : "alphanumeric",
+      header: ({ column }) => <SortHeader column={column}>{c.replace(/_/g, " ")}</SortHeader>,
+      cell: ({ row }) => {
+        const v = row.original.cells[c] ?? "";
+        return <span className={idx === 0 ? "font-semibold text-foreground" : NUM_RE.test(c) ? "font-mono text-ink-2" : "text-ink-2"}>{MONEY_RE.test(c) ? money(v || "0") : v}</span>;
+      },
+    }));
+  }, [rep]);
+
+  // Chart the first meaningful numeric column against the first (label) column.
+  const chart = useMemo<{ data: BarDatum[]; isMoney: boolean } | null>(() => {
+    if (!rep || rep.rows.length === 0 || rep.columns.length < 2) return null;
+    const labelCol = rep.columns[0];
+    const valCol = rep.columns.slice(1).find((c) => NUM_RE.test(c) && rep.rows.some((r) => num(r.cells[c]) > 0));
+    if (!valCol) return null;
+    const data = rep.rows.slice(0, 12).map((r) => ({ label: String(r.cells[labelCol] ?? "—"), value: num(r.cells[valCol]) }));
+    return { data, isMoney: MONEY_RE.test(valCol) };
+  }, [rep]);
+
   const exportCsv = () => {
     if (!rep) return;
     const head = rep.columns.join(",");
@@ -46,35 +79,50 @@ export default function ReportsPage() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
-        {REPORT_KEYS.map((k) => (
-          <button key={k} onClick={() => setSel(k)} className="an-card-hover" style={{
-            display: "flex", alignItems: "center", gap: 10, padding: "14px 14px", border: "1px solid " + (k === sel ? "var(--accent)" : "var(--line)"),
-            borderRadius: "var(--radius)", background: k === sel ? "var(--accent-soft)" : "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)", textAlign: "left",
-          }}>
-            <Icon name="chart" size={18} style={{ color: k === sel ? "var(--accent-2)" : "var(--ink-3)" }} />
-            <span style={{ fontWeight: 600, color: k === sel ? "var(--accent-2)" : "var(--ink)", fontSize: "calc(13.5px * var(--scale))" }}>{t(TITLE_KEY[k] || k)}</span>
-          </button>
-        ))}
+    <div className="flex flex-col gap-5">
+      {/* Report kind selector */}
+      <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+        {REPORT_KEYS.map((k) => {
+          const on = k === sel;
+          return (
+            <button key={k} onClick={() => setSel(k)}
+              className={cn(
+                "flex items-center gap-2.5 rounded-[12px] border px-3.5 py-3 text-left transition-colors",
+                on ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
+              )}>
+              <BarChart3 className={cn("size-[18px] shrink-0", on ? "text-primary-emphasis" : "text-muted-foreground")} />
+              <span className={cn("text-[13.5px] font-semibold", on ? "text-primary-emphasis" : "text-foreground")}>{t(TITLE_KEY[k] || k)}</span>
+            </button>
+          );
+        })}
       </div>
+
       {sel === "menu" && rep && rep.rows.length > 0 && <ServiceInsights rows={rep.rows} scope="shop" />}
-      <Card pad={0}>
-        <div style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)", flexWrap: "wrap", gap: 10 }}>
-          <h3 style={{ margin: 0, fontSize: "calc(16px * var(--scale))", fontWeight: 700, color: "var(--ink)" }}>{t(TITLE_KEY[sel] || sel)}</h3>
-          <Btn variant="secondary" size="sm" icon="download" onClick={exportCsv} disabled={!rep || rep.rows.length === 0}>{t("export_csv")}</Btn>
-        </div>
-        {loading && !rep ? <SkeletonRows rows={6} avatar={false} />
-          : !rep || rep.rows.length === 0 ? <div style={{ padding: 24 }}><Empty icon="chart" /></div>
-          : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
-                <thead><tr>{rep.columns.map((c) => <th key={c} style={{ textAlign: "left", padding: "11px 18px", fontSize: 12, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" }}>{c.replace(/_/g, " ")}</th>)}</tr></thead>
-                <tbody>{rep.rows.map((r, i) => <tr key={i}>{rep.columns.map((c, j) => <td key={c} style={{ padding: "11px 18px", fontSize: "calc(13.5px * var(--scale))", color: j === 0 ? "var(--ink)" : "var(--ink-2)", fontWeight: j === 0 ? 600 : 500, fontFamily: /^\d|revenue|price|vat|hours|rate|compliance|count|total/.test(c) ? "var(--font-mono)" : "var(--font-sans)", borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" }}>{r.cells[c] ?? ""}</td>)}</tr>)}</tbody>
-              </table>
-            </div>
+
+      {loading && !rep ? (
+        <Card className="gap-3 p-5">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</Card>
+      ) : !rep || rep.rows.length === 0 ? (
+        <Card className="items-center gap-3 px-5 py-14 text-center">
+          <div className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground"><BarChart3 className="size-6" /></div>
+          <span className="text-sm font-medium text-muted-foreground">{t("empty")}</span>
+        </Card>
+      ) : (
+        <>
+          {chart && (
+            <ChartCard title={t(TITLE_KEY[sel] || sel)} subtitle={chart.isMoney ? "so'm" : undefined}>
+              <HBarChart data={chart.data} color="var(--chart-1)" unit={chart.isMoney ? "so'm" : undefined} formatter={chart.isMoney ? (v) => money(v) : undefined} />
+            </ChartCard>
           )}
-      </Card>
+          <DataTable
+            columns={columns}
+            data={rep.rows}
+            searchPlaceholder={`${t(TITLE_KEY[sel] || sel)}…`}
+            enableColumnToggle={false}
+            pageSize={15}
+            toolbar={<Button variant="secondary" size="sm" onClick={exportCsv}><Download /> {t("export_csv")}</Button>}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -3,8 +3,15 @@
 // UI language, theme/font/density tweaks (useTheme().set), and sign out.
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Field, TextInput, Btn, Segmented, Spinner, useIsMobile } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { Check, LogOut } from "lucide-react";
+import { useIsMobile } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Button } from "@/components/ui-kit/button";
+import { Spinner } from "@/components/ui-kit/misc";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { cn } from "@/lib/utils";
 import { useAuth, useLang, useTheme, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS } from "@/lib/i18n";
@@ -56,71 +63,86 @@ export default function SettingsPage() {
   const signOut = () => { logout(); router.replace("/login"); };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, alignItems: "start" }}>
+    <div className="grid items-start gap-4" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
       {/* shop profile — TODO backend: no shop profile read/update endpoint yet. */}
-      <Card>
+      <Card className="p-5">
         <SecTitle>{t("shop_profile")}</SecTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Field label={t("shop_name")}><TextInput value={shop.name} onChange={(e) => setShop({ ...shop, name: e.target.value })} /></Field>
-          <Field label={t("address")}><TextInput value={shop.address} onChange={(e) => setShop({ ...shop, address: e.target.value })} /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label={t("tin")}><TextInput value={shop.tin} onChange={(e) => setShop({ ...shop, tin: e.target.value })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
-            <Field label={t("hours")}><TextInput value={shop.hours} onChange={(e) => setShop({ ...shop, hours: e.target.value })} style={{ fontFamily: "var(--font-mono)" }} /></Field>
+        <div className="flex flex-col gap-3">
+          <Field label={t("shop_name")}><Input value={shop.name} onChange={(e) => setShop({ ...shop, name: e.target.value })} /></Field>
+          <Field label={t("address")}><Input value={shop.address} onChange={(e) => setShop({ ...shop, address: e.target.value })} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("tin")}><Input value={shop.tin} onChange={(e) => setShop({ ...shop, tin: e.target.value })} className="font-mono" /></Field>
+            <Field label={t("hours")}><Input value={shop.hours} onChange={(e) => setShop({ ...shop, hours: e.target.value })} className="font-mono" /></Field>
           </div>
-          <Btn variant="primary" onClick={saveShop}>{t("save")}</Btn>
-          <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("shop_profile_local_hint")}</div>
+          <Button onClick={saveShop}>{t("save")}</Button>
+          <div className="text-[12px] text-muted-foreground">{t("shop_profile_local_hint")}</div>
         </div>
       </Card>
 
       {/* pricing policy — real backend (workorder shop settings) */}
-      <Card>
+      <Card className="p-5">
         <SecTitle>{t("pricing_policy")}</SecTitle>
         {policyLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner size={22} /></div>
+          <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flex flex-col gap-3">
             <Field label={t("max_discount")}>
-              <TextInput value={maxDiscount} inputMode="numeric"
+              <Input value={maxDiscount} inputMode="numeric"
                 onChange={(e) => setMaxDiscount(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                style={{ fontFamily: "var(--font-mono)" }} />
+                className="font-mono" />
             </Field>
-            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("max_discount_hint")}</div>
-            <Btn variant="primary" disabled={savingPolicy} onClick={savePolicy}>{savingPolicy ? <Spinner /> : t("save")}</Btn>
+            <div className="text-[12px] text-muted-foreground">{t("max_discount_hint")}</div>
+            <Button disabled={savingPolicy} onClick={savePolicy}>{savingPolicy ? <Spinner /> : t("save")}</Button>
           </div>
         )}
       </Card>
 
       {/* UI language */}
-      <Card>
+      <Card className="p-5">
         <SecTitle>{t("ui_language")}</SecTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {LANGS.map((l) => (
-            <button key={l.code} onClick={() => setLang(l.code)} className="an-row-btn" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 13px", border: "1px solid " + (l.code === lang ? "var(--accent)" : "var(--line)"), borderRadius: "var(--radius-sm)", background: l.code === lang ? "var(--accent-soft)" : "var(--surface)", cursor: "pointer", fontFamily: "var(--font-sans)" }}>
-              <span style={{ fontWeight: 600, color: l.code === lang ? "var(--accent-2)" : "var(--ink)", fontSize: 14.5 }}>{l.label}</span>
-              {l.code === lang && <Icon name="check" size={17} style={{ color: "var(--accent-2)" }} />}
+            <button key={l.code} onClick={() => setLang(l.code)} className={cn(
+              "flex items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
+              l.code === lang ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
+            )}>
+              <span className={cn("text-[14.5px] font-semibold", l.code === lang ? "text-primary-emphasis" : "text-foreground")}>{l.label}</span>
+              {l.code === lang && <Check className="size-[17px] text-primary-emphasis" />}
             </button>
           ))}
         </div>
       </Card>
 
       {/* tweaks: theme / font / density */}
-      <Card style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
+      <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
         <SecTitle>Tweaks</SecTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="flex flex-col gap-4">
           <Field label="Theme">
-            <Segmented options={(Object.keys(THEMES) as ThemeName[]).map((k) => ({ value: k, label: THEMES[k].label }))} value={theme} onChange={(v) => set({ theme: v as ThemeName })} style={{ width: "100%" }} />
+            <Tabs value={theme} onValueChange={(v) => set({ theme: v as ThemeName })}>
+              <TabsList className="w-full">
+                {(Object.keys(THEMES) as ThemeName[]).map((k) => <TabsTrigger key={k} value={k} className="flex-1">{THEMES[k].label}</TabsTrigger>)}
+              </TabsList>
+            </Tabs>
           </Field>
           <Field label="Font">
-            <Segmented options={(Object.keys(FONTS) as FontName[]).map((k) => ({ value: k, label: FONTS[k].label }))} value={font} onChange={(v) => set({ font: v as FontName })} style={{ width: "100%" }} />
+            <Tabs value={font} onValueChange={(v) => set({ font: v as FontName })}>
+              <TabsList className="w-full">
+                {(Object.keys(FONTS) as FontName[]).map((k) => <TabsTrigger key={k} value={k} className="flex-1">{FONTS[k].label}</TabsTrigger>)}
+              </TabsList>
+            </Tabs>
           </Field>
           <Field label="Density">
-            <Segmented options={(["compact", "regular", "comfy"] as Density[]).map((d) => ({ value: d, label: d }))} value={density} onChange={(v) => set({ density: v as Density })} style={{ width: "100%" }} />
+            <Tabs value={density} onValueChange={(v) => set({ density: v as Density })}>
+              <TabsList className="w-full">
+                {(["compact", "regular", "comfy"] as Density[]).map((d) => <TabsTrigger key={d} value={d} className="flex-1 capitalize">{d}</TabsTrigger>)}
+              </TabsList>
+            </Tabs>
           </Field>
         </div>
       </Card>
 
-      <Card style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
-        <Btn variant="danger" icon="logout" onClick={signOut}>{t("sign_out")}</Btn>
+      <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
+        <Button variant="destructive" onClick={signOut}><LogOut /> {t("sign_out")}</Button>
       </Card>
     </div>
   );

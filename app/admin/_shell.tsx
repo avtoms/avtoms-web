@@ -5,7 +5,7 @@
 // Mobile (<860px): sidebar hidden; sticky top bar with a hamburger that opens a shadcn Sheet
 // drawer containing the nav + admin identity. Content goes full width.
 //
-// The root wrapper carries `admin-scope`, which activates the Tailwind + shadcn token bridge
+// The root wrapper carries `app-scope`, which activates the Tailwind + shadcn token bridge
 // (see app/tailwind.css) — everything below inherits the runtime theme + dark mode.
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -52,7 +52,7 @@ export function AdminShell({ name, phone, children }: { name: string; phone: str
   useEffect(() => { setDrawer(false); }, [pathname]);
 
   return (
-    <div className="admin-scope grid min-h-screen bg-background" style={{ gridTemplateColumns: isMobile ? "1fr" : "260px 1fr" }}>
+    <div className="app-scope grid min-h-screen bg-background" style={{ gridTemplateColumns: isMobile ? "1fr" : "260px 1fr" }}>
       {!isMobile && (
         <aside className="sticky top-0 flex h-screen flex-col border-r border-border bg-card">
           <Brand />
