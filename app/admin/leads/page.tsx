@@ -2,10 +2,24 @@
 // Super-admin sales CRM: potential customers (leads) managed by hand — full contact + company
 // + photo, the pipeline status and the deal price actually negotiated. Add / edit / delete.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Avatar, Badge, Btn, Modal, Field, TextInput, SelectInput, Segmented, Spinner, Empty, SkeletonRows, useIsMobile } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { toast } from "sonner";
+import { Plus, Pencil, Trash2, Phone, GripVertical } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui-kit/card";
+import { Badge } from "@/components/ui-kit/badge";
+import { Button } from "@/components/ui-kit/button";
+import { UserAvatar } from "@/components/ui-kit/avatar";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Textarea } from "@/components/ui-kit/textarea";
+import { Spinner } from "@/components/ui-kit/misc";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
+} from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
-import { useLang, useToast } from "@/components/providers";
+import { useLang } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import type { Lead } from "@/lib/types";
@@ -16,7 +30,7 @@ type StatusTone = "neutral" | "info" | "accent" | "warn" | "ok" | "danger";
 const STATUS_TONE: Record<string, StatusTone> = {
   new: "neutral", contacted: "info", qualified: "accent", negotiating: "warn", won: "ok", lost: "danger",
 };
-// Board column colours per pipeline status.
+// Board column colours per pipeline status (CSS vars, so they track the theme).
 const COL_COLOR: Record<string, { accent: string; soft: string }> = {
   new: { accent: "var(--ink-3)", soft: "var(--surface-2)" },
   contacted: { accent: "var(--info)", soft: "var(--info-soft)" },
@@ -30,26 +44,25 @@ const empty: Partial<Lead> = { name: "", phone: "", email: "", company: "", imag
 
 export default function AdminLeadsPage() {
   const { t } = useLang();
-  const { toast } = useToast();
   const [list, setList] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<Lead> | null>(null);
-  const [view, setView] = useState<"list" | "board">("board");
+  const [view, setView] = useState<"board" | "list">("board");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try { setList(await api.listLeads()); }
-    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    catch (e) { toast.error(e instanceof ApiError ? e.message : t("error")); }
     finally { setLoading(false); }
-  }, [t, toast]);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
   const remove = async (l: Lead) => {
     if (!window.confirm(t("lead_delete_confirm"))) return;
-    try { await api.deleteLead(l.id); toast(t("deleted"), { icon: "check" }); load(); }
-    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    try { await api.deleteLead(l.id); toast.success(t("deleted")); load(); }
+    catch (e) { toast.error(e instanceof ApiError ? e.message : t("error")); }
   };
 
   // Change a lead's pipeline status (board drag or per-card menu). Optimistic; the whole lead
@@ -60,126 +73,150 @@ export default function AdminLeadsPage() {
     setBusyId(id);
     setList((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
     try { await api.updateLead(id, { ...lead, status }); }
-    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); load(); }
+    catch (e) { toast.error(e instanceof ApiError ? e.message : t("error")); load(); }
     finally { setBusyId(null); }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Segmented options={[{ value: "board", label: t("view_board") }, { value: "list", label: t("view_list") }]} value={view} onChange={(v) => setView(v as "list" | "board")} />
-        <Btn variant="primary" icon="plus" onClick={() => setEditing({ ...empty })}>{t("lead_add")}</Btn>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs value={view} onValueChange={(v) => setView(v as "board" | "list")}>
+          <TabsList>
+            <TabsTrigger value="board">{t("view_board")}</TabsTrigger>
+            <TabsTrigger value="list">{t("view_list")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Button onClick={() => setEditing({ ...empty })}><Plus /> {t("lead_add")}</Button>
       </div>
 
-      {loading && list.length === 0 ? <Card pad={0}><SkeletonRows rows={6} /></Card>
-        : list.length === 0 ? <Card pad={24}><Empty icon="users" text={t("no_leads")} /></Card>
-        : view === "board" ? <LeadBoard leads={list} busyId={busyId} onMove={move} onOpen={setEditing} />
-        : (
-      <Card pad={0}>
-        {list.map((l) => {
-            const st = l.status || "new";
-            const deal = num(l.dealPrice);
-            return (
-              <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 18px", borderBottom: "1px solid var(--line)" }}>
-                <Avatar name={l.name || l.company || "?"} size={42} src={l.imageUrl || undefined} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {l.name || "—"}{l.company && <span style={{ color: "var(--ink-3)", fontWeight: 500 }}> · {l.company}</span>}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {l.phone && <span style={{ fontFamily: "var(--font-mono)" }}>{l.phone}</span>}
-                    {l.city && <span>· {l.city}</span>}
-                    {l.source && <span>· {t("src_" + l.source)}</span>}
-                  </div>
-                </div>
-                {deal > 0 && <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>{money(deal)}</span>}
-                <Badge tone={STATUS_TONE[st] || "neutral"} dot>{t("lead_" + st)}</Badge>
-                <button onClick={() => setEditing(l)} className="an-btn" style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", padding: 4, display: "flex" }} aria-label={t("edit")}><Icon name="edit" size={16} /></button>
-                <button onClick={() => remove(l)} className="an-btn an-hide-sm" style={{ border: "none", background: "transparent", color: "var(--danger)", cursor: "pointer", padding: 4, display: "flex" }} aria-label={t("delete")}><Icon name="trash" size={16} /></button>
-              </div>
-            );
-          })}
-      </Card>
+      {loading && list.length === 0 ? (
+        <Card className="gap-2.5 p-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="an-skel h-12 w-full rounded-[8px]" />)}</Card>
+      ) : list.length === 0 ? (
+        <Card className="items-center gap-3 px-5 py-14 text-center">
+          <div className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground"><Phone className="size-6" /></div>
+          <span className="text-sm font-medium text-muted-foreground">{t("no_leads")}</span>
+        </Card>
+      ) : view === "board" ? (
+        <LeadBoard leads={list} busyId={busyId} onMove={move} onOpen={setEditing} />
+      ) : (
+        <LeadList leads={list} onOpen={setEditing} onRemove={remove} t={t} />
       )}
+
       <LeadModal lead={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
     </div>
   );
 }
 
+function LeadList({ leads, onOpen, onRemove, t }: { leads: Lead[]; onOpen: (l: Lead) => void; onRemove: (l: Lead) => void; t: (k: string) => string }) {
+  return (
+    <Card className="overflow-hidden">
+      {leads.map((l, i) => {
+        const st = l.status || "new";
+        const deal = num(l.dealPrice);
+        return (
+          <div key={l.id} className={cn("flex items-center gap-3.5 px-4 py-3 sm:px-5", i !== leads.length - 1 && "border-b border-border")}>
+            <UserAvatar name={l.name || l.company || "?"} src={l.imageUrl || undefined} className="size-10" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14.5px] font-bold text-foreground">
+                {l.name || "—"}{l.company && <span className="font-medium text-muted-foreground"> · {l.company}</span>}
+              </div>
+              <div className="flex flex-wrap gap-x-2 text-[12.5px] text-muted-foreground">
+                {l.phone && <span className="font-mono">{l.phone}</span>}
+                {l.city && <span>· {l.city}</span>}
+                {l.source && <span>· {t("src_" + l.source)}</span>}
+              </div>
+            </div>
+            {deal > 0 && <span className="font-mono text-[14px] font-bold text-foreground">{money(deal)}</span>}
+            <Badge tone={STATUS_TONE[st] || "neutral"} dot>{t("lead_" + st)}</Badge>
+            <Button variant="ghost" size="icon-sm" onClick={() => onOpen(l)} aria-label={t("edit")}><Pencil /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => onRemove(l)} aria-label={t("delete")} className="hidden text-destructive hover:bg-destructive-soft sm:inline-flex"><Trash2 /></Button>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
 function LeadModal({ lead, onClose, onSaved }: { lead: Partial<Lead> | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useLang();
-  const { toast } = useToast();
   const [f, setF] = useState<Partial<Lead>>({ ...empty });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (lead) setF({ ...empty, ...lead, dealPrice: lead.dealPrice ? String(num(lead.dealPrice)) : "" }); }, [lead]);
-  if (!lead) return null;
-  const isEdit = !!lead.id;
+  const isEdit = !!lead?.id;
   const set = (k: keyof Lead, v: string) => setF((s) => ({ ...s, [k]: v }));
 
   const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = "";
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast(t("file_too_large"), { icon: "alert", tone: "danger" }); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error(t("file_too_large")); return; }
     setUploading(true);
     try { set("imageUrl", await api.uploadImage(file)); }
-    catch (err) { toast(err instanceof ApiError ? err.message : t("error"), { icon: "alert", tone: "danger" }); }
+    catch (err) { toast.error(err instanceof ApiError ? err.message : t("error")); }
     finally { setUploading(false); }
   };
 
   const save = async () => {
-    if (!(f.name || "").trim() && !(f.phone || "").trim()) { toast(t("lead_need_name_phone"), { icon: "alert", tone: "danger" }); return; }
+    if (!(f.name || "").trim() && !(f.phone || "").trim()) { toast.error(t("lead_need_name_phone")); return; }
     if (busy) return;
     setBusy(true);
     const payload: Partial<Lead> = { ...f, dealPrice: parseInt(String(f.dealPrice || "0"), 10) || 0 };
     try {
-      if (isEdit && lead.id) await api.updateLead(lead.id, payload);
+      if (isEdit && lead?.id) await api.updateLead(lead.id, payload);
       else await api.createLead(payload);
-      toast(t("save"), { icon: "check" }); onSaved();
-    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+      toast.success(t("save")); onSaved();
+    } catch (e) { toast.error(e instanceof ApiError ? e.message : t("error")); }
     finally { setBusy(false); }
   };
 
   return (
-    <Modal open={!!lead} onClose={onClose} title={isEdit ? t("lead_edit") : t("lead_add")} maxWidth={560}
-      footer={<><Btn variant="ghost" onClick={onClose}>{t("cancel")}</Btn><Btn variant="primary" disabled={busy || uploading} onClick={save}>{busy ? <Spinner /> : t("save")}</Btn></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-          <button type="button" onClick={() => fileRef.current?.click()} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0 }} aria-label={t("change_photo")}>
-            {uploading ? <div style={{ width: 72, height: 72, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-2)" }}><Spinner size={22} /></div>
-              : <Avatar name={f.name || f.company || "?"} size={72} src={f.imageUrl || undefined} />}
-          </button>
-          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={pickPhoto} style={{ display: "none" }} />
-          <button type="button" onClick={() => fileRef.current?.click()} style={{ border: "none", background: "transparent", color: "var(--accent-2)", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "var(--font-sans)" }}>{t("change_photo")}</button>
-        </div>
+    <Dialog open={!!lead} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[560px]">
+        <DialogHeader><DialogTitle>{isEdit ? t("lead_edit") : t("lead_add")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <div className="flex flex-col items-center gap-2">
+            <button type="button" onClick={() => fileRef.current?.click()} aria-label={t("change_photo")} className="rounded-full">
+              {uploading ? (
+                <div className="grid size-[72px] place-items-center rounded-full bg-secondary"><Spinner className="size-6" /></div>
+              ) : (
+                <UserAvatar name={f.name || f.company || "?"} src={f.imageUrl || undefined} className="size-[72px] text-[24px]" />
+              )}
+            </button>
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={pickPhoto} className="hidden" />
+            <button type="button" onClick={() => fileRef.current?.click()} className="text-[12.5px] font-semibold text-primary-emphasis">{t("change_photo")}</button>
+          </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("name")}><TextInput value={f.name || ""} onChange={(e) => set("name", e.target.value)} /></Field>
-          <Field label={t("phone")}><TextInput value={f.phone || ""} onChange={(e) => set("phone", e.target.value)} inputMode="tel" style={{ fontFamily: "var(--font-mono)" }} /></Field>
-          <Field label={t("email")}><TextInput value={f.email || ""} onChange={(e) => set("email", e.target.value)} inputMode="email" /></Field>
-          <Field label={t("lead_company")}><TextInput value={f.company || ""} onChange={(e) => set("company", e.target.value)} /></Field>
-          <Field label={t("city")}><TextInput value={f.city || ""} onChange={(e) => set("city", e.target.value)} /></Field>
-          <Field label={t("address")}><TextInput value={f.address || ""} onChange={(e) => set("address", e.target.value)} /></Field>
-          <Field label={t("lead_source")}>
-            <SelectInput value={f.source || "landing"} onChange={(e) => set("source", e.target.value)}>
-              {SOURCES.map((s) => <option key={s} value={s}>{t("src_" + s)}</option>)}
-            </SelectInput>
-          </Field>
-          <Field label={t("lead_status")}>
-            <SelectInput value={f.status || "new"} onChange={(e) => set("status", e.target.value)}>
-              {STATUSES.map((s) => <option key={s} value={s}>{t("lead_" + s)}</option>)}
-            </SelectInput>
-          </Field>
-        </div>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <Field label={t("name")}><Input value={f.name || ""} onChange={(e) => set("name", e.target.value)} /></Field>
+            <Field label={t("phone")}><Input value={f.phone || ""} onChange={(e) => set("phone", e.target.value)} inputMode="tel" className="font-mono" /></Field>
+            <Field label={t("email")}><Input value={f.email || ""} onChange={(e) => set("email", e.target.value)} inputMode="email" /></Field>
+            <Field label={t("lead_company")}><Input value={f.company || ""} onChange={(e) => set("company", e.target.value)} /></Field>
+            <Field label={t("city")}><Input value={f.city || ""} onChange={(e) => set("city", e.target.value)} /></Field>
+            <Field label={t("address")}><Input value={f.address || ""} onChange={(e) => set("address", e.target.value)} /></Field>
+            <Field label={t("lead_source")}>
+              <Select value={f.source || "landing"} onValueChange={(v) => set("source", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{t("src_" + s)}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label={t("lead_status")}>
+              <Select value={f.status || "new"} onValueChange={(v) => set("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{t("lead_" + s)}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+          </div>
 
-        <Field label={t("lead_deal_price")}><MoneyInput value={String(f.dealPrice || "")} onChange={(v) => set("dealPrice", v)} /></Field>
-        <Field label={t("notes")}>
-          <textarea className="an-input" value={f.notes || ""} onChange={(e) => set("notes", e.target.value)} rows={3}
-            style={{ width: "100%", resize: "vertical", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontFamily: "var(--font-sans)", fontSize: "calc(14.5px * var(--scale))" }} />
-        </Field>
-      </div>
-    </Modal>
+          <Field label={t("lead_deal_price")}><MoneyInput value={String(f.dealPrice || "")} onChange={(v) => set("dealPrice", v)} /></Field>
+          <Field label={t("notes")}><Textarea value={f.notes || ""} onChange={(e) => set("notes", e.target.value)} rows={3} /></Field>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy || uploading} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -189,7 +226,6 @@ function LeadBoard({ leads, busyId, onMove, onOpen }: {
   leads: Lead[]; busyId: string | null; onMove: (id: string, status: string) => void; onOpen: (l: Lead) => void;
 }) {
   const { t } = useLang();
-  const isMobile = useIsMobile();
   const [tab, setTab] = useState<string>("new");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
@@ -200,83 +236,95 @@ function LeadBoard({ leads, busyId, onMove, onOpen }: {
   const end = () => { dragRef.current = null; setDragId(null); setOverCol(null); };
   const drop = (s: string) => { const id = dragRef.current; setOverCol(null); if (id) onMove(id, s); };
 
-  if (isMobile) {
-    const active = (STATUSES as readonly string[]).includes(tab) ? tab : "new";
-    const items = byStatus(active);
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ overflowX: "auto" }}>
-          <Segmented options={STATUSES.map((s) => ({ value: s, label: `${t("lead_" + s)} · ${byStatus(s).length}` }))} value={active} onChange={setTab} size="sm" style={{ flexWrap: "nowrap" }} />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-          {items.length === 0 ? <div style={{ padding: "28px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>{t("no_leads")}</div>
-            : items.map((l) => <LeadCard key={l.id} l={l} busy={busyId === l.id} dragging={false} onOpen={() => onOpen(l)} onMove={(s) => onMove(l.id, s)} onDragStart={() => {}} onDragEnd={() => {}} t={t} />)}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${STATUSES.length}, minmax(230px, 300px))`, gap: 14, alignItems: "start", justifyContent: "start" }}>
-        {STATUSES.map((s) => {
-          const c = COL_COLOR[s]; const items = byStatus(s); const isOver = overCol === s;
-          return (
-            <div key={s}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== s) setOverCol(s); }}
-              onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
-              onDrop={(e) => { e.preventDefault(); drop(s); }}
-              style={{ display: "flex", flexDirection: "column", gap: 11 }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "var(--radius-sm)", background: c.soft, color: c.accent }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: "currentColor" }} /> {t("lead_" + s)}</span>
-                <span style={{ fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: 12.5, minWidth: 22, height: 22, borderRadius: 999, background: "var(--surface)", color: c.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 7px" }}>{items.length}</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 11, minHeight: 120, borderRadius: "var(--radius)", padding: 11, background: isOver ? c.soft : "var(--surface-2)", outline: isOver ? `2px dashed ${c.accent}` : "2px dashed transparent", transition: "background .12s, outline-color .12s" }}>
-                {items.length === 0 ? <div style={{ padding: "26px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 12.5 }}>{isOver ? t("drop_here") : "—"}</div>
-                  : items.map((l) => <LeadCard key={l.id} l={l} busy={busyId === l.id} dragging={dragId === l.id} onOpen={() => onOpen(l)} onMove={(st) => onMove(l.id, st)} onDragStart={() => start(l.id)} onDragEnd={end} t={t} />)}
-              </div>
-            </div>
-          );
-        })}
+    <>
+      {/* Mobile: status tabs, one column at a time */}
+      <div className="flex flex-col gap-3.5 md:hidden">
+        <div className="overflow-x-auto pb-1">
+          <Tabs value={(STATUSES as readonly string[]).includes(tab) ? tab : "new"} onValueChange={setTab}>
+            <TabsList className="w-max">
+              {STATUSES.map((s) => <TabsTrigger key={s} value={s}>{t("lead_" + s)} · {byStatus(s).length}</TabsTrigger>)}
+            </TabsList>
+          </Tabs>
+        </div>
+        <div className="flex flex-col gap-2.5">
+          {byStatus((STATUSES as readonly string[]).includes(tab) ? tab : "new").length === 0
+            ? <div className="py-7 text-center text-[13px] text-muted-foreground">{t("no_leads")}</div>
+            : byStatus((STATUSES as readonly string[]).includes(tab) ? tab : "new").map((l) => (
+              <LeadCard key={l.id} l={l} busy={busyId === l.id} dragging={false} onOpen={() => onOpen(l)} onMove={(s) => onMove(l.id, s)} onDragStart={() => {}} onDragEnd={() => {}} t={t} draggable={false} />
+            ))}
+        </div>
       </div>
-    </div>
+
+      {/* Desktop: horizontal Kanban */}
+      <div className="hidden overflow-x-auto pb-1 md:block">
+        <div className="grid items-start gap-3.5" style={{ gridTemplateColumns: `repeat(${STATUSES.length}, minmax(230px, 300px))` }}>
+          {STATUSES.map((s) => {
+            const c = COL_COLOR[s]; const items = byStatus(s); const isOver = overCol === s;
+            return (
+              <div key={s}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== s) setOverCol(s); }}
+                onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
+                onDrop={(e) => { e.preventDefault(); drop(s); }}
+                className="flex flex-col gap-2.5"
+              >
+                <div className="flex items-center justify-between rounded-[9px] px-3 py-2" style={{ background: c.soft, color: c.accent }}>
+                  <span className="inline-flex items-center gap-2 text-[13px] font-bold">
+                    <span className="size-2 rounded-full bg-current" /> {t("lead_" + s)}
+                  </span>
+                  <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-card px-1.5 font-mono text-[12.5px] font-extrabold" style={{ color: c.accent }}>{items.length}</span>
+                </div>
+                <div
+                  className="flex min-h-[120px] flex-col gap-2.5 rounded-[12px] p-2.5 transition-colors"
+                  style={{ background: isOver ? c.soft : "var(--surface-2)", outline: isOver ? `2px dashed ${c.accent}` : "2px dashed transparent" }}
+                >
+                  {items.length === 0
+                    ? <div className="py-6 text-center text-[12.5px] text-muted-foreground">{isOver ? t("drop_here") : "—"}</div>
+                    : items.map((l) => <LeadCard key={l.id} l={l} busy={busyId === l.id} dragging={dragId === l.id} onOpen={() => onOpen(l)} onMove={(st) => onMove(l.id, st)} onDragStart={() => start(l.id)} onDragEnd={end} t={t} draggable />)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
-function LeadCard({ l, busy, dragging, onOpen, onMove, onDragStart, onDragEnd, t }: {
+function LeadCard({ l, busy, dragging, onOpen, onMove, onDragStart, onDragEnd, t, draggable }: {
   l: Lead; busy: boolean; dragging: boolean; onOpen: () => void; onMove: (s: string) => void;
-  onDragStart: () => void; onDragEnd: () => void; t: (k: string) => string;
+  onDragStart: () => void; onDragEnd: () => void; t: (k: string) => string; draggable: boolean;
 }) {
   const deal = num(l.dealPrice);
   const c = COL_COLOR[l.status || "new"];
   return (
-    <div draggable={!busy}
+    <div draggable={draggable && !busy}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", l.id); onDragStart(); }}
       onDragEnd={onDragEnd}
-      className="an-card-hover"
-      style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)", boxShadow: dragging ? "var(--shadow-lg)" : "var(--shadow)", padding: "12px 13px 12px 15px", cursor: busy ? "wait" : "grab", opacity: dragging ? 0.5 : busy ? 0.7 : 1, transition: "box-shadow .12s, opacity .12s" }}
+      className={cn("relative rounded-[12px] border border-border bg-card p-3 pl-3.5 shadow-[var(--shadow)] transition-[box-shadow,opacity]", draggable && !busy && "cursor-grab", dragging && "opacity-50 shadow-[var(--shadow-lg)]", busy && "cursor-wait opacity-70")}
     >
-      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: c.accent, borderTopLeftRadius: "var(--radius)", borderBottomLeftRadius: "var(--radius)" }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <Avatar name={l.name || l.company || "?"} size={38} src={l.imageUrl || undefined} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.name || "—"}</div>
-          {l.company && <div style={{ fontSize: 12, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.company}</div>}
+      <span className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[12px]" style={{ background: c.accent }} />
+      <div className="mb-2.5 flex items-center gap-2.5">
+        <UserAvatar name={l.name || l.company || "?"} src={l.imageUrl || undefined} className="size-9" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14px] font-bold text-foreground">{l.name || "—"}</div>
+          {l.company && <div className="truncate text-[12px] text-muted-foreground">{l.company}</div>}
         </div>
+        {draggable && <GripVertical className="size-4 text-muted-foreground/50" />}
       </div>
       {(l.phone || l.city) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12, color: "var(--ink-3)", marginBottom: 10 }}>
-          {l.phone && <span style={{ fontFamily: "var(--font-mono)" }}>{l.phone}</span>}
+        <div className="mb-2.5 flex flex-wrap gap-x-2 text-[12px] text-muted-foreground">
+          {l.phone && <span className="font-mono">{l.phone}</span>}
           {l.city && <span>· {l.city}</span>}
         </div>
       )}
-      {deal > 0 && <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: 14, marginBottom: 10 }}>{money(deal)} <span style={{ fontSize: 11, fontWeight: 500, color: "var(--ink-3)" }}>{t("soum")}</span></div>}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <SelectInput value={l.status || "new"} onChange={(e) => onMove(e.target.value)} disabled={busy} style={{ flex: 1, fontSize: 12.5, padding: "5px 8px" }}>
-          {STATUSES.map((s) => <option key={s} value={s}>{t("lead_" + s)}</option>)}
-        </SelectInput>
-        <button onClick={onOpen} className="an-btn" style={{ border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer", padding: "6px 8px", borderRadius: "var(--radius-sm)", display: "flex" }} aria-label={t("edit")}><Icon name="edit" size={14} /></button>
+      {deal > 0 && <div className="mb-2.5 font-mono text-[14px] font-bold text-foreground">{money(deal)} <span className="text-[11px] font-medium text-muted-foreground">{t("soum")}</span></div>}
+      <div className="flex items-center gap-2">
+        <Select value={l.status || "new"} onValueChange={onMove} disabled={busy}>
+          <SelectTrigger size="sm" className="flex-1"><SelectValue /></SelectTrigger>
+          <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{t("lead_" + s)}</SelectItem>)}</SelectContent>
+        </Select>
+        <Button variant="secondary" size="icon-sm" onClick={onOpen} aria-label={t("edit")}><Pencil /></Button>
       </div>
     </div>
   );

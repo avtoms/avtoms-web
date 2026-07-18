@@ -4,16 +4,19 @@
 // the app (CarImage) as the brand emblem, falling back to a monogram when none is set.
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Field, TextInput, Btn, Spinner } from "@/components/ui";
-import { Icon } from "@/components/icons";
-import { useToast } from "@/components/providers";
+import { toast } from "sonner";
+import { Plus, Check, ImagePlus } from "lucide-react";
+import { Card, CardContent } from "@/components/ui-kit/card";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Button } from "@/components/ui-kit/button";
+import { Spinner } from "@/components/ui-kit/misc";
 import { api, ApiError } from "@/lib/api";
 import { invalidateCarMakeLogos } from "@/lib/car-makes";
 import type { CarMake } from "@/lib/types";
 
 export function CreateMakeForm() {
   const router = useRouter();
-  const { toast } = useToast();
   const [name, setName] = useState("");
   const [country, setCountry] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,10 +27,10 @@ export function CreateMakeForm() {
     try {
       await api.createCarMake(name.trim(), country.trim());
       setName(""); setCountry("");
-      toast("Saqlandi", { icon: "check" });
-      router.refresh(); // re-runs the server component → updated table
+      toast.success("Saqlandi");
+      router.refresh();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+      toast.error(e instanceof ApiError ? e.message : "Xatolik");
     } finally {
       setBusy(false);
     }
@@ -35,21 +38,28 @@ export function CreateMakeForm() {
 
   return (
     <Card>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink-2)", marginBottom: 14, letterSpacing: "-0.01em" }}>Yangi marka qo'shish</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        <Field label="Marka nomi" style={{ flex: "2 1 200px" }}><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Chevrolet" /></Field>
-        <Field label="Davlat" style={{ flex: "1 1 140px" }}><TextInput value={country} onChange={(e) => setCountry(e.target.value)} placeholder="USA" /></Field>
-        <Btn variant="primary" icon="plus" disabled={busy} onClick={save}>{busy ? <Spinner /> : "Marka qo'shish"}</Btn>
-      </div>
+      <CardContent className="flex flex-col gap-3">
+        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">Yangi marka qo'shish</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Marka nomi" className="flex-[2_1_200px]">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Chevrolet" onKeyDown={(e) => e.key === "Enter" && save()} />
+          </Field>
+          <Field label="Davlat" className="flex-[1_1_140px]">
+            <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="USA" onKeyDown={(e) => e.key === "Enter" && save()} />
+          </Field>
+          <Button disabled={busy || !name.trim()} onClick={save}>
+            {busy ? <Spinner /> : <><Plus /> Marka qo'shish</>}
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   );
 }
 
 // One editable row: shows the logo (or monogram fallback), lets the admin upload/replace the
 // logo and edit name/country inline.
-export function MakeRow({ make, last }: { make: CarMake; last: boolean }) {
+export function MakeRow({ make }: { make: CarMake }) {
   const router = useRouter();
-  const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(make.name);
   const [country, setCountry] = useState(make.country ?? "");
@@ -57,16 +67,15 @@ export function MakeRow({ make, last }: { make: CarMake; last: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const dirty = name.trim() !== make.name || (country.trim() !== (make.country ?? "")) || logoUrl !== (make.logoUrl ?? "");
+  const dirty = name.trim() !== make.name || country.trim() !== (make.country ?? "") || logoUrl !== (make.logoUrl ?? "");
 
   const pickLogo = async (file?: File) => {
     if (!file) return;
     setUploading(true);
     try {
-      const url = await api.uploadImage(file);
-      setLogoUrl(url);
+      setLogoUrl(await api.uploadImage(file));
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+      toast.error(e instanceof ApiError ? e.message : "Xatolik");
     } finally {
       setUploading(false);
     }
@@ -78,10 +87,10 @@ export function MakeRow({ make, last }: { make: CarMake; last: boolean }) {
     try {
       await api.updateCarMake(make.id, name.trim(), country.trim(), logoUrl);
       invalidateCarMakeLogos();
-      toast("Saqlandi", { icon: "check" });
+      toast.success("Saqlandi");
       router.refresh();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+      toast.error(e instanceof ApiError ? e.message : "Xatolik");
     } finally {
       setBusy(false);
     }
@@ -90,23 +99,31 @@ export function MakeRow({ make, last }: { make: CarMake; last: boolean }) {
   const mono = name.trim().slice(0, 2).toUpperCase();
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: last ? "none" : "1px solid var(--line)" }}>
-      <button type="button" onClick={() => fileRef.current?.click()} title="Logotip yuklash"
-        style={{ width: 46, height: 46, borderRadius: 12, flexShrink: 0, border: "1px dashed var(--line)", cursor: "pointer", padding: 0, overflow: "hidden", background: logoUrl ? "var(--surface-2)" : "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-        {uploading ? <Spinner size={16} />
-          : logoUrl ? <img src={logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 5 }} />
-          : <span style={{ fontWeight: 800, fontSize: 15, color: "var(--accent-2)" }}>{mono}</span>}
+    <div className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0">
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        title="Logotip yuklash"
+        className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-dashed border-input transition-colors hover:border-ring"
+        style={{ background: logoUrl ? "var(--surface-2)" : "var(--accent-soft)" }}
+      >
+        {uploading ? <Spinner /> : logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" className="size-full object-contain p-1" />
+        ) : (
+          <span className="text-[15px] font-extrabold text-primary-emphasis">{mono || <ImagePlus className="size-4" />}</span>
+        )}
       </button>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => pickLogo(e.target.files?.[0])} />
-      <div style={{ flex: "2 1 160px", minWidth: 0 }}>
-        <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Marka" />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickLogo(e.target.files?.[0])} />
+      <div className="flex-[2_1_160px] min-w-0">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Marka" className="h-9" />
       </div>
-      <div style={{ flex: "1 1 120px", minWidth: 0 }} className="an-hide-sm">
-        <TextInput value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Davlat" />
+      <div className="hidden flex-[1_1_120px] min-w-0 sm:block">
+        <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Davlat" className="h-9" />
       </div>
-      <Btn variant={dirty ? "primary" : "soft"} size="sm" icon="check" disabled={!dirty || busy} onClick={save}>
-        {busy ? <Spinner size={14} /> : "Saqlash"}
-      </Btn>
+      <Button variant={dirty ? "default" : "soft"} size="sm" disabled={!dirty || busy} onClick={save}>
+        {busy ? <Spinner /> : <><Check /> Saqlash</>}
+      </Button>
     </div>
   );
 }

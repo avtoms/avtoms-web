@@ -1,0 +1,152 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tailwind v4 + shadcn/ui — ADMIN CONSOLE ONLY.
+
+   The legacy owner / mechanic / landing surfaces keep their inline-style design
+   system (globals.css). We deliberately DO NOT import Tailwind's global preflight,
+   so those surfaces are untouched. Instead a small reset is scoped to `.admin-scope`
+   (the admin shell root).
+
+   shadcn design tokens are *bridged* to the existing runtime theme variables
+   (--bg / --surface / --ink / --accent / --line …) that lib/theme.ts sets on :root
+   for every theme (Workshop / Steel / Carbon incl. dark mode). So the admin panel
+   inherits theme + dark-mode switching for free — no duplicated palettes.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme inline {
+  /* Surfaces & text */
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+
+  /* Brand (shadcn "primary") = legacy accent */
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-primary-emphasis: var(--accent-2);
+  --color-primary-soft: var(--accent-soft);
+
+  /* Neutral hover / secondary / muted = legacy surface-2 */
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--ink-3);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--ink);
+
+  /* Lines & focus ring */
+  --color-border: var(--line);
+  --color-input: var(--line-2);
+  --color-ring: var(--accent);
+
+  /* Semantic status colours (badges, toasts, health checks) */
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-destructive-soft: var(--danger-soft);
+  --color-success: var(--ok);
+  --color-success-soft: var(--ok-soft);
+  --color-warning: var(--warn);
+  --color-warning-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* Muted secondary ink for captions */
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  /* Fonts follow the runtime switcher */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* Scoped reset — mimics the essentials of Tailwind preflight, but only inside the
+   admin console so the rest of the app is unaffected. Radix portals (dialogs,
+   menus, selects, tooltips) render at <body> and style themselves entirely with
+   utility classes, so they don't need this reset. */
+@layer base {
+  .admin-scope,
+  .admin-portal {
+    font-family: var(--font-sans);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Tailwind's `border` utility only sets width; preflight normally provides the
+     `border-style: solid` + `border-width: 0` baseline. We aren't loading global
+     preflight, so re-establish it inside the admin scope + Radix portals only. */
+  .admin-scope *,
+  .admin-scope *::before,
+  .admin-scope *::after,
+  .admin-portal,
+  .admin-portal *,
+  .admin-portal *::before,
+  .admin-portal *::after {
+    box-sizing: border-box;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--line);
+  }
+  .admin-scope h1,
+  .admin-scope h2,
+  .admin-scope h3,
+  .admin-scope h4,
+  .admin-scope h5,
+  .admin-scope h6,
+  .admin-scope p,
+  .admin-scope figure {
+    margin: 0;
+  }
+  .admin-scope button {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .admin-scope button:disabled {
+    cursor: not-allowed;
+  }
+  .admin-scope input,
+  .admin-scope textarea,
+  .admin-scope select {
+    font: inherit;
+    color: inherit;
+  }
+  .admin-scope table {
+    border-collapse: collapse;
+  }
+  .admin-scope svg {
+    display: block;
+  }
+  .admin-scope a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* Radix-safe entrance animations. We animate OPACITY only for popper/centered content
+   (dropdowns, selects, dialogs, tooltips) so we never fight Radix's positioning transforms;
+   the side sheet is fixed-positioned so it can slide. */
+@layer components {
+  @keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes adm-sheet-left { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+  .admin-portal[data-state="open"],
+  .admin-portal[data-state="delayed-open"] {
+    animation: adm-fade 0.15s ease-out;
+  }
+  [data-slot="dialog-content"][data-state="open"],
+  [data-slot="dialog-overlay"][data-state="open"] {
+    animation: adm-fade 0.16s ease-out;
+  }
+  [data-slot="sheet-content"][data-state="open"] {
+    animation: adm-sheet-left 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}

@@ -1,8 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Field, TextInput, SelectInput, Btn, Spinner } from "@/components/ui";
-import { useToast } from "@/components/providers";
+import { toast } from "sonner";
+import { Plus } from "lucide-react";
+import { Card, CardContent } from "@/components/ui-kit/card";
+import { Field } from "@/components/ui-kit/label";
+import { Input } from "@/components/ui-kit/input";
+import { Button } from "@/components/ui-kit/button";
+import { Spinner } from "@/components/ui-kit/misc";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
 import { api, ApiError } from "@/lib/api";
 import { BODY_TYPES } from "@/lib/enums";
 import type { CarMake } from "@/lib/types";
@@ -10,7 +16,6 @@ import type { CarMake } from "@/lib/types";
 // Client island: creates a model under a make, then refreshes the SSR page.
 export function CreateModelForm({ makes }: { makes: CarMake[] }) {
   const router = useRouter();
-  const { toast } = useToast();
   const [makeId, setMakeId] = useState(makes[0]?.id ?? "");
   const [name, setName] = useState("");
   const [bodyType, setBodyType] = useState<string>(BODY_TYPES[0]);
@@ -22,10 +27,10 @@ export function CreateModelForm({ makes }: { makes: CarMake[] }) {
     try {
       await api.createCarModel(makeId, name.trim(), bodyType);
       setName("");
-      toast("Saqlandi", { icon: "check" });
+      toast.success("Saqlandi");
       router.refresh();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+      toast.error(e instanceof ApiError ? e.message : "Xatolik");
     } finally {
       setBusy(false);
     }
@@ -33,22 +38,33 @@ export function CreateModelForm({ makes }: { makes: CarMake[] }) {
 
   return (
     <Card>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink-2)", marginBottom: 14, letterSpacing: "-0.01em" }}>Yangi model qo'shish</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        <Field label="Marka" style={{ flex: "1 1 160px" }}>
-          <SelectInput value={makeId} onChange={(e) => setMakeId(e.target.value)}>
-            {makes.length === 0 && <option value="">— avval marka qo'shing —</option>}
-            {makes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </SelectInput>
-        </Field>
-        <Field label="Model nomi" style={{ flex: "2 1 180px" }}><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Cobalt" /></Field>
-        <Field label="Kuzov turi" style={{ flex: "1 1 140px" }}>
-          <SelectInput value={bodyType} onChange={(e) => setBodyType(e.target.value)}>
-            {BODY_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
-          </SelectInput>
-        </Field>
-        <Btn variant="primary" icon="plus" disabled={busy || !makeId} onClick={save}>{busy ? <Spinner /> : "Model qo'shish"}</Btn>
-      </div>
+      <CardContent className="flex flex-col gap-3">
+        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">Yangi model qo'shish</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Marka" className="flex-[1_1_160px]">
+            <Select value={makeId} onValueChange={setMakeId}>
+              <SelectTrigger><SelectValue placeholder="— avval marka qo'shing —" /></SelectTrigger>
+              <SelectContent>
+                {makes.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Model nomi" className="flex-[2_1_180px]">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Cobalt" onKeyDown={(e) => e.key === "Enter" && save()} />
+          </Field>
+          <Field label="Kuzov turi" className="flex-[1_1_140px]">
+            <Select value={bodyType} onValueChange={setBodyType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {BODY_TYPES.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Button disabled={busy || !makeId || !name.trim()} onClick={save}>
+            {busy ? <Spinner /> : <><Plus /> Model qo'shish</>}
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   );
 }

@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Golos_Text, Onest, Unbounded, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import "./tailwind.css";
 import "flag-icons/css/flag-icons.min.css";
 import { Providers } from "@/components/providers";
+import { Toaster } from "@/components/ui-kit/sonner";
 
 // Self-hosted via next/font: fonts are bundled + preloaded and a metrics-matched fallback is
 // auto-generated, so text no longer flashes/resizes on load (no FOUT layout shift). Cyrillic
@@ -33,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div id="root">
           <Providers>{children}</Providers>
+          <Toaster />
         </div>
       </body>
     </html>

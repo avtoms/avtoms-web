@@ -2,52 +2,20 @@
 import { serverGet } from "@/lib/server-api";
 import type { Staff, CarMake, CarModel } from "@/lib/types";
 import { roleFromProto, type Role } from "@/lib/enums";
-import { Avatar, Badge } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { Store, Users, Crown, Wrench, ShieldCheck, Car, LayoutList, type LucideIcon } from "lucide-react";
+import { StatCard, type StatTone } from "@/components/admin/stat-card";
+import { Card, CardHeader, CardTitle } from "@/components/ui-kit/card";
+import { Badge } from "@/components/ui-kit/badge";
+import { UserAvatar } from "@/components/ui-kit/avatar";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui-kit/table";
 
 export const dynamic = "force-dynamic";
-
-type StatTone = "accent" | "info" | "warn" | "ok" | "neutral";
-const TONE_VARS: Record<StatTone, { soft: string; fg: string }> = {
-  accent: { soft: "var(--accent-soft)", fg: "var(--accent-2)" },
-  info: { soft: "var(--info-soft)", fg: "var(--info)" },
-  warn: { soft: "var(--warn-soft)", fg: "var(--warn)" },
-  ok: { soft: "var(--ok-soft)", fg: "var(--ok)" },
-  neutral: { soft: "var(--surface-2)", fg: "var(--ink-2)" },
-};
 
 const ROLE_BADGE: Record<Role, { label: string; tone: "accent" | "info" | "warn" }> = {
   owner: { label: "Egasi", tone: "accent" },
   mechanic: { label: "Usta", tone: "info" },
   admin: { label: "Admin", tone: "warn" },
 };
-
-function StatCard({ icon, tone, value, label }: { icon: string; tone: StatTone; value: number; label: string }) {
-  const t = TONE_VARS[tone];
-  return (
-    <div
-      style={{
-        background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)",
-        boxShadow: "var(--shadow)", padding: 18, display: "flex", flexDirection: "column", gap: 14, minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          width: 42, height: 42, borderRadius: 12, background: t.soft, color: t.fg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}
-      >
-        <Icon name={icon} size={22} />
-      </div>
-      <div>
-        <div style={{ fontSize: 30, fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.03em", lineHeight: 1 }}>
-          {value}
-        </div>
-        <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--ink-3)" }}>{label}</div>
-      </div>
-    </div>
-  );
-}
 
 export default async function AdminOverviewPage() {
   const [staffData, makesData, modelsData] = await Promise.all([
@@ -69,67 +37,67 @@ export default async function AdminOverviewPage() {
     .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
     .slice(0, 6);
 
-  const stats: { icon: string; tone: StatTone; value: number; label: string }[] = [
-    { icon: "settings", tone: "neutral", value: shops, label: "Avtoservislar" },
-    { icon: "users", tone: "accent", value: staff.length, label: "Jami foydalanuvchilar" },
-    { icon: "team", tone: "accent", value: owners, label: "Egalari" },
-    { icon: "wrench", tone: "info", value: mechanics, label: "Ustalar" },
-    { icon: "settings", tone: "warn", value: admins, label: "Adminlar" },
-    { icon: "car", tone: "ok", value: makes.length, label: "Markalar" },
-    { icon: "list", tone: "ok", value: models.length, label: "Modellar" },
+  const stats: { icon: LucideIcon; tone: StatTone; value: number; label: string }[] = [
+    { icon: Store, tone: "neutral", value: shops, label: "Avtoservislar" },
+    { icon: Users, tone: "primary", value: staff.length, label: "Jami foydalanuvchilar" },
+    { icon: Crown, tone: "primary", value: owners, label: "Egalari" },
+    { icon: Wrench, tone: "info", value: mechanics, label: "Ustalar" },
+    { icon: ShieldCheck, tone: "warn", value: admins, label: "Adminlar" },
+    { icon: Car, tone: "ok", value: makes.length, label: "Markalar" },
+    { icon: LayoutList, tone: "ok", value: models.length, label: "Modellar" },
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div
-        style={{
-          display: "grid", gap: 14,
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-        }}
-      >
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
         {stats.map((s) => (
           <StatCard key={s.label} {...s} />
         ))}
       </div>
 
-      <div
-        style={{
-          background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)",
-          boxShadow: "var(--shadow)", overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.02em" }}>So'nggi foydalanuvchilar</h2>
-          <span style={{ fontSize: 12.5, color: "var(--ink-3)", fontWeight: 600 }}>{staff.length} ta jami</span>
-        </div>
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <CardTitle>So'nggi foydalanuvchilar</CardTitle>
+          <span className="text-[12.5px] font-semibold text-muted-foreground">{staff.length} ta jami</span>
+        </CardHeader>
         {recent.length === 0 ? (
-          <div style={{ padding: 28, color: "var(--ink-3)", textAlign: "center", fontSize: 14 }}>Ma'lumot yo'q</div>
+          <div className="px-5 py-8 text-center text-sm text-muted-foreground">Ma'lumot yo'q</div>
         ) : (
-          recent.map((s) => {
-            const rb = ROLE_BADGE[roleFromProto(s.role)];
-            return (
-              <div
-                key={s.id}
-                className="an-row-btn"
-                style={{
-                  display: "flex", alignItems: "center", gap: 13, padding: "12px 18px",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <Avatar name={s.name || "?"} size={36} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 650, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {s.name || "—"}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{s.phone}</div>
-                </div>
-                <Badge tone={rb.tone}>{rb.label}</Badge>
-                <Badge tone={s.active ? "ok" : "neutral"} dot>{s.active ? "Faol" : "Faolsiz"}</Badge>
-              </div>
-            );
-          })
+          <Table>
+            <TableHeader className="bg-secondary/40">
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Foydalanuvchi</TableHead>
+                <TableHead className="hidden sm:table-cell">Telefon</TableHead>
+                <TableHead>Rol</TableHead>
+                <TableHead className="text-right">Holat</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recent.map((s) => {
+                const rb = ROLE_BADGE[roleFromProto(s.role)];
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <UserAvatar name={s.name || "?"} className="size-9" />
+                        <div className="min-w-0">
+                          <div className="truncate text-[14px] font-semibold text-foreground">{s.name || "—"}</div>
+                          <div className="truncate font-mono text-[12px] text-muted-foreground sm:hidden">{s.phone}</div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden font-mono text-[13px] text-muted-foreground sm:table-cell">{s.phone}</TableCell>
+                    <TableCell><Badge tone={rb.tone}>{rb.label}</Badge></TableCell>
+                    <TableCell className="text-right">
+                      <Badge tone={s.active ? "ok" : "neutral"} dot>{s.active ? "Faol" : "Faolsiz"}</Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

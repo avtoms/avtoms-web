@@ -3,35 +3,38 @@
 // Kept separate so app/admin/layout.tsx can stay a server component.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Icon } from "@/components/icons";
+import {
+  LayoutDashboard, BarChart3, Target, Inbox, Users, Car, LayoutList, Plug, type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type Item = { href: string; label: string; icon: string; exact?: boolean };
+type Item = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 type Group = { title: string; items: Item[] };
 
 export const NAV_GROUPS: Group[] = [
   {
     title: "Boshqaruv",
     items: [
-      { href: "/admin", label: "Umumiy", icon: "dashboard", exact: true },
-      { href: "/admin/services", label: "Xizmatlar tahlili", icon: "chart" },
+      { href: "/admin", label: "Umumiy", icon: LayoutDashboard, exact: true },
+      { href: "/admin/services", label: "Xizmatlar tahlili", icon: BarChart3 },
     ],
   },
   {
     title: "Sotuv",
     items: [
-      { href: "/admin/leads", label: "Lidlar (CRM)", icon: "users" },
-      { href: "/admin/demo-requests", label: "Demo so'rovlari", icon: "bell" },
+      { href: "/admin/leads", label: "Lidlar (CRM)", icon: Target },
+      { href: "/admin/demo-requests", label: "Demo so'rovlari", icon: Inbox },
     ],
   },
-  { title: "Foydalanuvchilar", items: [{ href: "/admin/users", label: "Xodimlar", icon: "users" }] },
+  { title: "Foydalanuvchilar", items: [{ href: "/admin/users", label: "Xodimlar", icon: Users }] },
   {
     title: "Katalog",
     items: [
-      { href: "/admin/car-makes", label: "Markalar", icon: "car" },
-      { href: "/admin/car-models", label: "Modellar", icon: "list" },
+      { href: "/admin/car-makes", label: "Markalar", icon: Car },
+      { href: "/admin/car-models", label: "Modellar", icon: LayoutList },
     ],
   },
-  { title: "Integratsiyalar", items: [{ href: "/admin/integrations", label: "Integratsiyalar", icon: "bell" }] },
+  { title: "Integratsiyalar", items: [{ href: "/admin/integrations", label: "Integratsiyalar", icon: Plug }] },
 ];
 
 function isActive(pathname: string, item: Item): boolean {
@@ -42,29 +45,29 @@ function isActive(pathname: string, item: Item): boolean {
 export function AdminNav() {
   const pathname = usePathname() || "/admin";
   return (
-    <nav style={{ flex: 1, padding: "8px 12px", display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+    <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2">
       {NAV_GROUPS.map((g) => (
         <div key={g.title}>
-          <div style={{ padding: "0 11px 6px", fontSize: 11, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          <div className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground/80">
             {g.title}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div className="flex flex-col gap-0.5">
             {g.items.map((n) => {
               const on = isActive(pathname, n);
+              const Icon = n.icon;
               return (
                 <Link
                   key={n.href}
                   href={n.href}
-                  className="an-btn"
-                  style={{
-                    display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
-                    borderRadius: "var(--radius-sm)", textDecoration: "none",
-                    color: on ? "var(--accent-2)" : "var(--ink-2)",
-                    background: on ? "var(--accent-soft)" : "transparent",
-                    fontWeight: on ? 700 : 600, fontSize: 14.5, letterSpacing: "-0.01em",
-                  }}
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold tracking-[-0.01em] transition-colors",
+                    on
+                      ? "bg-primary-soft text-primary-emphasis"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
                 >
-                  <Icon name={n.icon} size={18} style={{ color: on ? "var(--accent-2)" : "var(--ink-3)" }} />
+                  {on && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
+                  <Icon className={cn("size-[18px] shrink-0", on ? "text-primary-emphasis" : "text-muted-foreground")} />
                   {n.label}
                 </Link>
               );
@@ -76,23 +79,26 @@ export function AdminNav() {
   );
 }
 
-const TITLES: { match: (p: string) => boolean; title: string }[] = [
-  { match: (p) => p === "/admin", title: "Umumiy ko'rsatkichlar" },
-  { match: (p) => p.startsWith("/admin/services"), title: "Xizmatlar tahlili" },
-  { match: (p) => p.startsWith("/admin/leads"), title: "Lidlar (CRM)" },
-  { match: (p) => p.startsWith("/admin/demo-requests"), title: "Demo so'rovlari" },
-  { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar" },
-  { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari" },
-  { match: (p) => p.startsWith("/admin/car-models"), title: "Avtomobil modellari" },
-  { match: (p) => p.startsWith("/admin/integrations"), title: "Integratsiyalar" },
+const TITLES: { match: (p: string) => boolean; title: string; sub?: string }[] = [
+  { match: (p) => p === "/admin", title: "Umumiy ko'rsatkichlar", sub: "Platforma bo'yicha statistika" },
+  { match: (p) => p.startsWith("/admin/services"), title: "Xizmatlar tahlili", sub: "Barcha avtoservislar bo'yicha" },
+  { match: (p) => p.startsWith("/admin/leads"), title: "Lidlar (CRM)", sub: "Sotuv quvuri va potentsial mijozlar" },
+  { match: (p) => p.startsWith("/admin/demo-requests"), title: "Demo so'rovlari", sub: "Landing sahifadan kelgan so'rovlar" },
+  { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar", sub: "Barcha avtoservis xodimlari" },
+  { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari", sub: "Katalog boshqaruvi" },
+  { match: (p) => p.startsWith("/admin/car-models"), title: "Avtomobil modellari", sub: "Katalog boshqaruvi" },
+  { match: (p) => p.startsWith("/admin/integrations"), title: "Integratsiyalar", sub: "Tashqi xizmatlar sozlamalari" },
 ];
 
 export function AdminPageTitle() {
   const pathname = usePathname() || "/admin";
   const found = TITLES.find((t) => t.match(pathname));
   return (
-    <h1 style={{ margin: 0, fontSize: "calc(20px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.025em" }}>
-      {found?.title ?? "Admin panel"}
-    </h1>
+    <div className="min-w-0">
+      <h1 className="truncate text-[19px] font-extrabold tracking-[-0.025em] text-foreground">
+        {found?.title ?? "Admin panel"}
+      </h1>
+      {found?.sub && <p className="mt-0.5 hidden truncate text-[12.5px] font-medium text-muted-foreground sm:block">{found.sub}</p>}
+    </div>
   );
 }

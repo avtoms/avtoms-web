@@ -3,8 +3,11 @@
 // then router.refresh() to re-run the SSR fetch on the users page.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Btn, SelectInput, Spinner } from "@/components/ui";
-import { useToast } from "@/components/providers";
+import { toast } from "sonner";
+import { Check, X } from "lucide-react";
+import { Button } from "@/components/ui-kit/button";
+import { Spinner } from "@/components/ui-kit/misc";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
 import { api, ApiError } from "@/lib/api";
 import { roleFromProto, type Role } from "@/lib/enums";
 import type { Staff } from "@/lib/types";
@@ -17,7 +20,6 @@ const ROLE_OPTS: { value: Role; label: string }[] = [
 
 export function RowActions({ staff }: { staff: Staff }) {
   const router = useRouter();
-  const { toast } = useToast();
   const [busy, setBusy] = useState<"" | "active" | "role">("");
   const role = roleFromProto(staff.role);
 
@@ -26,10 +28,10 @@ export function RowActions({ staff }: { staff: Staff }) {
     setBusy("active");
     try {
       await api.setStaffActive(staff.id, !staff.active);
-      toast(staff.active ? "Faolsizlantirildi" : "Faollashtirildi", { icon: "check" });
+      toast.success(staff.active ? "Faolsizlantirildi" : "Faollashtirildi");
       router.refresh();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+      toast.error(e instanceof ApiError ? e.message : "Xatolik");
     } finally {
       setBusy("");
     }
@@ -40,39 +42,36 @@ export function RowActions({ staff }: { staff: Staff }) {
     setBusy("role");
     try {
       await api.setStaffRole(staff.id, next);
-      toast("Rol o'zgartirildi", { icon: "check" });
+      toast.success("Rol o'zgartirildi");
       router.refresh();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Xatolik", { icon: "alert", tone: "danger" });
+      toast.error(e instanceof ApiError ? e.message : "Xatolik");
     } finally {
       setBusy("");
     }
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
-      <div style={{ flex: "0 1 132px", minWidth: 110 }}>
-        <SelectInput
-          value={role}
-          disabled={busy === "role"}
-          onChange={(e) => changeRole(e.target.value as Role)}
-          style={{ padding: "7px 10px", fontSize: 13 }}
-        >
+    <div className="flex items-center justify-end gap-2">
+      <Select value={role} disabled={busy === "role"} onValueChange={(v) => changeRole(v as Role)}>
+        <SelectTrigger size="sm" className="w-[118px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
           {ROLE_OPTS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
           ))}
-        </SelectInput>
-      </div>
-      <Btn
+        </SelectContent>
+      </Select>
+      <Button
         size="sm"
-        variant={staff.active ? "danger" : "soft"}
-        icon={busy === "active" ? undefined : staff.active ? "x" : "check"}
+        variant={staff.active ? "destructive" : "soft"}
         disabled={busy === "active"}
         onClick={toggleActive}
-        style={{ minWidth: 116, flex: "0 0 auto" }}
+        className="w-[132px]"
       >
-        {busy === "active" ? <Spinner size={15} /> : staff.active ? "Faolsizlantirish" : "Faollashtirish"}
-      </Btn>
+        {busy === "active" ? <Spinner /> : staff.active ? <><X /> Faolsizlantirish</> : <><Check /> Faollashtirish</>}
+      </Button>
     </div>
   );
 }
