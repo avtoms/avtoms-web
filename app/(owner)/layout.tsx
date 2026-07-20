@@ -22,6 +22,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui-kit/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { BUILD_VERSION } from "@/lib/version";
 import { CreateWOModal } from "./_create-wo";
 import { ChatWidget } from "@/components/ai-chat";
 
@@ -236,6 +237,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           </div>
           <button onClick={signOut} aria-label={t("sign_out")} className="grid size-8 shrink-0 place-items-center rounded-[8px] text-muted-foreground hover:bg-card hover:text-destructive"><LogOut className="size-4" /></button>
         </div>
+        <div className="px-5 pb-3 text-[10.5px] font-medium text-muted-foreground/70">{BUILD_VERSION}</div>
       </aside>
 
       <div className="flex min-w-0 flex-col">
