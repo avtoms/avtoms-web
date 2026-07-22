@@ -185,8 +185,6 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
     <Input value={v} onChange={(e) => on(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={ph} className="font-mono" />
   );
 
-  const MAT_COLS = "1.2fr 56px 64px 1fr 1fr 28px";
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[520px]">
@@ -217,22 +215,33 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
             <span className="text-[12.5px] font-semibold text-muted-foreground">{t("materials_needed")}</span>
             <Button variant="soft" size="sm" onClick={addMat}><Plus /> {t("add_material")}</Button>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {materials.map((m, i) => (
-              <div key={i} className="grid items-center gap-1.5" style={{ gridTemplateColumns: MAT_COLS }}>
-                <Input value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
-                <Input value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} className="font-mono text-center" />
-                <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} />
-                <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} />
-                <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} />
-                <Button variant="ghost" size="icon-sm" onClick={() => delMat(i)} aria-label="remove"><Trash2 /></Button>
+              <div key={i} className="flex flex-col gap-2.5 rounded-[10px] border border-border bg-secondary/30 p-2.5">
+                {/* line 1: name + remove */}
+                <div className="flex items-end gap-2">
+                  <Field label={t("material_name")} className="flex-1">
+                    <Input value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
+                  </Field>
+                  <Button variant="ghost" size="icon" onClick={() => delMat(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
+                </div>
+                {/* line 2: qty · unit · cost · price */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Field label={t("qty")}>
+                    <Input value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} className="font-mono text-center" />
+                  </Field>
+                  <Field label={t("unit")}>
+                    <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} />
+                  </Field>
+                  <Field label={t("cost")}>
+                    <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} />
+                  </Field>
+                  <Field label={t("price")}>
+                    <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} />
+                  </Field>
+                </div>
               </div>
             ))}
-            {materials.length > 0 && (
-              <div className="grid gap-1.5 px-0.5 text-[10.5px] text-muted-foreground" style={{ gridTemplateColumns: MAT_COLS }}>
-                <span>{t("material_name")}</span><span>{t("qty")}</span><span>{t("unit")}</span><span>{t("cost")}</span><span>{t("price")}</span><span />
-              </div>
-            )}
           </div>
 
           {/* price-change history (edit only) */}

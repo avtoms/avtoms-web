@@ -518,13 +518,27 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                     </button>
                   ))}
                   {extras.map((e, i) => (
-                    <div key={i} className="grid grid-cols-[1.2fr_52px_60px_1fr_1fr_26px] items-center gap-1.5">
-                      <Input value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value })} className="h-9" />
-                      <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="h-9 text-center font-mono" />
-                      <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} />
-                      <MoneyInput value={e.cost} onChange={(v) => setExtra(i, { cost: v })} placeholder={t("unit_cost")} />
-                      <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} />
-                      <Button variant="ghost" size="icon-sm" onClick={() => delExtra(i)} aria-label="remove"><Trash2 /></Button>
+                    <div key={i} className="flex flex-col gap-2.5 rounded-[10px] border border-border bg-secondary/30 p-2.5">
+                      <div className="flex items-end gap-2">
+                        <Field label={t("material_name")} className="flex-1">
+                          <Input value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value })} />
+                        </Field>
+                        <Button variant="ghost" size="icon" onClick={() => delExtra(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <Field label={t("qty")}>
+                          <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="text-center font-mono" />
+                        </Field>
+                        <Field label={t("unit")}>
+                          <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} />
+                        </Field>
+                        <Field label={t("unit_cost")}>
+                          <MoneyInput value={e.cost} onChange={(v) => setExtra(i, { cost: v })} placeholder={t("unit_cost")} />
+                        </Field>
+                        <Field label={t("price")}>
+                          <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} />
+                        </Field>
+                      </div>
                     </div>
                   ))}
                 </div>
