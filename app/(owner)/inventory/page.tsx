@@ -1,5 +1,7 @@
 "use client";
-// Parts inventory: stock list with low-stock flag, add part, and receive/consume stock.
+// Warehouse products: a product carries shared info plus named properties whose
+// value combinations define variants. This screen lists products, opens a manage
+// dialog to view/adjust each variant's stock, and hosts the create/edit form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -14,12 +16,18 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
-import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { ProductForm } from "@/components/product-form";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Part } from "@/lib/types";
+import type { Product, ProductVariant } from "@/lib/types";
+
+// Total on-hand across a product's variants, and whether any variant is low.
+const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
+const anyLow = (p: Product) => (p.variants ?? []).some((v) => num(v.quantityOnHand) <= num(v.reorderLevel));
+const variantLabel = (v: ProductVariant) =>
+  (v.attributes ?? []).map((a) => a.value).join(" · ") || (v.sku ?? "");
 
 export default function InventoryPage() {
   const { session } = useAuth();
@@ -27,34 +35,35 @@ export default function InventoryPage() {
   const { t } = useLang();
   const { toast } = useToast();
 
-  const [list, setList] = useState<Part[]>([]);
+  const [list, setList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [adjust, setAdjust] = useState<Part | null>(null);
+  const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
+  const [managing, setManaging] = useState<Product | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setList(await api.listParts(shopId)); }
+    try { setList(await api.listProducts(shopId)); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setLoading(false); }
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
 
-  const columns = useMemo<ColumnDef<Part>[]>(() => [
+  const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
-      accessorFn: (p) => `${p.name || ""} ${p.sku || ""} ${p.supplier || ""}`,
-      header: ({ column }) => <SortHeader column={column}>{t("material_name")}</SortHeader>,
+      accessorFn: (p) => `${p.name || ""} ${p.category || ""} ${p.supplier || ""}`,
+      header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
+        const count = (p.variants ?? []).length;
         return (
           <div className="min-w-0">
             <div className="truncate text-[14px] font-semibold text-foreground">{p.name}</div>
             <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
-              {p.sku && <span className="font-mono">{p.sku}</span>}
+              {p.category && <span>{p.category}</span>}
               {p.supplier && <span>· {p.supplier}</span>}
-              {num(p.unitPrice) > 0 && <span>· {money(p.unitPrice!)}</span>}
+              <span>· {count} {t("variants").toLowerCase()}</span>
             </div>
           </div>
         );
@@ -62,15 +71,15 @@ export default function InventoryPage() {
     },
     {
       id: "stock",
-      accessorFn: (p) => num(p.quantityOnHand),
+      accessorFn: (p) => totalStock(p),
       header: ({ column }) => <SortHeader column={column}>{t("in_stock")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
-        const low = num(p.quantityOnHand) <= num(p.reorderLevel);
+        const low = anyLow(p);
         return (
           <div className="flex flex-col items-start gap-1">
             <span className={cn("font-mono text-[15px] font-bold", low ? "text-destructive" : "text-foreground")}>
-              {num(p.quantityOnHand)}{p.unit ? " " + p.unit : ""}
+              {num(totalStock(p))}{p.unit ? " " + p.unit : ""}
             </span>
             {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
           </div>
@@ -82,8 +91,9 @@ export default function InventoryPage() {
       enableHiding: false,
       header: () => <span className="sr-only">{t("adjust_stock")}</span>,
       cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button variant="soft" size="sm" onClick={() => setAdjust(row.original)}>{t("adjust_stock")}</Button>
+        <div className="flex justify-end gap-2">
+          <Button variant="soft" size="sm" onClick={(e) => { e.stopPropagation(); setManaging(row.original); }}>{t("adjust_stock")}</Button>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", product: row.original }); }}>{t("edit_product")}</Button>
         </div>
       ),
     },
@@ -97,111 +107,135 @@ export default function InventoryPage() {
         <DataTable
           columns={columns}
           data={list}
+          onRowClick={(p) => setManaging(p)}
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
-          toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("add_part")}</Button>}
-          columnLabels={{ name: t("material_name"), stock: t("in_stock") }}
+          toolbar={<Button onClick={() => setEditing({ mode: "new", product: null })}><Plus /> {t("add_part")}</Button>}
+          columnLabels={{ name: t("product_name"), stock: t("in_stock") }}
           pageSize={12}
         />
       )}
-      <AddPartModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={load} />
-      <AdjustModal part={adjust} onClose={() => setAdjust(null)} onDone={load} />
+      <ProductForm
+        open={!!editing}
+        mode={editing?.mode ?? "new"}
+        product={editing?.product ?? null}
+        shopId={shopId}
+        onClose={() => setEditing(null)}
+        onSaved={load}
+      />
+      <ManageModal
+        product={managing}
+        onClose={() => setManaging(null)}
+        onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
+        onDone={load}
+      />
     </div>
   );
 }
 
-const emptyPart = { name: "", sku: "", unit: "pcs", qty: "", reorder: "", cost: "", price: "", supplier: "" };
-
-function AddPartModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
+// ManageModal lists a product's variants with their stock and a per-variant
+// receive/consume stock adjustment.
+function ManageModal({
+  product, onClose, onEdit, onDone,
+}: {
+  product: Product | null;
+  onClose: () => void;
+  onEdit: (p: Product) => void;
+  onDone: () => void;
+}) {
   const { t } = useLang();
-  const { toast } = useToast();
-  const [f, setF] = useState(emptyPart);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF(emptyPart); }, [open]);
-
-  const dec = (v: string) => v.replace(/[^\d.]/g, "");
-
-  const save = async () => {
-    if (!f.name.trim() || busy) return;
-    setBusy(true);
-    try {
-      await api.createPart(shopId, {
-        name: f.name.trim(), sku: f.sku.trim(), unit: f.unit, supplier: f.supplier.trim(),
-        quantityOnHand: parseFloat(f.qty) || 0, reorderLevel: parseFloat(f.reorder) || 0,
-        unitCost: parseInt(f.cost, 10) || 0, unitPrice: parseInt(f.price, 10) || 0,
-      });
-      toast(t("save"), { icon: "check" }); onClose(); onCreated();
-    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
-    finally { setBusy(false); }
-  };
+  const [adjust, setAdjust] = useState<ProductVariant | null>(null);
+  useEffect(() => { if (!product) setAdjust(null); }, [product]);
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[480px]">
-        <DialogHeader><DialogTitle>{t("add_part")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex flex-col gap-3 py-1">
-          <Field label={t("material_name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-          <div className="grid grid-cols-[1fr_1fr_80px] gap-2.5">
-            <Field label="SKU"><Input value={f.sku} onChange={(e) => setF({ ...f, sku: e.target.value })} className="font-mono" /></Field>
-            <Field label={t("supplier")}><Input value={f.supplier} onChange={(e) => setF({ ...f, supplier: e.target.value })} /></Field>
-            <Field label={t("unit")}><UnitSelect value={f.unit} onChange={(v) => setF({ ...f, unit: v })} /></Field>
-          </div>
-          <div className="grid grid-cols-4 gap-2.5">
-            <Field label={t("in_stock")}><Input value={f.qty} onChange={(e) => setF({ ...f, qty: dec(e.target.value) })} inputMode="decimal" placeholder="0" className="font-mono" /></Field>
-            <Field label={t("reorder_level")}><Input value={f.reorder} onChange={(e) => setF({ ...f, reorder: dec(e.target.value) })} inputMode="decimal" placeholder="0" className="font-mono" /></Field>
-            <Field label={t("cost")}><MoneyInput value={f.cost} onChange={(v) => setF({ ...f, cost: v })} /></Field>
-            <Field label={t("price")}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
-          </div>
+    <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[520px]">
+        <DialogHeader><DialogTitle>{product?.name ?? ""}</DialogTitle></DialogHeader>
+        <DialogBody className="flex max-h-[65vh] flex-col gap-2 overflow-y-auto py-1">
+          {product && (product.variants ?? []).length === 0 && (
+            <p className="text-[13px] text-muted-foreground">{t("no_variants")}</p>
+          )}
+          {product?.variants?.map((v) => {
+            const low = num(v.quantityOnHand) <= num(v.reorderLevel);
+            const isAdjusting = adjust?.id === v.id;
+            return (
+              <div key={v.id} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13.5px] font-semibold text-foreground">{variantLabel(v) || t("variant")}</div>
+                    <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
+                      {v.sku && <span className="font-mono">{v.sku}</span>}
+                      {num(v.unitPrice) > 0 && <span>· {money(v.unitPrice!)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("font-mono text-[14px] font-bold", low ? "text-destructive" : "text-foreground")}>
+                      {num(v.quantityOnHand)}{product.unit ? " " + product.unit : ""}
+                    </span>
+                    {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
+                    <Button variant="soft" size="sm" onClick={() => setAdjust(isAdjusting ? null : v)}>{t("adjust_stock")}</Button>
+                  </div>
+                </div>
+                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} onClose={() => setAdjust(null)} onDone={onDone} />}
+              </div>
+            );
+          })}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+          {product && <Button onClick={() => onEdit(product)}>{t("edit_product")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function AdjustModal({ part, onClose, onDone }: { part: Part | null; onClose: () => void; onDone: () => void }) {
+// AdjustPanel is an inline receive/consume control for one variant.
+function AdjustPanel({
+  variant, unit, onClose, onDone,
+}: {
+  variant: ProductVariant;
+  unit?: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const { t } = useLang();
   const { toast } = useToast();
   const [mode, setMode] = useState<"receive" | "consume">("receive");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (part) { setMode("receive"); setAmount(""); setReason(""); } }, [part]);
 
   const save = async () => {
-    if (!part) return;
     const amt = parseFloat(amount) || 0;
-    if (amt <= 0 || busy) return;
+    if (amt <= 0 || busy || !variant.id) return;
     setBusy(true);
     try {
-      await api.adjustStock(part.id, mode === "consume" ? -amt : amt, reason.trim() || mode);
-      toast(t("save"), { icon: "check" }); onClose(); onDone();
+      await api.adjustVariantStock(variant.id, mode === "consume" ? -amt : amt, reason.trim() || mode);
+      toast(t("save"), { icon: "check" });
+      onClose();
+      onDone();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };
 
   return (
-    <Dialog open={!!part} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[400px]">
-        <DialogHeader><DialogTitle>{part ? `${part.name} · ${num(part.quantityOnHand)}${part.unit ? " " + part.unit : ""}` : ""}</DialogTitle></DialogHeader>
-        <DialogBody className="flex flex-col gap-3.5 py-1">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "receive" | "consume")}>
-            <TabsList className="w-full">
-              <TabsTrigger value="receive" className="flex-1">{t("receive")}</TabsTrigger>
-              <TabsTrigger value="consume" className="flex-1">{t("consume")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Field label={t("qty")}><Input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="0" className="font-mono" /></Field>
-          <Field label={t("notes")}><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-col gap-2.5 border-t border-border/60 pt-2.5">
+      <Tabs value={mode} onValueChange={(v) => setMode(v as "receive" | "consume")}>
+        <TabsList className="w-full">
+          <TabsTrigger value="receive" className="flex-1">{t("receive")}</TabsTrigger>
+          <TabsTrigger value="consume" className="flex-1">{t("consume")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label={t("qty") + (unit ? ` (${unit})` : "")}>
+          <Input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="0" className="font-mono" />
+        </Field>
+        <Field label={t("notes")}><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+      </div>
+      <div className="flex justify-end">
+        <Button disabled={busy} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+      </div>
+    </div>
   );
 }

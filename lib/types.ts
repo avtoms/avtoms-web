@@ -286,18 +286,45 @@ export interface AuditEntry {
   createdAt: string; // RFC3339
 }
 
-export interface Part {
+// A warehouse product: shared catalog info plus named properties whose value
+// combinations define the variants that are actually counted and priced.
+export interface Product {
   id: string;
   shopId: string;
   name: string;
-  sku?: string;
+  description?: string;
+  category?: string;
   unit?: string;
+  supplier?: string;
+  active: boolean;
+  properties?: ProductProperty[];
+  variants?: ProductVariant[];
+}
+
+// A named option (e.g. "Size") with its allowed values.
+export interface ProductProperty {
+  id?: string;
+  name: string;
+  values: string[];
+}
+
+// The counted, priced stock unit: one combination of property values.
+export interface ProductVariant {
+  id?: string;
+  productId?: string;
+  sku?: string;
   quantityOnHand: number;
   reorderLevel: number;
   unitCost?: string; // tiyin
   unitPrice?: string; // tiyin
-  supplier?: string;
   active: boolean;
+  attributes?: VariantAttribute[];
+}
+
+// Which value a variant has for one property, e.g. {property:"Size", value:"M"}.
+export interface VariantAttribute {
+  property: string;
+  value: string;
 }
 
 export interface ShopSettings {

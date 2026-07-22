@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Part, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -89,6 +89,37 @@ const qs = (params: Record<string, string | undefined>) => {
   const s = p.toString();
   return s ? `?${s}` : "";
 };
+
+// A product create/update payload, with each variant's money fields as numbers (tiyin).
+export type ProductInput = {
+  name: string;
+  description?: string;
+  category?: string;
+  unit?: string;
+  supplier?: string;
+  properties: ProductProperty[];
+  variants: {
+    sku?: string;
+    quantityOnHand: number;
+    reorderLevel: number;
+    unitCost: number;
+    unitPrice: number;
+    active: boolean;
+    attributes: VariantAttribute[];
+  }[];
+};
+
+// Serialize a product for the API: money as stringified int64 (tiyin) on each variant.
+const productBody = (p: ProductInput) => ({
+  name: p.name, description: p.description ?? "", category: p.category ?? "",
+  unit: p.unit ?? "", supplier: p.supplier ?? "",
+  properties: p.properties.map((pr) => ({ name: pr.name, values: pr.values })),
+  variants: p.variants.map((v) => ({
+    sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
+    unitCost: String(v.unitCost), unitPrice: String(v.unitPrice), active: v.active,
+    attributes: v.attributes,
+  })),
+});
 
 // Serialize a lead for the API: every field present, deal_price as a string (int64).
 const leadBody = (l: Partial<Lead>) => ({
@@ -308,17 +339,16 @@ export const api = {
   getProfitLoss: (shopId: string, from?: string, to?: string) =>
     call<ProfitAndLoss>("GET", "/v1/profit-loss" + qs({ shopId, from, to })),
 
-  // ── parts inventory ──
-  listParts: (shopId: string) =>
-    call<{ parts?: Part[] }>("GET", "/v1/parts" + qs({ shopId })).then((r) => r.parts ?? []),
-  createPart: (shopId: string, p: { name: string; sku?: string; unit?: string; quantityOnHand: number; reorderLevel: number; unitCost: number; unitPrice: number; supplier?: string }) =>
-    call<Part>("POST", "/v1/parts", {
-      shopId, name: p.name, sku: p.sku ?? "", unit: p.unit ?? "",
-      quantityOnHand: p.quantityOnHand, reorderLevel: p.reorderLevel,
-      unitCost: String(p.unitCost), unitPrice: String(p.unitPrice), supplier: p.supplier ?? "",
-    }),
-  adjustStock: (partId: string, delta: number, reason: string) =>
-    call<Part>("POST", `/v1/parts/${partId}/adjust`, { delta, reason }),
+  // ── warehouse products (with properties + variants) ──
+  listProducts: (shopId: string) =>
+    call<{ products?: Product[] }>("GET", "/v1/products" + qs({ shopId })).then((r) => r.products ?? []),
+  getProduct: (id: string) => call<Product>("GET", `/v1/products/${id}`),
+  createProduct: (shopId: string, p: ProductInput) =>
+    call<Product>("POST", "/v1/products", { shopId, ...productBody(p) }),
+  updateProduct: (id: string, p: ProductInput & { active?: boolean }) =>
+    call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
+  adjustVariantStock: (variantId: string, delta: number, reason: string) =>
+    call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, { delta, reason }),
 
   // ── shop pricing policy ──
   // shopId is taken from the auth context by the gateway, so it is not sent.

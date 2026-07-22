@@ -24,7 +24,31 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry, Part } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry, Product } from "@/lib/types";
+
+// A single stocked variant, flattened with its product context, for the material picker.
+type PickVariant = { id: string; name: string; unit?: string; unitPrice?: string; unitCost?: string; quantityOnHand: number };
+
+// Flatten a product list to its active variants; each row's name combines the
+// product name with the variant's property values (e.g. "T-Shirt · M · Red").
+function flattenVariants(products: Product[]): PickVariant[] {
+  const out: PickVariant[] = [];
+  for (const p of products) {
+    for (const v of p.variants ?? []) {
+      if (!v.active || !v.id) continue;
+      const label = (v.attributes ?? []).map((a) => a.value).join(" · ");
+      out.push({
+        id: v.id,
+        name: label ? `${p.name} · ${label}` : p.name,
+        unit: p.unit,
+        unitPrice: v.unitPrice,
+        unitCost: v.unitCost,
+        quantityOnHand: v.quantityOnHand,
+      });
+    }
+  }
+  return out;
+}
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
@@ -394,7 +418,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [qty, setQty] = useState("1");
   const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
   const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [parts, setParts] = useState<Part[]>([]);
+  const [parts, setParts] = useState<PickVariant[]>([]);
   const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
   const [extras, setExtras] = useState<{ name: string; qty: string; unit: string; cost: string; price: string }[]>([]);
   const addExtra = () => setExtras((s) => [...s, { name: "", qty: "1", unit: "pcs", cost: "", price: "" }]);
@@ -407,7 +431,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     if (!open) return;
     setMode("menu"); setCatalog("services"); reset();
     api.listMenuItems(shopId).then((m) => setMenu(m.filter((x) => x.active))).catch(() => {});
-    api.listParts(shopId).then((p) => setParts(p.filter((x) => x.active))).catch(() => {});
+    api.listProducts(shopId).then((ps) => setParts(flattenVariants(ps))).catch(() => {});
   }, [open, shopId]);
 
   const pickMenu = (m: MenuItem) => {
@@ -416,7 +440,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) });
     setMats((m.materials ?? []).map((mat) => ({ on: true, mat }))); setExtras([]); setMode("custom");
   };
-  const pickPart = (p: Part) => {
+  const pickPart = (p: PickVariant) => {
     setPicked(true); setKind("material"); setDesc(p.unit ? `${p.name} (${p.unit})` : p.name);
     setPrice(String(num(p.unitPrice))); setCost(String(num(p.unitCost)));
     setFrom({ menuItemId: "", defaultPrice: num(p.unitPrice) }); setMats([]); setExtras([]); setMode("custom");
