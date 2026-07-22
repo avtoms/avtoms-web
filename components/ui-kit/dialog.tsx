@@ -1,4 +1,8 @@
 "use client";
+// "Dialog" is rendered as a WIDE side drawer (slides in from the left) rather than a small
+// centered popup — so forms with big money values + material rows have room and never clip.
+// The API (Dialog / DialogContent / DialogHeader / DialogTitle / DialogBody / DialogFooter)
+// is unchanged, so every existing modal in the app becomes a drawer automatically.
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -23,20 +27,20 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 }
 
 function DialogContent({
-  className, children, showClose = true, ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
+  className, children, showClose = true, side = "left", ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean; side?: "left" | "right" }) {
   return (
     <DialogPrimitive.Portal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-side={side}
         className={cn(
-          "admin-portal fixed left-1/2 top-1/2 z-[201] grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4",
-          "border border-border bg-card text-foreground shadow-[var(--shadow-lg)]",
-          "rounded-[16px] max-h-[88vh] overflow-hidden",
-          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-          "max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:max-w-full max-sm:rounded-b-none max-sm:rounded-t-[18px]",
+          "admin-portal fixed top-0 z-[201] flex h-svh flex-col bg-card text-foreground shadow-[var(--shadow-lg)] outline-none",
+          side === "left" ? "left-0 rounded-r-[18px] border-r border-border" : "right-0 rounded-l-[18px] border-l border-border",
+          // Wide drawer — overrides any max-w-* a caller passed (old centered-modal widths).
           className,
+          "w-[min(720px,96vw)] max-w-none",
         )}
         {...props}
       >
@@ -53,16 +57,16 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="dialog-header" className={cn("flex flex-col gap-1 px-5 pt-5", className)} {...props} />;
+  return <div data-slot="dialog-header" className={cn("flex shrink-0 flex-col gap-1 border-b border-border px-6 py-4", className)} {...props} />;
 }
 
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="dialog-body" className={cn("px-5 overflow-y-auto", className)} {...props} />;
+  return <div data-slot="dialog-body" className={cn("min-h-0 flex-1 overflow-y-auto px-6 py-4", className)} {...props} />;
 }
 
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="dialog-footer" className={cn("flex justify-end gap-2.5 px-5 pb-5 pt-1", className)} {...props} />
+    <div data-slot="dialog-footer" className={cn("flex shrink-0 justify-end gap-2.5 border-t border-border px-6 py-4", className)} {...props} />
   );
 }
 
@@ -70,7 +74,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-[17px] font-bold tracking-[-0.02em] pr-8", className)}
+      className={cn("text-[18px] font-bold tracking-[-0.02em] pr-8", className)}
       {...props}
     />
   );

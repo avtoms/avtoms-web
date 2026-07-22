@@ -155,16 +155,21 @@
 @layer components {
   @keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes adm-sheet-left { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+  @keyframes adm-sheet-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
   .admin-portal[data-state="open"],
   .admin-portal[data-state="delayed-open"] {
     animation: adm-fade 0.15s ease-out;
   }
-  [data-slot="dialog-content"][data-state="open"],
   [data-slot="dialog-overlay"][data-state="open"] {
     animation: adm-fade 0.16s ease-out;
   }
+  /* Dialog now renders as a side drawer — slide it in from its edge. */
+  [data-slot="dialog-content"][data-side="left"][data-state="open"],
   [data-slot="sheet-content"][data-state="open"] {
-    animation: adm-sheet-left 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+    animation: adm-sheet-left 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  [data-slot="dialog-content"][data-side="right"][data-state="open"] {
+    animation: adm-sheet-right 0.26s cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
