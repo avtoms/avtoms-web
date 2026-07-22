@@ -226,18 +226,18 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
                   <Button variant="ghost" size="icon" onClick={() => delMat(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
                 </div>
                 {/* line 2: qty · unit · cost · price */}
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
                   <Field label={t("qty")}>
-                    <Input value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} className="font-mono text-center" />
+                    <Input value={m.qty} placeholder="0" inputMode="decimal" onChange={(e) => setMat(i, { qty: e.target.value.replace(/[^\d.]/g, "") })} className="h-10 font-mono text-center" />
                   </Field>
                   <Field label={t("unit")}>
-                    <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} />
+                    <UnitSelect value={m.unit} onChange={(v) => setMat(i, { unit: v })} style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                   </Field>
                   <Field label={t("cost")}>
-                    <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} />
+                    <MoneyInput value={m.cost} onChange={(v) => setMat(i, { cost: v })} placeholder={t("cost")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                   </Field>
                   <Field label={t("price")}>
-                    <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} />
+                    <MoneyInput value={m.price} onChange={(v) => setMat(i, { price: v })} placeholder={t("price")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                   </Field>
                 </div>
               </div>

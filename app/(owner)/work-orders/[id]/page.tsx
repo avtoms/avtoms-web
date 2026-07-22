@@ -525,18 +525,18 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                         </Field>
                         <Button variant="ghost" size="icon" onClick={() => delExtra(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
                         <Field label={t("qty")}>
-                          <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="text-center font-mono" />
+                          <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="h-10 text-center font-mono" />
                         </Field>
                         <Field label={t("unit")}>
-                          <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} />
+                          <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                         </Field>
                         <Field label={t("unit_cost")}>
-                          <MoneyInput value={e.cost} onChange={(v) => setExtra(i, { cost: v })} placeholder={t("unit_cost")} />
+                          <MoneyInput value={e.cost} onChange={(v) => setExtra(i, { cost: v })} placeholder={t("unit_cost")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                         </Field>
                         <Field label={t("price")}>
-                          <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} />
+                          <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                         </Field>
                       </div>
                     </div>

@@ -36,10 +36,11 @@ function humanMagnitude(digits: string, t: (k: string) => string): string {
 }
 
 export function MoneyInput({
-  value, onChange, placeholder, style, disabled, ...rest
+  value, onChange, placeholder, style, disabled, hideHint, ...rest
 }: {
   value: string | number;
   onChange: (digits: string) => void;
+  hideHint?: boolean; // drop the "≈ … so'm" hint row so height matches plain inputs in tight grids
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const { t } = useLang();
   const digits = value === "" || value === undefined || value === null ? "" : String(value).replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS);
@@ -78,7 +79,7 @@ export function MoneyInput({
         >000</button>
       </div>
       {/* Fixed-height hint row (empty when N/A) so the form never grows/shrinks while typing. */}
-      <div style={{ marginTop: 4, height: 12, fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", lineHeight: "12px", overflow: "hidden" }}>{hint || " "}</div>
+      <div style={{ marginTop: hideHint ? 0 : 4, height: hideHint ? 0 : 12, fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)", lineHeight: "12px", overflow: "hidden" }}>{hint || " "}</div>
     </div>
   );
 }
