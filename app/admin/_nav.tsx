@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, BarChart3, Target, Inbox, Users, Car, LayoutList, Plug, type LucideIcon,
+  LayoutDashboard, BarChart3, Target, Inbox, Users, Car, LayoutList, Plug, Tags, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,7 @@ export const NAV_GROUPS: Group[] = [
     items: [
       { href: "/admin/car-makes", label: "Markalar", icon: Car },
       { href: "/admin/car-models", label: "Modellar", icon: LayoutList },
+      { href: "/admin/properties", label: "Xususiyatlar", icon: Tags },
     ],
   },
   { title: "Integratsiyalar", items: [{ href: "/admin/integrations", label: "Integratsiyalar", icon: Plug }] },
@@ -87,6 +88,7 @@ const TITLES: { match: (p: string) => boolean; title: string; sub?: string }[] =
   { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar", sub: "Barcha avtoservis xodimlari" },
   { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari", sub: "Katalog boshqaruvi" },
   { match: (p) => p.startsWith("/admin/car-models"), title: "Avtomobil modellari", sub: "Katalog boshqaruvi" },
+  { match: (p) => p.startsWith("/admin/properties"), title: "Mahsulot xususiyatlari", sub: "Ombor xususiyatlari katalogi" },
   { match: (p) => p.startsWith("/admin/integrations"), title: "Integratsiyalar", sub: "Tashqi xizmatlar sozlamalari" },
 ];
 

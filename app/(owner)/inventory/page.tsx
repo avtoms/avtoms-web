@@ -21,13 +21,17 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant } from "@/lib/types";
+import type { Product, ProductVariant, PropertyDefinition } from "@/lib/types";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
 const anyLow = (p: Product) => (p.variants ?? []).some((v) => num(v.quantityOnHand) <= num(v.reorderLevel));
 const variantLabel = (v: ProductVariant) =>
   (v.attributes ?? []).map((a) => a.value).join(" · ") || (v.sku ?? "");
+
+// Resolve a color swatch for an attribute value from the predefined catalog.
+const hexOf = (defs: PropertyDefinition[], prop: string, value: string) =>
+  defs.find((d) => d.name === prop && d.kind === "color")?.values?.find((x) => x.value === value)?.colorHex || undefined;
 
 export default function InventoryPage() {
   const { session } = useAuth();
@@ -36,6 +40,7 @@ export default function InventoryPage() {
   const { toast } = useToast();
 
   const [list, setList] = useState<Product[]>([]);
+  const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
   const [managing, setManaging] = useState<Product | null>(null);
@@ -48,6 +53,8 @@ export default function InventoryPage() {
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+  // The predefined property catalog powers the product form and value swatches.
+  useEffect(() => { api.listPropertyDefinitions().then(setDefinitions).catch(() => {}); }, []);
 
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
@@ -120,11 +127,13 @@ export default function InventoryPage() {
         mode={editing?.mode ?? "new"}
         product={editing?.product ?? null}
         shopId={shopId}
+        definitions={definitions}
         onClose={() => setEditing(null)}
         onSaved={load}
       />
       <ManageModal
         product={managing}
+        definitions={definitions}
         onClose={() => setManaging(null)}
         onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
         onDone={load}
@@ -136,9 +145,10 @@ export default function InventoryPage() {
 // ManageModal lists a product's variants with their stock and a per-variant
 // receive/consume stock adjustment.
 function ManageModal({
-  product, onClose, onEdit, onDone,
+  product, definitions, onClose, onEdit, onDone,
 }: {
   product: Product | null;
+  definitions: PropertyDefinition[];
   onClose: () => void;
   onEdit: (p: Product) => void;
   onDone: () => void;
@@ -162,7 +172,17 @@ function ManageModal({
               <div key={v.id} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-semibold text-foreground">{variantLabel(v) || t("variant")}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
+                      {(v.attributes ?? []).length ? (v.attributes ?? []).map((a) => {
+                        const hex = hexOf(definitions, a.property, a.value);
+                        return (
+                          <span key={a.property} className="inline-flex items-center gap-1">
+                            {hex && <span className="inline-block size-2.5 rounded-full border border-black/10" style={{ background: hex }} />}
+                            {a.value}
+                          </span>
+                        );
+                      }) : (variantLabel(v) || t("variant"))}
+                    </div>
                     <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
                       {v.sku && <span className="font-mono">{v.sku}</span>}
                       {num(v.unitPrice) > 0 && <span>· {money(v.unitPrice!)}</span>}

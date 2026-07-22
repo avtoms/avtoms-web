@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -108,6 +108,24 @@ export type ProductInput = {
     attributes: VariantAttribute[];
   }[];
 };
+
+// A property-definition create/update payload for the admin catalog.
+export type PropertyDefinitionInput = {
+  name: string;
+  kind: "text" | "number" | "select" | "color";
+  unit?: string;
+  values: { value: string; colorHex?: string }[];
+};
+
+const propertyDefinitionBody = (d: PropertyDefinitionInput) => ({
+  name: d.name,
+  kind: d.kind,
+  unit: d.unit ?? "",
+  // Values only matter for select/color kinds; send them as-is for those.
+  values: (d.kind === "select" || d.kind === "color")
+    ? d.values.filter((v) => v.value.trim()).map((v) => ({ value: v.value.trim(), colorHex: v.colorHex ?? "" }))
+    : [],
+});
 
 // Serialize a product for the API: money as stringified int64 (tiyin) on each variant.
 const productBody = (p: ProductInput) => ({
@@ -349,6 +367,20 @@ export const api = {
     call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
   adjustVariantStock: (variantId: string, delta: number, reason: string) =>
     call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, { delta, reason }),
+
+  // ── predefined property catalog ──
+  // Open read (active only) — used by the product form to offer predefined properties.
+  listPropertyDefinitions: () =>
+    call<{ definitions?: PropertyDefinition[] }>("GET", "/v1/property-definitions").then((r) => r.definitions ?? []),
+  // Admin catalog management (super-admin only).
+  listPropertyDefinitionsAdmin: () =>
+    call<{ definitions?: PropertyDefinition[] }>("GET", "/v1/admin/property-definitions").then((r) => r.definitions ?? []),
+  createPropertyDefinition: (d: PropertyDefinitionInput) =>
+    call<PropertyDefinition>("POST", "/v1/admin/property-definitions", propertyDefinitionBody(d)),
+  updatePropertyDefinition: (id: string, d: PropertyDefinitionInput & { active?: boolean }) =>
+    call<PropertyDefinition>("POST", `/v1/admin/property-definitions/${id}`, { ...propertyDefinitionBody(d), active: d.active ?? true }),
+  deletePropertyDefinition: (id: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/admin/property-definitions/${id}/delete`, {}),
 
   // ── shop pricing policy ──
   // shopId is taken from the auth context by the gateway, so it is not sent.

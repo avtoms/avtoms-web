@@ -327,6 +327,27 @@ export interface VariantAttribute {
   value: string;
 }
 
+// A predefined, admin-managed property (e.g. "Color", "Viscosity"). `kind` drives
+// how the product form captures values: number = free numeric entry (with unit);
+// select/color = pick from `values`; text = free text.
+export interface PropertyDefinition {
+  id: string;
+  name: string;
+  kind: "text" | "number" | "select" | "color";
+  unit?: string;
+  position?: number;
+  active: boolean;
+  values?: PropertyDefinitionValue[];
+}
+
+// One predefined value in a select/color property (colorHex set for color kind).
+export interface PropertyDefinitionValue {
+  id?: string;
+  value: string;
+  colorHex?: string;
+  position?: number;
+}
+
 export interface ShopSettings {
   shopId: string;
   maxDiscountPercent: number; // 0-100; 100 = no cap

@@ -113,6 +113,7 @@ export const STR: Record<string, Triple> = {
   product_name: ["Mahsulot nomi", "Маҳсулот номи", "Название товара"],
   properties: ["Xususiyatlar", "Хусусиятлар", "Свойства"],
   add_property: ["Xususiyat qo'shish", "Хусусият қўшиш", "Добавить свойство"],
+  custom_property: ["Boshqa (erkin)", "Бошқа (эркин)", "Другое (произвольное)"],
   property_name: ["Xususiyat (masalan, O'lcham)", "Хусусият (масалан, Ўлчам)", "Свойство (напр. Размер)"],
   property_values: ["Qiymatlar (vergul bilan)", "Қийматлар (вергул билан)", "Значения (через запятую)"],
   variants: ["Variantlar", "Вариантлар", "Варианты"],

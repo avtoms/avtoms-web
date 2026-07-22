@@ -1,8 +1,10 @@
 "use client";
-// Create/edit a warehouse product: shared fields, a property editor (e.g. Size ->
-// S/M/L), and a variant grid generated from the property-value combinations. Each
-// variant carries its own SKU, cost, price, stock and reorder level.
-import React, { useEffect, useMemo, useState } from "react";
+// Create/edit a warehouse product. Properties can be picked from the predefined
+// catalog (admin-managed) or added ad-hoc. How values are captured depends on the
+// property kind: select/color -> pick from predefined values (color shows swatches);
+// number/text/ad-hoc -> type the values. Variants are generated from the property-
+// value combinations, each with its own SKU, cost, price, stock and reorder level.
+import React, { useEffect, useState } from "react";
 import { Plus, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
@@ -12,12 +14,22 @@ import { Spinner } from "@/components/ui-kit/misc";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
-import type { Product } from "@/lib/types";
+import type { Product, PropertyDefinition } from "@/lib/types";
 
-type PropRow = { name: string; valuesText: string };
+type Kind = PropertyDefinition["kind"];
+type PropRow = {
+  key: string;
+  defId: string;       // linked predefined definition ("" = ad-hoc free property)
+  name: string;
+  kind: Kind;          // select | color | number | text
+  unit: string;
+  valuesText: string;  // typed values (number / text / ad-hoc), comma-separated
+  chosen: string[];    // toggled values (select / color)
+};
 type VarRow = {
   key: string;
   sku: string;
@@ -31,38 +43,60 @@ type VarRow = {
 
 const dec = (v: string) => v.replace(/[^\d.]/g, "");
 const splitValues = (s: string) => s.split(",").map((v) => v.trim()).filter(Boolean);
+const hasPredefinedValues = (k: Kind) => k === "select" || k === "color";
+const ADHOC = "__adhoc__";
+let keySeq = 0;
+const newKey = () => `k${keySeq++}`;
+
+// The effective values of a property, whichever way they were entered.
+const propValues = (p: PropRow) =>
+  hasPredefinedValues(p.kind) && p.defId ? p.chosen.filter(Boolean) : splitValues(p.valuesText);
+
 // A stable signature for a variant's attribute combination, given the property order.
 const sigOf = (props: PropRow[], attrs: Record<string, string>) =>
   props.map((p) => `${p.name}=${attrs[p.name] ?? ""}`).join("|");
 
-// Cartesian product of each property's values, yielding one attrs map per combination.
+// Cartesian product of each property's values, one attrs map per combination.
 function combos(props: PropRow[]): Record<string, string>[] {
-  const usable = props.filter((p) => p.name.trim() && splitValues(p.valuesText).length > 0);
+  const usable = props.filter((p) => p.name.trim() && propValues(p).length > 0);
   if (usable.length === 0) return [];
   let out: Record<string, string>[] = [{}];
   for (const p of usable) {
     const next: Record<string, string>[] = [];
     for (const base of out) {
-      for (const val of splitValues(p.valuesText)) {
-        next.push({ ...base, [p.name.trim()]: val });
-      }
+      for (const val of propValues(p)) next.push({ ...base, [p.name.trim()]: val });
     }
     out = next;
   }
   return out;
 }
 
-let keySeq = 0;
-const newKey = () => `v${keySeq++}`;
+// Look up the hex swatch for a color value from the definitions catalog.
+function hexOf(defs: PropertyDefinition[], propName: string, value: string): string | undefined {
+  const d = defs.find((x) => x.name === propName && x.kind === "color");
+  return d?.values?.find((v) => v.value === value)?.colorHex || undefined;
+}
+
 const blankVar = (attrs: Record<string, string> = {}): VarRow => ({
   key: newKey(), sku: "", qty: "", reorder: "", cost: "", price: "", active: true, attrs,
 });
 
-function fromProduct(p: Product): { props: PropRow[]; vars: VarRow[] } {
-  const props: PropRow[] = (p.properties ?? []).map((pp) => ({
-    name: pp.name, valuesText: (pp.values ?? []).join(", "),
-  }));
-  const vars: VarRow[] = (p.variants ?? []).map((v) => {
+// Build editable prop rows from a saved product, linking to catalog definitions by name.
+function propsFromProduct(p: Product, defs: PropertyDefinition[]): PropRow[] {
+  return (p.properties ?? []).map((pp) => {
+    const def = defs.find((d) => d.name === pp.name);
+    if (def && hasPredefinedValues(def.kind)) {
+      return { key: newKey(), defId: def.id, name: def.name, kind: def.kind, unit: def.unit ?? "", valuesText: "", chosen: pp.values ?? [] };
+    }
+    if (def) {
+      return { key: newKey(), defId: def.id, name: def.name, kind: def.kind, unit: def.unit ?? "", valuesText: (pp.values ?? []).join(", "), chosen: [] };
+    }
+    return { key: newKey(), defId: "", name: pp.name, kind: "text", unit: "", valuesText: (pp.values ?? []).join(", "), chosen: [] };
+  });
+}
+
+function varsFromProduct(p: Product): VarRow[] {
+  const vars = (p.variants ?? []).map((v) => {
     const attrs: Record<string, string> = {};
     for (const a of v.attributes ?? []) attrs[a.property] = a.value;
     return {
@@ -76,16 +110,17 @@ function fromProduct(p: Product): { props: PropRow[]; vars: VarRow[] } {
       attrs,
     };
   });
-  return { props, vars: vars.length ? vars : [blankVar()] };
+  return vars.length ? vars : [blankVar()];
 }
 
 export function ProductForm({
-  open, mode, product, shopId, onClose, onSaved,
+  open, mode, product, shopId, definitions, onClose, onSaved,
 }: {
   open: boolean;
   mode: "new" | "edit";
   product: Product | null;
   shopId: string;
+  definitions: PropertyDefinition[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -109,25 +144,41 @@ export function ProductForm({
       setSupplier(product.supplier ?? "");
       setUnit(product.unit || "pcs");
       setDescription(product.description ?? "");
-      const { props: p, vars: v } = fromProduct(product);
-      setProps(p);
-      setVars(v);
+      setProps(propsFromProduct(product, definitions));
+      setVars(varsFromProduct(product));
     } else {
       setName(""); setCategory(""); setSupplier(""); setUnit("pcs"); setDescription("");
       setProps([]); setVars([blankVar()]);
     }
-  }, [open, mode, product]);
+  }, [open, mode, product, definitions]);
 
-  const hasProps = props.some((p) => p.name.trim() && splitValues(p.valuesText).length > 0);
+  const hasProps = props.some((p) => p.name.trim() && propValues(p).length > 0);
 
-  // Regenerate the variant grid from the current property combinations, preserving
-  // any data already entered for a combination that still exists.
-  const generate = () => {
-    const wanted = combos(props);
-    if (wanted.length === 0) {
-      setVars((prev) => (prev.length ? prev : [blankVar()]));
+  const addPropertyFromCatalog = (defId: string) => {
+    if (defId === ADHOC) {
+      setProps((p) => [...p, { key: newKey(), defId: "", name: "", kind: "text", unit: "", valuesText: "", chosen: [] }]);
       return;
     }
+    const def = definitions.find((d) => d.id === defId);
+    if (!def || props.some((p) => p.defId === def.id)) return;
+    setProps((p) => [...p, { key: newKey(), defId: def.id, name: def.name, kind: def.kind, unit: def.unit ?? "", valuesText: "", chosen: [] }]);
+  };
+
+  const setProp = (key: string, patch: Partial<PropRow>) =>
+    setProps((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+
+  const toggleChosen = (key: string, value: string) =>
+    setProps((prev) => prev.map((p) => {
+      if (p.key !== key) return p;
+      const has = p.chosen.includes(value);
+      return { ...p, chosen: has ? p.chosen.filter((v) => v !== value) : [...p.chosen, value] };
+    }));
+
+  // Regenerate the variant grid from current property combinations, preserving
+  // data already entered for combinations that still exist.
+  const generate = () => {
+    const wanted = combos(props);
+    if (wanted.length === 0) { setVars((prev) => (prev.length ? prev : [blankVar()])); return; }
     const bySig = new Map(vars.map((v) => [sigOf(props, v.attrs), v]));
     setVars(wanted.map((attrs) => {
       const existing = bySig.get(sigOf(props, attrs));
@@ -141,10 +192,7 @@ export function ProductForm({
   const save = async () => {
     if (!name.trim() || busy) return;
     const activeVars = vars.filter((v) => !hasProps || Object.keys(v.attrs).length > 0);
-    if (activeVars.length === 0) {
-      toast(t("no_variants"), { icon: "alert", tone: "danger" });
-      return;
-    }
+    if (activeVars.length === 0) { toast(t("no_variants"), { icon: "alert", tone: "danger" }); return; }
     const payload: ProductInput = {
       name: name.trim(),
       description: description.trim(),
@@ -152,8 +200,8 @@ export function ProductForm({
       unit,
       supplier: supplier.trim(),
       properties: props
-        .filter((p) => p.name.trim() && splitValues(p.valuesText).length > 0)
-        .map((p) => ({ name: p.name.trim(), values: splitValues(p.valuesText) })),
+        .filter((p) => p.name.trim() && propValues(p).length > 0)
+        .map((p) => ({ name: p.name.trim(), values: propValues(p) })),
       variants: activeVars.map((v) => ({
         sku: v.sku.trim(),
         quantityOnHand: parseFloat(v.qty) || 0,
@@ -166,11 +214,8 @@ export function ProductForm({
     };
     setBusy(true);
     try {
-      if (mode === "edit" && product) {
-        await api.updateProduct(product.id, { ...payload, active: product.active });
-      } else {
-        await api.createProduct(shopId, payload);
-      }
+      if (mode === "edit" && product) await api.updateProduct(product.id, { ...payload, active: product.active });
+      else await api.createProduct(shopId, payload);
       toast(t("save"), { icon: "check" });
       onClose();
       onSaved();
@@ -181,9 +226,12 @@ export function ProductForm({
     }
   };
 
+  // Catalog options not already added.
+  const available = definitions.filter((d) => !props.some((p) => p.defId === d.id));
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[640px]">
+      <DialogContent className="max-w-[660px]">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? t("edit_product") : t("add_part")}</DialogTitle>
         </DialogHeader>
@@ -202,24 +250,68 @@ export function ProductForm({
           </Field>
 
           {/* Property editor */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{t("properties")}</span>
-              <Button variant="ghost" size="sm" onClick={() => setProps([...props, { name: "", valuesText: "" }])}>
-                <Plus /> {t("add_property")}
-              </Button>
+              <div className="w-[220px]">
+                <Select value="" onValueChange={addPropertyFromCatalog}>
+                  <SelectTrigger><SelectValue placeholder={t("add_property")} /></SelectTrigger>
+                  <SelectContent>
+                    {available.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                    <SelectItem value={ADHOC}>{t("custom_property")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {props.map((p, i) => (
-              <div key={i} className="grid grid-cols-[1fr_1.4fr_36px] items-center gap-2">
-                <Input placeholder={t("property_name")} value={p.name}
-                  onChange={(e) => setProps(props.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-                <Input placeholder={t("property_values")} value={p.valuesText}
-                  onChange={(e) => setProps(props.map((x, j) => (j === i ? { ...x, valuesText: e.target.value } : x)))} />
-                <Button variant="ghost" size="sm" onClick={() => setProps(props.filter((_, j) => j !== i))}>
-                  <Trash2 />
-                </Button>
+
+            {props.map((p) => (
+              <div key={p.key} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  {p.defId ? (
+                    <span className="text-[13.5px] font-semibold text-foreground">
+                      {p.name}
+                      {p.kind === "number" && p.unit ? <span className="text-muted-foreground"> ({p.unit})</span> : null}
+                    </span>
+                  ) : (
+                    <Input value={p.name} placeholder={t("property_name")} className="h-8 max-w-[240px]"
+                      onChange={(e) => setProp(p.key, { name: e.target.value })} />
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => setProps(props.filter((x) => x.key !== p.key))}><Trash2 /></Button>
+                </div>
+
+                {/* Values by kind */}
+                {p.kind === "color" && p.defId ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(definitions.find((d) => d.id === p.defId)?.values ?? []).map((v) => {
+                      const on = p.chosen.includes(v.value);
+                      return (
+                        <button key={v.value} type="button" onClick={() => toggleChosen(p.key, v.value)}
+                          className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
+                          <span className="size-3.5 rounded-full border border-black/10" style={{ background: v.colorHex || "#888" }} />
+                          {v.value}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : p.kind === "select" && p.defId ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(definitions.find((d) => d.id === p.defId)?.values ?? []).map((v) => {
+                      const on = p.chosen.includes(v.value);
+                      return (
+                        <button key={v.value} type="button" onClick={() => toggleChosen(p.key, v.value)}
+                          className={`rounded-full border px-2.5 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
+                          {v.value}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <Input value={p.valuesText} placeholder={p.kind === "number" ? "38, 39, 40" : t("property_values")}
+                    onChange={(e) => setProp(p.key, { valuesText: e.target.value })} />
+                )}
               </div>
             ))}
+
             {hasProps && (
               <Button variant="soft" size="sm" className="self-start" onClick={generate}>
                 <Wand2 /> {t("generate_variants")}
@@ -232,24 +324,30 @@ export function ProductForm({
             <div className="flex items-center justify-between">
               <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{t("variants")}</span>
               {!hasProps && (
-                <Button variant="ghost" size="sm" onClick={() => setVars([...vars, blankVar()])}>
-                  <Plus /> {t("add_variant")}
-                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setVars([...vars, blankVar()])}><Plus /> {t("add_variant")}</Button>
               )}
             </div>
             {vars.length === 0 && <p className="text-[13px] text-muted-foreground">{t("no_variants")}</p>}
             {vars.map((v) => {
-              const label = Object.entries(v.attrs).map(([, val]) => val).join(" · ");
+              const chips = Object.entries(v.attrs);
               return (
                 <div key={v.key} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
                   <div className="flex items-center justify-between">
-                    {label
-                      ? <Badge tone="neutral">{label}</Badge>
-                      : <span className="text-[12px] text-muted-foreground">{t("variant")}</span>}
+                    {chips.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {chips.map(([prop, val]) => {
+                          const hex = hexOf(definitions, prop, val);
+                          return (
+                            <Badge key={prop} tone="neutral">
+                              {hex && <span className="mr-1 inline-block size-2.5 rounded-full border border-black/10 align-middle" style={{ background: hex }} />}
+                              {val}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    ) : <span className="text-[12px] text-muted-foreground">{t("variant")}</span>}
                     {!hasProps && vars.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => setVars(vars.filter((x) => x.key !== v.key))}>
-                        <Trash2 />
-                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setVars(vars.filter((x) => x.key !== v.key))}><Trash2 /></Button>
                     )}
                   </div>
                   <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2">
