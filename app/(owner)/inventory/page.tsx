@@ -4,6 +4,7 @@
 // dialog to view/adjust each variant's stock, and hosts the create/edit form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { QRCodeSVG } from "qrcode.react";
 import { Plus } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
@@ -171,7 +172,12 @@ function ManageModal({
             return (
               <div key={v.id} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
+                  {v.sku && (
+                    <span className="shrink-0 rounded-[6px] bg-white p-0.5" title={v.sku}>
+                      <QRCodeSVG value={v.sku} size={40} />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
                       {(v.attributes ?? []).length ? (v.attributes ?? []).map((a) => {
                         const hex = hexOf(definitions, a.property, a.value);

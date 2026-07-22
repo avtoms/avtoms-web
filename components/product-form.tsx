@@ -5,6 +5,7 @@
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
 import React, { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Plus, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
@@ -48,6 +49,12 @@ const ADHOC = "__adhoc__";
 let keySeq = 0;
 const newKey = () => `k${keySeq++}`;
 
+// Auto-generate a numeric SKU. The counter suffix keeps rapidly-generated variants
+// (e.g. a whole matrix at once) unique within the same millisecond. Users can
+// override the value by typing their own SKU.
+let skuSeq = 0;
+const genSku = () => `${String(Date.now()).slice(-7)}${String(skuSeq++ % 1000).padStart(3, "0")}`;
+
 // The effective values of a property, whichever way they were entered.
 const propValues = (p: PropRow) =>
   hasPredefinedValues(p.kind) && p.defId ? p.chosen.filter(Boolean) : splitValues(p.valuesText);
@@ -78,7 +85,7 @@ function hexOf(defs: PropertyDefinition[], propName: string, value: string): str
 }
 
 const blankVar = (attrs: Record<string, string> = {}): VarRow => ({
-  key: newKey(), sku: "", qty: "", reorder: "", cost: "", price: "", active: true, attrs,
+  key: newKey(), sku: genSku(), qty: "", reorder: "", cost: "", price: "", active: true, attrs,
 });
 
 // Build editable prop rows from a saved product, linking to catalog definitions by name.
@@ -134,7 +141,7 @@ export function ProductForm({
   const [unit, setUnit] = useState("pcs");
   const [description, setDescription] = useState("");
   const [props, setProps] = useState<PropRow[]>([]);
-  const [vars, setVars] = useState<VarRow[]>([blankVar()]);
+  const [vars, setVars] = useState<VarRow[]>(() => [blankVar()]);
 
   useEffect(() => {
     if (!open) return;
@@ -346,12 +353,19 @@ export function ProductForm({
                         })}
                       </div>
                     ) : <span className="text-[12px] text-muted-foreground">{t("variant")}</span>}
-                    {!hasProps && vars.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => setVars(vars.filter((x) => x.key !== v.key))}><Trash2 /></Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {v.sku.trim() && (
+                        <span className="rounded-[6px] bg-white p-0.5" title={v.sku}>
+                          <QRCodeSVG value={v.sku.trim()} size={38} />
+                        </span>
+                      )}
+                      {!hasProps && vars.length > 1 && (
+                        <Button variant="ghost" size="sm" onClick={() => setVars(vars.filter((x) => x.key !== v.key))}><Trash2 /></Button>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2">
-                    <Field label="SKU"><Input value={v.sku} className="font-mono" onChange={(e) => setVar(v.key, { sku: e.target.value })} /></Field>
+                    <Field label={t("sku_auto")}><Input value={v.sku} className="font-mono" onChange={(e) => setVar(v.key, { sku: e.target.value })} /></Field>
                     <Field label={t("cost")}><MoneyInput value={v.cost} onChange={(val) => setVar(v.key, { cost: val })} /></Field>
                     <Field label={t("price")}><MoneyInput value={v.price} onChange={(val) => setVar(v.key, { price: val })} /></Field>
                   </div>
