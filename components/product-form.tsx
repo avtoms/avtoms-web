@@ -97,6 +97,23 @@ const blankVar = (attrs: Record<string, string> = {}): VarRow => ({
   key: newKey(), sku: genSku(), qty: "", reorder: "", cost: "", price: "", active: true, attrs,
 });
 
+// Rebuild the variant grid from a set of properties, preserving the data already entered for
+// combinations that still exist (matched by attribute signature). When no property combinations
+// remain (e.g. the last property was deleted) the product collapses to a single variant, keeping
+// the first existing row's cost/price/stock.
+function regen(nextProps: PropRow[], current: VarRow[]): VarRow[] {
+  const wanted = combos(nextProps);
+  if (wanted.length === 0) {
+    const first = current[0];
+    return [first ? { ...first, attrs: {} } : blankVar()];
+  }
+  const bySig = new Map(current.map((v) => [sigOf(nextProps, v.attrs), v]));
+  return wanted.map((attrs) => {
+    const existing = bySig.get(sigOf(nextProps, attrs));
+    return existing ? { ...existing, attrs } : blankVar(attrs);
+  });
+}
+
 // Build editable prop rows from a saved product, linking to catalog definitions by name.
 function propsFromProduct(p: Product, defs: PropertyDefinition[]): PropRow[] {
   return (p.properties ?? []).map((pp) => {
@@ -196,14 +213,14 @@ export function ProductForm({
 
   // Regenerate the variant grid from current property combinations, preserving
   // data already entered for combinations that still exist.
-  const generate = () => {
-    const wanted = combos(props);
-    if (wanted.length === 0) { setVars((prev) => (prev.length ? prev : [blankVar()])); return; }
-    const bySig = new Map(vars.map((v) => [sigOf(props, v.attrs), v]));
-    setVars(wanted.map((attrs) => {
-      const existing = bySig.get(sigOf(props, attrs));
-      return existing ? { ...existing, attrs } : blankVar(attrs);
-    }));
+  const generate = () => setVars((prev) => regen(props, prev));
+
+  // Delete a property and immediately re-arrange the variant grid to the remaining
+  // combinations (dropping variants that only differed by the removed property).
+  const deleteProp = (key: string) => {
+    const next = props.filter((x) => x.key !== key);
+    setProps(next);
+    setVars((prev) => regen(next, prev));
   };
 
   const setVar = (key: string, patch: Partial<VarRow>) =>
@@ -300,7 +317,7 @@ export function ProductForm({
                     <Input value={p.name} placeholder={t("property_name")} className="h-8 max-w-[240px]"
                       onChange={(e) => setProp(p.key, { name: e.target.value })} />
                   )}
-                  <Button variant="ghost" size="sm" onClick={() => setProps(props.filter((x) => x.key !== p.key))}><Trash2 /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => deleteProp(p.key)}><Trash2 /></Button>
                 </div>
 
                 {/* Values by kind */}
