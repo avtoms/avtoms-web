@@ -15,6 +15,8 @@ import { Input } from "@/components/ui-kit/input";
 import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { SearchSelect } from "@/components/ui-kit/search-select";
+import { ProductForm } from "@/components/product-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
@@ -24,7 +26,7 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry, Product } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
 
 // A single stocked variant, flattened with its product context, for the material picker.
 type PickVariant = { id: string; name: string; unit?: string; unitPrice?: string; unitCost?: string; quantityOnHand: number };
@@ -421,19 +423,38 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [parts, setParts] = useState<PickVariant[]>([]);
   const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
-  const [extras, setExtras] = useState<{ name: string; qty: string; unit: string; cost: string; price: string }[]>([]);
-  const addExtra = () => setExtras((s) => [...s, { name: "", qty: "1", unit: "pcs", cost: "", price: "" }]);
-  const setExtra = (i: number, patch: Partial<{ name: string; qty: string; unit: string; cost: string; price: string }>) => setExtras((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  type Extra = { name: string; qty: string; unit: string; cost: string; price: string; variantId: string };
+  const [extras, setExtras] = useState<Extra[]>([]);
+  const addExtra = () => setExtras((s) => [...s, { name: "", qty: "1", unit: "pcs", cost: "", price: "", variantId: "" }]);
+  const setExtra = (i: number, patch: Partial<Extra>) => setExtras((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const delExtra = (i: number) => setExtras((s) => s.filter((_, j) => j !== i));
+  // Warehouse catalog: extra materials can be picked from (or created in) the warehouse.
+  const [defs, setDefs] = useState<PropertyDefinition[]>([]);
+  const [brands, setBrands] = useState<CatalogTerm[]>([]);
+  const [categories, setCategories] = useState<CatalogTerm[]>([]);
+  const [creating, setCreating] = useState(false);
+  const variantOptions = parts.map((p) => ({ value: p.id, label: p.name }));
 
   const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
+
+  const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => setParts(flattenVariants(ps))).catch(() => {}); }, [shopId]);
 
   useEffect(() => {
     if (!open) return;
     setMode("menu"); setCatalog("services"); reset();
     api.listMenuItems(shopId).then((m) => setMenu(m.filter((x) => x.active))).catch(() => {});
-    api.listProducts(shopId).then((ps) => setParts(flattenVariants(ps))).catch(() => {});
-  }, [open, shopId]);
+    loadProducts();
+    api.listPropertyDefinitions().then(setDefs).catch(() => {});
+    api.listCatalogTerms("brand").then(setBrands).catch(() => {});
+    api.listCatalogTerms("category").then(setCategories).catch(() => {});
+  }, [open, shopId, loadProducts]);
+
+  // Pick a warehouse variant for an extra material row: fill name/unit/cost/price and link it.
+  const pickExtraVariant = (i: number, variantId: string) => {
+    const v = parts.find((x) => x.id === variantId);
+    if (!v) { setExtra(i, { variantId: "" }); return; }
+    setExtra(i, { variantId: v.id, name: v.unit ? `${v.name} (${v.unit})` : v.name, unit: v.unit || "pcs", cost: String(num(v.unitCost)), price: String(num(v.unitPrice)) });
+  };
 
   const pickMenu = (m: MenuItem) => {
     setPicked(true); setKind("service"); setDesc(menuName(m, lang));
@@ -466,7 +487,8 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       for (const e of extras) {
         if (!e.name.trim()) continue;
         const label = e.name.trim() + (e.unit ? ` · ${e.qty} ${e.unit}` : "");
-        items.push({ kind: "material", description: label, unitPrice: parseInt(e.price, 10) || 0, quantity: parseInt(e.qty, 10) || 1, cost: parseInt(e.cost, 10) || 0 });
+        // When picked from stock, tie the material to its warehouse variant so it's deducted.
+        items.push({ kind: "material", description: label, unitPrice: parseInt(e.price, 10) || 0, quantity: parseInt(e.qty, 10) || 1, cost: parseInt(e.cost, 10) || 0, variantId: e.variantId || undefined });
       }
     }
     onAdd(items);
@@ -532,9 +554,12 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
               )}
               {kind === "service" && (
                 <div className="flex flex-col gap-1.5 border-t border-border pt-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{t("materials_needed")}</span>
-                    <Button variant="soft" size="sm" onClick={addExtra}><Plus /> {t("add_material")}</Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button variant="ghost" size="sm" onClick={() => setCreating(true)}><Plus /> {t("new_product")}</Button>
+                      <Button variant="soft" size="sm" onClick={addExtra}><Plus /> {t("add_material")}</Button>
+                    </div>
                   </div>
                   {mats.map((m, i) => (
                     <button key={i} type="button" onClick={() => setMats((s) => s.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))}
@@ -546,12 +571,22 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                   ))}
                   {extras.map((e, i) => (
                     <div key={i} className="flex flex-col gap-2.5 rounded-[10px] border border-border bg-secondary/30 p-2.5">
+                      {/* warehouse picker + remove */}
                       <div className="flex items-end gap-2">
-                        <Field label={t("material_name")} className="flex-1">
-                          <Input value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value })} />
+                        <Field label={t("from_warehouse")} className="flex-1">
+                          <SearchSelect
+                            value={e.variantId}
+                            options={variantOptions}
+                            placeholder={t("choose_from_warehouse")}
+                            onChange={(v) => pickExtraVariant(i, v)}
+                          />
                         </Field>
                         <Button variant="ghost" size="icon" onClick={() => delExtra(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
                       </div>
+                      {/* material name (auto-filled from the warehouse; editable for ad-hoc) */}
+                      <Field label={t("material_name")}>
+                        <Input value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value, variantId: "" })} />
+                      </Field>
                       <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
                         <Field label={t("qty")}>
                           <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="h-10 text-center font-mono" />
@@ -580,6 +615,19 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
           </DialogFooter>
         )}
       </DialogContent>
+
+      {/* Create a warehouse product without leaving the line-item editor. */}
+      <ProductForm
+        open={creating}
+        mode="new"
+        product={null}
+        shopId={shopId}
+        definitions={defs}
+        brands={brands}
+        categories={categories}
+        onClose={() => setCreating(false)}
+        onSaved={loadProducts}
+      />
     </Dialog>
   );
 }
