@@ -3,7 +3,7 @@
 // detail modal with add-vehicle. Wired to api.listCustomers / createCustomer / createVehicle.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Clock, ChevronRight, Car } from "lucide-react";
+import { Plus, Pencil, Clock, ChevronRight, Car, Bell } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -27,7 +27,7 @@ import { VehicleHistoryModal } from "@/components/vehicle-history";
 import { EditVehicleModal, VehiclePhoto } from "@/components/vehicle-edit";
 import { isValidPlateFor } from "@/lib/plate";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
-import { ReminderRows, saveReminders, type ReminderDraft } from "@/components/reminder-rows";
+import { ReminderRows, saveReminders, emptyReminder, type ReminderDraft } from "@/components/reminder-rows";
 
 export default function CustomersPage() {
   const { session } = useAuth();
@@ -211,6 +211,7 @@ function CustomerDetailModal({ customer, onClose, onChanged }: { customer: Custo
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vloading, setVloading] = useState(false);
   const [histVehicle, setHistVehicle] = useState<Vehicle | null>(null);
+  const [remVehicle, setRemVehicle] = useState<Vehicle | null>(null);
 
   useEffect(() => { setCust(customer); }, [customer]);
 
@@ -262,6 +263,7 @@ function CustomerDetailModal({ customer, onClose, onChanged }: { customer: Custo
                     </div>
                   </div>
                   <Button variant="ghost" size="icon-sm" aria-label={t("edit")} onClick={() => setEditVeh(v)}><Pencil /></Button>
+                  <Button variant="ghost" size="icon-sm" aria-label={t("add_reminder")} onClick={() => setRemVehicle(v)}><Bell /></Button>
                   <Button variant="ghost" size="sm" onClick={() => setHistVehicle(v)}><Clock /> {t("history")}</Button>
                 </div>
               ))}
@@ -273,7 +275,49 @@ function CustomerDetailModal({ customer, onClose, onChanged }: { customer: Custo
       <EditVehicleModal vehicle={editVeh} onClose={() => setEditVeh(null)} onDone={() => { setEditVeh(null); }} />
       <AddVehicleModal open={addV} onClose={() => setAddV(false)} customerId={customer.id} onCreated={() => { toast(t("save"), { icon: "check" }); setAddV(false); }} />
       <VehicleHistoryModal vehicle={histVehicle} shopId={shopId} onClose={() => setHistVehicle(null)} />
+      <AddReminderModal open={!!remVehicle} onClose={() => setRemVehicle(null)} shopId={shopId} customerName={cust.name} phone={cust.phone} vehicle={remVehicle} />
     </>
+  );
+}
+
+// Quick "add service reminder" for an existing client, prefilled with a specific vehicle.
+function AddReminderModal({ open, onClose, shopId, customerName, phone, vehicle }: { open: boolean; onClose: () => void; shopId: string; customerName: string; phone: string; vehicle: Vehicle | null }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [reminders, setReminders] = useState<ReminderDraft[]>([]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) setReminders([emptyReminder()]); }, [open]);
+
+  const save = async () => {
+    if (busy) return;
+    if (!reminders.some((r) => r.title.trim())) { onClose(); return; }
+    setBusy(true);
+    try {
+      await saveReminders(shopId, reminders, { customerName, phone, vehicleId: vehicle?.id, plate: vehicle?.plate });
+      toast(t("save"), { icon: "check" }); onClose();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>{t("add_reminder")}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <div className="rounded-[9px] border border-border bg-secondary/40 px-3 py-2 text-[12.5px] text-muted-foreground">
+            {customerName || t("walk_in")}
+            {vehicle ? ` · ${[vehicle.make, vehicle.model].filter(Boolean).join(" ")} · ${vehicle.plate}` : ""}
+          </div>
+          <ReminderRows value={reminders} onChange={setReminders} />
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
