@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui-kit/misc";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
@@ -23,20 +23,11 @@ import type { Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
 // TermSelect is a dropdown over an admin-managed term list (brand/category). It
 // tolerates a legacy free-typed value by keeping it selectable, and offers a
 // blank ("—") option.
-const TERM_NONE = "__none__";
 function TermSelect({ value, terms, placeholder, onChange }: { value: string; terms: CatalogTerm[]; placeholder: string; onChange: (v: string) => void }) {
   const names = terms.map((t) => t.name);
-  const legacy = value && !names.includes(value) ? [value] : [];
-  return (
-    <Select value={value || TERM_NONE} onValueChange={(v) => onChange(v === TERM_NONE ? "" : v)}>
-      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>
-        <SelectItem value={TERM_NONE}>—</SelectItem>
-        {legacy.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-        {terms.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-      </SelectContent>
-    </Select>
-  );
+  const legacy = value && !names.includes(value) ? [{ value, label: value }] : [];
+  const options = [...legacy, ...terms.map((t) => ({ value: t.name, label: t.name }))];
+  return <SearchSelect value={value} options={options} placeholder={placeholder} onChange={onChange} />;
 }
 
 type Kind = PropertyDefinition["kind"];
@@ -287,13 +278,13 @@ export function ProductForm({
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{t("properties")}</span>
               <div className="w-[220px]">
-                <Select value="" onValueChange={addPropertyFromCatalog}>
-                  <SelectTrigger><SelectValue placeholder={t("add_property")} /></SelectTrigger>
-                  <SelectContent>
-                    {available.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                    <SelectItem value={ADHOC}>{t("custom_property")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                <SearchSelect
+                  value=""
+                  allowClear={false}
+                  placeholder={t("add_property")}
+                  options={[...available.map((d) => ({ value: d.id, label: d.name })), { value: ADHOC, label: t("custom_property") }]}
+                  onChange={addPropertyFromCatalog}
+                />
               </div>
             </div>
 
