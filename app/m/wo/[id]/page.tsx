@@ -234,7 +234,7 @@ export default function MechanicWoDetailPage() {
   const state: WoState = wo ? woStateFromProto(wo.state) : "draft";
   const items = wo?.lineItems || [];
   const subtotal = useMemo(() => items.reduce((s, i) => s + num(i.unitPrice) * (i.quantity || 0), 0), [items]);
-  const total = wo?.total !== undefined ? num(wo.total) : subtotal;
+  const total = subtotal; // VAT (QQS/НДС) disabled: total equals subtotal
 
   const startTimer = async () => {
     if (!wo) return;
@@ -402,9 +402,6 @@ export default function MechanicWoDetailPage() {
               })}
             </div>
             <div style={{ padding: "14px 18px", background: "var(--surface-2)" }}>
-              <Row label={t("subtotal")} value={`${money(wo.subtotal !== undefined ? num(wo.subtotal) : subtotal)} ${t("soum")}`} mono />
-              {wo.vat !== undefined && <Row label={t("vat")} value={`${money(wo.vat)} ${t("soum")}`} mono />}
-              <div style={{ height: 1, background: "var(--line-2)", margin: "6px 0" }} />
               <Row label={t("total")} value={`${money(total)} ${t("soum")}`} mono strong />
             </div>
           </Card>

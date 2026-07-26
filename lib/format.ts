@@ -32,10 +32,11 @@ export function vehicleTitle(v: { plate?: string; make?: string; model?: string 
   return [plate, mm].filter(Boolean).join(" · ");
 }
 
+// VAT (QQS/НДС) is disabled: total equals subtotal. vat stays in the shape (always 0) so
+// existing callers keep compiling.
 export function vatBreakdown(items: { unitPrice: string | number; quantity: number }[]) {
   const subtotal = items.reduce((s, i) => s + num(i.unitPrice) * (i.quantity || 0), 0);
-  const vat = Math.round(subtotal * 0.12);
-  return { subtotal, vat, total: subtotal + vat };
+  return { subtotal, vat: 0, total: subtotal };
 }
 
 export function durationFmt(mins: number): string {

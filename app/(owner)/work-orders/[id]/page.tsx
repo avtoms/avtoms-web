@@ -151,8 +151,7 @@ export default function WorkOrderDetailPage() {
   const items = wo.lineItems ?? [];
   const computed = vatBreakdown(items);
   const subtotal = wo.subtotal != null ? num(wo.subtotal) : computed.subtotal;
-  const vat = wo.vat != null ? num(wo.vat) : computed.vat;
-  const total = wo.total != null ? num(wo.total) : computed.total;
+  const total = subtotal; // VAT (QQS/НДС) disabled: total equals subtotal
   const totalCost = num(wo.totalCost);
   const totalMargin = wo.totalMargin != null ? num(wo.totalMargin) : subtotal - totalCost;
   const grossSubtotal = items.reduce((s, it) => {
@@ -257,9 +256,6 @@ export default function WorkOrderDetailPage() {
                   <Separator className="my-1.5" />
                 </>
               )}
-              <Row label={t("subtotal")} value={money(subtotal)} mono />
-              <Row label={t("vat")} value={money(vat)} mono />
-              <Separator className="my-1.5" />
               <Row label={t("total")} value={money(total) + " " + t("soum")} mono strong />
               {totalCost > 0 && (
                 <>

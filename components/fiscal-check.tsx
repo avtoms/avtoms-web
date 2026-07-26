@@ -2,8 +2,9 @@
 // Shared Uzbek fiscal check (chek) "paper" — the receipt body rendered both on the standalone
 // print page and inline in the order-detail invoice popup. It carries everything a soliq chek
 // needs: seller name + STIR, address, cashier, receipt/order number, date/time, the itemised
-// lines with the negotiated discount (menu default_price vs agreed unit_price), QQS (12%),
-// discount + net totals, a savings highlight, payment method, and the fiscal QR + OFD id.
+// lines with the negotiated discount (menu default_price vs agreed unit_price), the
+// discount + net total, a savings highlight, payment method, and the fiscal QR + OFD id.
+// VAT (QQS/НДС) is disabled for this deployment, so no VAT line is shown.
 // An owner-only panel (.inv-noprint) shows cost + income (doxod); it never prints.
 import React from "react";
 import { money, num, orderLabel } from "@/lib/format";
@@ -71,8 +72,7 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
   const grossSubtotal = rows.reduce((s, r) => s + r.listUnit * r.qty, 0);
   const totalDiscount = rows.reduce((s, r) => s + r.disc, 0);
   const netSubtotal = wo?.subtotal != null ? num(wo.subtotal) : rows.reduce((s, r) => s + r.lineSum, 0);
-  const vat = wo?.vat != null ? num(wo.vat) : Math.round(netSubtotal * 0.12);
-  const total = invoice.total != null ? num(invoice.total) : (wo?.total != null ? num(wo.total) : netSubtotal + vat);
+  const total = netSubtotal; // VAT (QQS/НДС) disabled: total equals the net subtotal
   const totalCost = wo?.totalCost != null ? num(wo.totalCost) : rows.reduce((s, r) => s + num(r.it.cost) * r.qty, 0);
   const doxod = wo?.totalMargin != null ? num(wo.totalMargin) : netSubtotal - totalCost;
 
@@ -145,8 +145,6 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
         <div className="inv-tot">
           {totalDiscount > 0 && <div className="row muted"><span>{t("before_discount")}</span><span className="inv-mono">{money(grossSubtotal)}</span></div>}
           {totalDiscount > 0 && <div className="row inv-disc"><span>{t("discount")}</span><span className="inv-mono">−{money(totalDiscount)}</span></div>}
-          <div className="row"><span>{t("subtotal")}</span><span className="inv-mono">{money(netSubtotal)}</span></div>
-          <div className="row"><span>{t("vat")}</span><span className="inv-mono">{money(vat)}</span></div>
           <div className="row grand"><span>{t("total")}</span><span className="inv-mono">{money(total)} {t("soum")}</span></div>
         </div>
 
