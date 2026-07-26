@@ -256,7 +256,7 @@ export const api = {
     call<{ token: string; workOrderId: string; botUsername: string; deepLink: string }>("POST", `/v1/work-orders/${woId}/approval`),
   createWorkOrder: (shopId: string, vehicleId: string) =>
     call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId }),
-  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string }) =>
+  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number }) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items`, {
       lineItem: {
         kind: kindToProto(item.kind),
@@ -267,6 +267,7 @@ export const api = {
         menuItemId: item.menuItemId ?? "",
         defaultPrice: String(item.defaultPrice ?? 0),
         variantId: item.variantId ?? "",
+        consumedQty: item.consumedQty ?? 0,
       },
     }),
   removeLineItem: (woId: string, lineItemId: string) =>

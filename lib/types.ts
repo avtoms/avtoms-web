@@ -132,6 +132,8 @@ export interface LineItem {
   defaultPrice?: string; // menu price snapshot at add time, for discount audit (tiyin)
   assignedMechanicId?: string; // mechanic assigned to this specific service line
   status?: string; // LINE_ITEM_STATUS_PENDING | _IN_PROGRESS | _DONE
+  variantId?: string; // warehouse variant this material was drawn from
+  consumedQty?: number; // exact stock amount drawn (may be fractional), independent of quantity
 }
 
 export interface TimeEntry {

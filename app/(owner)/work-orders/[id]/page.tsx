@@ -66,7 +66,7 @@ function menuName(m: MenuItem, lang: string): string {
 
 type LineItemInput = {
   kind: LineItemKind; description: string; unitPrice: number; quantity: number;
-  cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string;
+  cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number;
 };
 
 export default function WorkOrderDetailPage() {
@@ -471,7 +471,14 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     const q = mat.quantity || 1;
     const label = mat.name + (mat.unit ? ` · ${mat.quantity} ${mat.unit}` : mat.quantity > 1 ? ` ×${mat.quantity}` : "");
     const unitPrice = Math.round(num(mat.unitPrice) * q);
-    return { kind: "material", description: label, unitPrice, quantity: 1, cost: Math.round(num(mat.unitCost) * q), defaultPrice: unitPrice };
+    // Bundled recipe material: billed as one line but drawn from stock at its exact (possibly
+    // fractional) recipe amount, so tie the variant and pass consumed_qty = the recipe quantity.
+    return {
+      kind: "material", description: label, unitPrice, quantity: 1,
+      cost: Math.round(num(mat.unitCost) * q), defaultPrice: unitPrice,
+      variantId: mat.variantId || undefined,
+      consumedQty: mat.variantId ? q : undefined,
+    };
   };
   const addCustom = () => {
     if (!desc.trim() || !price) return;
@@ -479,16 +486,20 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       kind, description: desc.trim(),
       unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1, cost: parseInt(cost, 10) || 0,
       menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
-      // When picked from stock, tie the material to its warehouse variant so it's deducted.
+      // When picked from stock, tie the material to its warehouse variant so it's deducted by
+      // exactly the quantity billed on this line.
       variantId: kind === "material" && fromVariant ? fromVariant : undefined,
+      consumedQty: kind === "material" && fromVariant ? (parseInt(qty, 10) || 1) : undefined,
     }];
     if (kind === "service") {
       for (const m of mats) if (m.on) items.push(matLine(m.mat));
       for (const e of extras) {
         if (!e.name.trim()) continue;
         const label = e.name.trim() + (e.unit ? ` · ${e.qty} ${e.unit}` : "");
-        // When picked from stock, tie the material to its warehouse variant so it's deducted.
-        items.push({ kind: "material", description: label, unitPrice: parseInt(e.price, 10) || 0, quantity: parseInt(e.qty, 10) || 1, cost: parseInt(e.cost, 10) || 0, variantId: e.variantId || undefined });
+        // When picked from stock, tie the material to its warehouse variant so it's deducted by
+        // exactly the quantity billed on this line.
+        const eqty = parseInt(e.qty, 10) || 1;
+        items.push({ kind: "material", description: label, unitPrice: parseInt(e.price, 10) || 0, quantity: eqty, cost: parseInt(e.cost, 10) || 0, variantId: e.variantId || undefined, consumedQty: e.variantId ? eqty : undefined });
       }
     }
     onAdd(items);
