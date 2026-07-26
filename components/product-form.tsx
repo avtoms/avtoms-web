@@ -377,7 +377,7 @@ export function ProductForm({
                   {/* SKU is auto-generated in the background and not shown to the user. */}
                   <div className="grid grid-cols-2 gap-2">
                     <Field label={t("cost")}><MoneyInput value={v.cost} onChange={(val) => setVar(v.key, { cost: val })} /></Field>
-                    <Field label={t("price")}><MoneyInput value={v.price} onChange={(val) => setVar(v.key, { price: val })} /></Field>
+                    <Field label={t("sell_price")}><MoneyInput value={v.price} onChange={(val) => setVar(v.key, { price: val })} /></Field>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label={t("in_stock")}><Input value={v.qty} inputMode="decimal" placeholder="0" className="font-mono" onChange={(e) => setVar(v.key, { qty: dec(e.target.value) })} /></Field>
