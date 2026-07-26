@@ -348,6 +348,16 @@ export interface PropertyDefinitionValue {
   position?: number;
 }
 
+// One entry in a variant's income/outcome stock ledger.
+export interface StockMovement {
+  id: string;
+  variantId: string;
+  delta: number;        // positive = income (received), negative = outcome (consumed)
+  reason: string;
+  balanceAfter: number;
+  createdAt: string;    // RFC3339
+}
+
 export interface ShopSettings {
   shopId: string;
   maxDiscountPercent: number; // 0-100; 100 = no cap

@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -246,7 +246,7 @@ export const api = {
     call<{ token: string; workOrderId: string; botUsername: string; deepLink: string }>("POST", `/v1/work-orders/${woId}/approval`),
   createWorkOrder: (shopId: string, vehicleId: string) =>
     call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId }),
-  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number }) =>
+  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string }) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items`, {
       lineItem: {
         kind: kindToProto(item.kind),
@@ -256,6 +256,7 @@ export const api = {
         cost: String(item.cost ?? 0),
         menuItemId: item.menuItemId ?? "",
         defaultPrice: String(item.defaultPrice ?? 0),
+        variantId: item.variantId ?? "",
       },
     }),
   removeLineItem: (woId: string, lineItemId: string) =>
@@ -367,6 +368,8 @@ export const api = {
     call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
   adjustVariantStock: (variantId: string, delta: number, reason: string) =>
     call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, { delta, reason }),
+  listStockMovements: (variantId: string) =>
+    call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
 
   // ── predefined property catalog ──
   // Open read (active only) — used by the product form to offer predefined properties.

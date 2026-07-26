@@ -64,7 +64,7 @@ function menuName(m: MenuItem, lang: string): string {
 
 type LineItemInput = {
   kind: LineItemKind; description: string; unitPrice: number; quantity: number;
-  cost?: number; menuItemId?: string; defaultPrice?: number;
+  cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string;
 };
 
 export default function WorkOrderDetailPage() {
@@ -417,6 +417,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [cost, setCost] = useState("");
   const [qty, setQty] = useState("1");
   const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
+  const [fromVariant, setFromVariant] = useState(""); // warehouse variant to consume, if picked from stock
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [parts, setParts] = useState<PickVariant[]>([]);
   const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
@@ -425,7 +426,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const setExtra = (i: number, patch: Partial<{ name: string; qty: string; unit: string; cost: string; price: string }>) => setExtras((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const delExtra = (i: number) => setExtras((s) => s.filter((_, j) => j !== i));
 
-  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setMats([]); setExtras([]); };
+  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
 
   useEffect(() => {
     if (!open) return;
@@ -437,13 +438,13 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const pickMenu = (m: MenuItem) => {
     setPicked(true); setKind("service"); setDesc(menuName(m, lang));
     setPrice(String(num(m.defaultPrice))); setCost(String(num(m.defaultCost)));
-    setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) });
+    setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) }); setFromVariant("");
     setMats((m.materials ?? []).map((mat) => ({ on: true, mat }))); setExtras([]); setMode("custom");
   };
   const pickPart = (p: PickVariant) => {
     setPicked(true); setKind("material"); setDesc(p.unit ? `${p.name} (${p.unit})` : p.name);
     setPrice(String(num(p.unitPrice))); setCost(String(num(p.unitCost)));
-    setFrom({ menuItemId: "", defaultPrice: num(p.unitPrice) }); setMats([]); setExtras([]); setMode("custom");
+    setFrom({ menuItemId: "", defaultPrice: num(p.unitPrice) }); setFromVariant(p.id); setMats([]); setExtras([]); setMode("custom");
   };
   const matLine = (mat: import("@/lib/types").MenuMaterial): LineItemInput => {
     const q = mat.quantity || 1;
@@ -457,6 +458,8 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       kind, description: desc.trim(),
       unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1, cost: parseInt(cost, 10) || 0,
       menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
+      // When picked from stock, tie the material to its warehouse variant so it's deducted.
+      variantId: kind === "material" && fromVariant ? fromVariant : undefined,
     }];
     if (kind === "service") {
       for (const m of mats) if (m.on) items.push(matLine(m.mat));

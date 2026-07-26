@@ -129,6 +129,8 @@ export const STR: Record<string, Triple> = {
   receive: ["Kirim", "Кирим", "Приход"],
   consume: ["Chiqim", "Чиқим", "Расход"],
   adjust_stock: ["Qoldiqni o'zgartirish", "Қолдиқни ўзгартириш", "Изменить остаток"],
+  balance: ["Qoldiq", "Қолдиқ", "Остаток"],
+  no_movements: ["Harakatlar yo'q", "Ҳаракатлар йўқ", "Нет движений"],
   nav_staff: ["Xodimlar", "Ходимлар", "Сотрудники"],
   nav_settings: ["Sozlamalar", "Созламалар", "Настройки"],
   nav_board: ["Vazifalar", "Вазифалар", "Мои задачи"],

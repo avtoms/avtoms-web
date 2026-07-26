@@ -22,7 +22,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, PropertyDefinition } from "@/lib/types";
+import type { Product, ProductVariant, PropertyDefinition, StockMovement } from "@/lib/types";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
@@ -156,7 +156,8 @@ function ManageModal({
 }) {
   const { t } = useLang();
   const [adjust, setAdjust] = useState<ProductVariant | null>(null);
-  useEffect(() => { if (!product) setAdjust(null); }, [product]);
+  const [history, setHistory] = useState<string | null>(null); // variant id whose history is open
+  useEffect(() => { if (!product) { setAdjust(null); setHistory(null); } }, [product]);
 
   return (
     <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
@@ -199,10 +200,12 @@ function ManageModal({
                       {num(v.quantityOnHand)}{product.unit ? " " + product.unit : ""}
                     </span>
                     {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
+                    <Button variant="ghost" size="sm" onClick={() => setHistory(history === v.id ? null : v.id!)}>{t("history")}</Button>
                     <Button variant="soft" size="sm" onClick={() => setAdjust(isAdjusting ? null : v)}>{t("adjust_stock")}</Button>
                   </div>
                 </div>
                 {isAdjusting && <AdjustPanel variant={v} unit={product.unit} onClose={() => setAdjust(null)} onDone={onDone} />}
+                {history === v.id && v.id && <HistoryPanel variantId={v.id} unit={product.unit} />}
               </div>
             );
           })}
@@ -262,6 +265,49 @@ function AdjustPanel({
       <div className="flex justify-end">
         <Button disabled={busy} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
       </div>
+    </div>
+  );
+}
+
+// HistoryPanel shows a variant's income/outcome ledger, newest first.
+function HistoryPanel({ variantId, unit }: { variantId: string; unit?: string }) {
+  const { t, lang } = useLang();
+  const [items, setItems] = useState<StockMovement[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    api.listStockMovements(variantId).then((m) => { if (alive) setItems(m); }).catch(() => { if (alive) setItems([]); });
+    return () => { alive = false; };
+  }, [variantId]);
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString(lang === "ru" ? "ru-RU" : "uz-UZ", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2.5">
+      {items === null && <div className="flex justify-center py-2"><Spinner /></div>}
+      {items?.length === 0 && <p className="py-1 text-[12.5px] text-muted-foreground">{t("no_movements")}</p>}
+      {items?.map((m) => {
+        const income = m.delta >= 0;
+        return (
+          <div key={m.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+            <div className="flex items-center gap-2 min-w-0">
+              <Badge tone={income ? "ok" : "danger"}>{income ? t("receive") : t("consume")}</Badge>
+              <span className="truncate text-muted-foreground">{m.reason}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2.5 font-mono">
+              <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>
+                {income ? "+" : ""}{num(m.delta)}
+              </span>
+              <span className="text-muted-foreground">= {num(m.balanceAfter)}{unit ? " " + unit : ""}</span>
+              <span className="hidden text-muted-foreground sm:inline">{fmtDate(m.createdAt)}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
