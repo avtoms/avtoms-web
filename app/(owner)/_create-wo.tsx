@@ -22,6 +22,7 @@ import { isValidPlateFor } from "@/lib/plate";
 import { orderLabel } from "@/lib/format";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
+import { ReminderRows, saveReminders, type ReminderDraft } from "@/components/reminder-rows";
 
 export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { open: boolean; onClose: () => void; basePath?: string }) {
   const { session } = useAuth();
@@ -38,9 +39,10 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
 
   const [cf, setCf] = useState({ name: "", phone: "", telegram: "", language: "uz" as Lang });
   const [vf, setVf] = useState({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType });
+  const [reminders, setReminders] = useState<ReminderDraft[]>([]);
 
   React.useEffect(() => {
-    if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); }
+    if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); }
   }, [open]);
 
   React.useEffect(() => {
@@ -79,6 +81,9 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
     try {
       const cust = await api.createCustomer(shopId, { phone: toE164(cf.phone), name: cf.name.trim(), language: cf.language, telegramHandle: cf.telegram.trim(), walkIn: false });
       const veh = await api.createVehicle({ customerId: cust.id, plate: vf.plate.trim(), vin: vf.vin.trim(), make: vf.make.trim(), model: vf.model.trim(), year: parseInt(vf.year, 10) || 0, mileage: parseInt(vf.mileage, 10) || 0, plateType: plateTypeToProto(vf.plateType) });
+      // Attach the requested recurring service reminders to the new client + vehicle (best-effort;
+      // never blocks opening the work order).
+      try { await saveReminders(shopId, reminders, { customerName: cust.name, phone: cust.phone, vehicleId: veh.id, plate: veh.plate }); } catch { /* non-fatal */ }
       await createFor(veh.id);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
@@ -146,6 +151,8 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
                 <MakeModelPicker make={vf.make} model={vf.model} onChange={(mk, md) => setVf((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
               </div>
               <Field label={t("year")}><Input value={vf.year} onChange={(e) => setVf({ ...vf, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+              <Separator />
+              <ReminderRows value={reminders} onChange={setReminders} />
             </div>
           )}
         </DialogBody>

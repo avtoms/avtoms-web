@@ -27,6 +27,7 @@ import { VehicleHistoryModal } from "@/components/vehicle-history";
 import { EditVehicleModal, VehiclePhoto } from "@/components/vehicle-edit";
 import { isValidPlateFor } from "@/lib/plate";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
+import { ReminderRows, saveReminders, type ReminderDraft } from "@/components/reminder-rows";
 
 export default function CustomersPage() {
   const { session } = useAuth();
@@ -146,15 +147,20 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
   const { t } = useLang();
   const { toast } = useToast();
   const [f, setF] = useState({ name: "", phone: "", telegram: "", language: "uz" as Lang, walkIn: false });
+  const [reminders, setReminders] = useState<ReminderDraft[]>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ name: "", phone: "", telegram: "", language: "uz", walkIn: false }); }, [open]);
+  useEffect(() => { if (open) { setF({ name: "", phone: "", telegram: "", language: "uz", walkIn: false }); setReminders([]); } }, [open]);
 
   const save = async () => {
     if (!f.phone.trim() || busy) return;
     if (!isValidUzPhone(f.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
-      await api.createCustomer(shopId, { phone: toE164(f.phone), name: f.name.trim(), language: f.language, telegramHandle: f.telegram.trim(), walkIn: f.walkIn });
+      const cust = await api.createCustomer(shopId, { phone: toE164(f.phone), name: f.name.trim(), language: f.language, telegramHandle: f.telegram.trim(), walkIn: f.walkIn });
+      // Set up the requested recurring service reminders for the new client (best-effort: the
+      // client is already saved, so a reminder hiccup only warns rather than failing the create).
+      try { await saveReminders(shopId, reminders, { customerName: cust.name, phone: cust.phone }); }
+      catch { toast(t("error"), { icon: "alert", tone: "danger" }); }
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
@@ -179,6 +185,9 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
           <div className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3 py-2.5">
             <span className="text-[14px] font-semibold text-foreground">{t("walk_in")}</span>
             <Switch checked={f.walkIn} onCheckedChange={(v) => setF({ ...f, walkIn: v })} />
+          </div>
+          <div className="border-t border-border pt-3">
+            <ReminderRows value={reminders} onChange={setReminders} />
           </div>
         </DialogBody>
         <DialogFooter>

@@ -107,6 +107,22 @@ export const STR: Record<string, Triple> = {
   rem_interval_hint: ["Kamida bittasini kiriting (oy yoki km).", "Камида биттасини киритинг (ой ёки км).", "Укажите хотя бы одно (мес. или км)."],
   rem_history: ["Tarix", "Тарих", "История"],
   rem_recurring: ["Takroriy", "Такрорий", "Повторяется"],
+  rem_recurring_on: [
+    "Takroriy: bajarilgach keyingisi avtomatik yaratiladi.",
+    "Такрорий: бажарилгач кейингиси автоматик яратилади.",
+    "Повторяется: после выполнения создаётся следующее.",
+  ],
+  // Inline service-reminder editor (add-customer / new-order flows)
+  svc_reminders: ["Servis eslatmalari", "Сервис эслатмалари", "Сервисные напоминания"],
+  svc_reminders_hint: [
+    "Takrorlanuvchi xizmatlar (moy almashtirish...). Ixtiyoriy.",
+    "Такрорланувчи хизматлар (мой алмаштириш...). Ихтиёрий.",
+    "Повторяющиеся услуги (замена масла...). Необязательно.",
+  ],
+  preset_oil: ["Moy almashtirish", "Мой алмаштириш", "Замена масла"],
+  preset_inspection: ["Texko'rik", "Техкўрик", "Техосмотр"],
+  preset_insurance: ["Sug'urta", "Суғурта", "Страховка"],
+  preset_air_filter: ["Havo filtri", "Ҳаво фильтри", "Воздушный фильтр"],
   no_appointments: ["Yozuvlar yo'q", "Ёзувлар йўқ", "Записей нет"],
   add_part: ["Mahsulot qo'shish", "Маҳсулот қўшиш", "Добавить товар"],
   edit_product: ["Mahsulotni tahrirlash", "Маҳсулотни таҳрирлаш", "Редактировать товар"],
