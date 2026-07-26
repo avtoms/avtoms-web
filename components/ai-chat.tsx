@@ -324,22 +324,78 @@ export function ChatWidget() {
 
   const btnBottom = "calc(env(safe-area-inset-bottom, 0px) + 20px)";
 
+  // Draggable launcher: the user can move the button anywhere so it stops covering
+  // things. Position (top-left, px) is remembered in localStorage; null = default
+  // bottom-right corner. A small movement threshold keeps a plain tap opening the chat.
+  const BTN = 56;
+  const LAUNCHER_KEY = "ai_launcher_pos";
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+
+  const clampPos = useCallback((x: number, y: number) => ({
+    x: Math.max(8, Math.min(x, window.innerWidth - BTN - 8)),
+    y: Math.max(8, Math.min(y, window.innerHeight - BTN - 8)),
+  }), []);
+
+  // Restore a saved position, and keep the button on-screen when the window resizes.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAUNCHER_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as { x: number; y: number };
+        if (typeof p?.x === "number" && typeof p?.y === "number") setPos(clampPos(p.x, p.y));
+      }
+    } catch { /* ignore */ }
+    const onResize = () => setPos((cur) => (cur ? clampPos(cur.x, cur.y) : cur));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [clampPos]);
+
+  const onLauncherDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: pos?.x ?? rect.left, oy: pos?.y ?? rect.top, moved: false };
+  };
+  const onLauncherMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
+    if (d.moved) setPos(clampPos(d.ox + dx, d.oy + dy));
+  };
+  const onLauncherUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    if (d.moved) {
+      const final = clampPos(d.ox + (e.clientX - d.sx), d.oy + (e.clientY - d.sy));
+      setPos(final);
+      try { localStorage.setItem(LAUNCHER_KEY, JSON.stringify(final)); } catch { /* ignore */ }
+    } else {
+      setOpen(true); // it was a tap, not a drag
+    }
+  };
+
   return (
     <>
       <style>{AI_CSS}</style>
 
-      {/* Launcher */}
+      {/* Launcher (draggable) */}
       {!open && (
         <button
-          onClick={() => setOpen(true)}
+          onPointerDown={onLauncherDown}
+          onPointerMove={onLauncherMove}
+          onPointerUp={onLauncherUp}
           aria-label={t("ai_assistant")}
+          title={t("ai_assistant")}
           className="an-btn"
           style={{
-            position: "fixed", right: 20, bottom: btnBottom, zIndex: 150,
-            width: 56, height: 56, borderRadius: "50%", border: "none", cursor: "pointer",
+            position: "fixed", zIndex: 150,
+            ...(pos ? { left: pos.x, top: pos.y } : { right: 20, bottom: btnBottom }),
+            width: BTN, height: BTN, borderRadius: "50%", border: "none", cursor: "grab",
             background: "var(--accent)", color: "var(--accent-ink)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "var(--shadow-lg)",
+            boxShadow: "var(--shadow-lg)", touchAction: "none", userSelect: "none",
           }}
         >
           <Icon name="sparkle" size={26} />
