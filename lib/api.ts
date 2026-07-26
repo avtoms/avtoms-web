@@ -97,6 +97,7 @@ export type ProductInput = {
   category?: string;
   unit?: string;
   supplier?: string;
+  brand?: string;
   properties: ProductProperty[];
   variants: {
     sku?: string;
@@ -130,7 +131,7 @@ const propertyDefinitionBody = (d: PropertyDefinitionInput) => ({
 // Serialize a product for the API: money as stringified int64 (tiyin) on each variant.
 const productBody = (p: ProductInput) => ({
   name: p.name, description: p.description ?? "", category: p.category ?? "",
-  unit: p.unit ?? "", supplier: p.supplier ?? "",
+  unit: p.unit ?? "", supplier: p.supplier ?? "", brand: p.brand ?? "",
   properties: p.properties.map((pr) => ({ name: pr.name, values: pr.values })),
   variants: p.variants.map((v) => ({
     sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,

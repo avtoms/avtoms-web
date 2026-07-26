@@ -296,6 +296,7 @@ export interface Product {
   category?: string;
   unit?: string;
   supplier?: string;
+  brand?: string;
   active: boolean;
   properties?: ProductProperty[];
   variants?: ProductVariant[];

@@ -60,14 +60,17 @@ export default function InventoryPage() {
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
-      accessorFn: (p) => `${p.name || ""} ${p.category || ""} ${p.supplier || ""}`,
+      accessorFn: (p) => `${p.name || ""} ${p.brand || ""} ${p.category || ""} ${p.supplier || ""}`,
       header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
         const count = (p.variants ?? []).length;
         return (
           <div className="min-w-0">
-            <div className="truncate text-[14px] font-semibold text-foreground">{p.name}</div>
+            <div className="flex items-center gap-1.5">
+              {p.brand && <Badge tone="info">{p.brand}</Badge>}
+              <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
+            </div>
             <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
               {p.category && <span>{p.category}</span>}
               {p.supplier && <span>· {p.supplier}</span>}
@@ -162,7 +165,7 @@ function ManageModal({
   return (
     <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[520px]">
-        <DialogHeader><DialogTitle>{product?.name ?? ""}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{product ? `${product.brand ? product.brand + " · " : ""}${product.name}` : ""}</DialogTitle></DialogHeader>
         <DialogBody className="flex max-h-[65vh] flex-col gap-2 overflow-y-auto py-1">
           {product && (product.variants ?? []).length === 0 && (
             <p className="text-[13px] text-muted-foreground">{t("no_variants")}</p>
@@ -174,7 +177,7 @@ function ManageModal({
               <div key={v.id} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   {v.sku && (
-                    <span className="shrink-0 rounded-[6px] bg-white p-0.5" title={v.sku}>
+                    <span className="shrink-0 rounded-[6px] bg-white p-0.5">
                       <QRCodeSVG value={v.sku} size={40} />
                     </span>
                   )}

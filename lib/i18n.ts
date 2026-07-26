@@ -111,6 +111,7 @@ export const STR: Record<string, Triple> = {
   add_part: ["Mahsulot qo'shish", "Маҳсулот қўшиш", "Добавить товар"],
   edit_product: ["Mahsulotni tahrirlash", "Маҳсулотни таҳрирлаш", "Редактировать товар"],
   product_name: ["Mahsulot nomi", "Маҳсулот номи", "Название товара"],
+  brand: ["Brend", "Бренд", "Бренд"],
   properties: ["Xususiyatlar", "Хусусиятлар", "Свойства"],
   add_property: ["Xususiyat qo'shish", "Хусусият қўшиш", "Добавить свойство"],
   custom_property: ["Boshqa (erkin)", "Бошқа (эркин)", "Другое (произвольное)"],

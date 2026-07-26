@@ -5,7 +5,6 @@
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
 import React, { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { Plus, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
@@ -138,6 +137,7 @@ export function ProductForm({
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [supplier, setSupplier] = useState("");
+  const [brand, setBrand] = useState("");
   const [unit, setUnit] = useState("pcs");
   const [description, setDescription] = useState("");
   const [props, setProps] = useState<PropRow[]>([]);
@@ -149,12 +149,13 @@ export function ProductForm({
       setName(product.name);
       setCategory(product.category ?? "");
       setSupplier(product.supplier ?? "");
+      setBrand(product.brand ?? "");
       setUnit(product.unit || "pcs");
       setDescription(product.description ?? "");
       setProps(propsFromProduct(product, definitions));
       setVars(varsFromProduct(product));
     } else {
-      setName(""); setCategory(""); setSupplier(""); setUnit("pcs"); setDescription("");
+      setName(""); setCategory(""); setSupplier(""); setBrand(""); setUnit("pcs"); setDescription("");
       setProps([]); setVars([blankVar()]);
     }
   }, [open, mode, product, definitions]);
@@ -206,6 +207,7 @@ export function ProductForm({
       category: category.trim(),
       unit,
       supplier: supplier.trim(),
+      brand: brand.trim(),
       properties: props
         .filter((p) => p.name.trim() && propValues(p).length > 0)
         .map((p) => ({ name: p.name.trim(), values: propValues(p) })),
@@ -247,8 +249,11 @@ export function ProductForm({
           <Field label={t("product_name")}>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <div className="grid grid-cols-[1fr_1fr_80px] gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field label={t("brand")}><Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Bosch, Shell..." /></Field>
             <Field label={t("category")}><Input value={category} onChange={(e) => setCategory(e.target.value)} /></Field>
+          </div>
+          <div className="grid grid-cols-[1fr_80px] gap-2.5">
             <Field label={t("supplier")}><Input value={supplier} onChange={(e) => setSupplier(e.target.value)} /></Field>
             <Field label={t("unit")}><UnitSelect value={unit} onChange={setUnit} /></Field>
           </div>
@@ -353,19 +358,12 @@ export function ProductForm({
                         })}
                       </div>
                     ) : <span className="text-[12px] text-muted-foreground">{t("variant")}</span>}
-                    <div className="flex items-center gap-2">
-                      {v.sku.trim() && (
-                        <span className="rounded-[6px] bg-white p-0.5" title={v.sku}>
-                          <QRCodeSVG value={v.sku.trim()} size={38} />
-                        </span>
-                      )}
-                      {!hasProps && vars.length > 1 && (
-                        <Button variant="ghost" size="sm" onClick={() => setVars(vars.filter((x) => x.key !== v.key))}><Trash2 /></Button>
-                      )}
-                    </div>
+                    {!hasProps && vars.length > 1 && (
+                      <Button variant="ghost" size="sm" onClick={() => setVars(vars.filter((x) => x.key !== v.key))}><Trash2 /></Button>
+                    )}
                   </div>
-                  <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2">
-                    <Field label={t("sku_auto")}><Input value={v.sku} className="font-mono" onChange={(e) => setVar(v.key, { sku: e.target.value })} /></Field>
+                  {/* SKU is auto-generated in the background and not shown to the user. */}
+                  <div className="grid grid-cols-2 gap-2">
                     <Field label={t("cost")}><MoneyInput value={v.cost} onChange={(val) => setVar(v.key, { cost: val })} /></Field>
                     <Field label={t("price")}><MoneyInput value={v.price} onChange={(val) => setVar(v.key, { price: val })} /></Field>
                   </div>
