@@ -4,7 +4,7 @@
 // every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Users, Send, Receipt, Printer, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check } from "lucide-react";
 import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
 import { Card, CardContent } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -26,7 +26,7 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, LineItem } from "@/lib/types";
 
 // A single stocked variant, flattened with its product context, for the material picker.
 type PickVariant = { id: string; name: string; unit?: string; unitPrice?: string; unitCost?: string; quantityOnHand: number };
@@ -84,6 +84,7 @@ export default function WorkOrderDetailPage() {
   const [busy, setBusy] = useState(false);
 
   const [addItem, setAddItem] = useState(false);
+  const [editItem, setEditItem] = useState<LineItem | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [invoice, setInvoice] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -131,6 +132,11 @@ export default function WorkOrderDetailPage() {
   const doRemoveItem = async (lineItemId?: string) => {
     if (!lineItemId || busy) return; setBusy(true);
     try { setWo(await api.removeLineItem(id, lineItemId)); toast(t("removed"), { icon: "check" }); }
+    catch (e) { err(e); } finally { setBusy(false); }
+  };
+  const doUpdateItem = async (lineItemId: string, fields: { description: string; unitPrice: number; quantity: number; cost: number; consumedQty: number }) => {
+    if (busy) return; setBusy(true);
+    try { setWo(await api.updateLineItem(id, lineItemId, fields)); setEditItem(null); toast(t("save"), { icon: "check" }); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
   const requestApproval = async () => {
@@ -243,6 +249,7 @@ export default function WorkOrderDetailPage() {
                       <span className="font-mono text-[14.5px] font-bold text-foreground">{money(num(it.unitPrice) * (it.quantity || 0))}</span>
                       {discount > 0 && <div className="font-mono text-[11px] text-success">−{money(discount)} {t("discount").toLowerCase()}</div>}
                     </div>
+                    {editable && it.id && <Button variant="ghost" size="icon-sm" onClick={() => setEditItem(it)} aria-label={t("edit")} disabled={busy}><Pencil /></Button>}
                     {editable && <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive-soft" onClick={() => doRemoveItem(it.id)} aria-label={t("remove")} disabled={busy}><Trash2 /></Button>}
                   </div>
                 );
@@ -309,6 +316,7 @@ export default function WorkOrderDetailPage() {
       )}
 
       <AddLineItemModal open={addItem} onClose={() => setAddItem(false)} onAdd={doAddItems} shopId={shopId} lang={lang} busy={busy} />
+      <EditLineItemModal item={editItem} onClose={() => setEditItem(null)} onSave={doUpdateItem} busy={busy} />
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
@@ -402,6 +410,53 @@ function ApprovalModal({ approval, onClose }: { approval: { deepLink: string; bo
 }
 
 /* ── add line item ── */
+// Edit an existing line item in place (draft/editable states). Changes description, agreed
+// price, unit cost and quantity; stock for a material line is reconciled by the backend.
+function EditLineItemModal({ item, onClose, onSave, busy }: {
+  item: LineItem | null; onClose: () => void; onSave: (lineItemId: string, fields: { description: string; unitPrice: number; quantity: number; cost: number; consumedQty: number }) => void; busy: boolean;
+}) {
+  const { t } = useLang();
+  const [desc, setDesc] = useState("");
+  const [price, setPrice] = useState("");
+  const [cost, setCost] = useState("");
+  const [qty, setQty] = useState("1");
+  useEffect(() => {
+    if (item) { setDesc(item.description); setPrice(String(num(item.unitPrice))); setCost(String(num(item.cost))); setQty(String(item.quantity || 1)); }
+  }, [item]);
+  if (!item) return null;
+
+  const save = () => {
+    if (!desc.trim() || !price) return;
+    const quantity = parseInt(qty, 10) || 1;
+    // Keep the exact stock draw unless it tracked the billing quantity (a directly-picked
+    // material), in which case follow the new quantity. Bundled recipe amounts stay fixed.
+    const oldQty = item.quantity || 0;
+    const oldConsumed = item.consumedQty ?? 0;
+    const consumedQty = item.variantId ? (oldConsumed === oldQty ? quantity : oldConsumed) : 0;
+    onSave(item.id!, { description: desc.trim(), unitPrice: parseInt(price, 10) || 0, quantity, cost: parseInt(cost, 10) || 0, consumedQty });
+  };
+
+  return (
+    <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[440px]">
+        <DialogHeader><DialogTitle>{t("edit")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3.5 py-1">
+          <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
+          <div className="grid grid-cols-[1fr_1fr_76px] gap-2.5">
+            <Field label={t("agreed_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
+            <Field label={t("unit_cost")}><MoneyInput value={cost} onChange={setCost} /></Field>
+            <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="text-center font-mono" /></Field>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   open: boolean; onClose: () => void; onAdd: (items: LineItemInput[]) => void; shopId: string; lang: string; busy: boolean;
 }) {

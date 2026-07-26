@@ -270,6 +270,14 @@ export const api = {
         consumedQty: item.consumedQty ?? 0,
       },
     }),
+  updateLineItem: (woId: string, lineItemId: string, item: { description: string; unitPrice: number; quantity: number; cost?: number; consumedQty?: number }) =>
+    call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items/${lineItemId}`, {
+      description: item.description,
+      unitPrice: String(item.unitPrice),
+      quantity: item.quantity,
+      cost: String(item.cost ?? 0),
+      consumedQty: item.consumedQty ?? 0,
+    }),
   removeLineItem: (woId: string, lineItemId: string) =>
     call<WorkOrder>("DELETE", `/v1/work-orders/${woId}/line-items/${lineItemId}`),
   transition: (woId: string, target: WoState) =>
