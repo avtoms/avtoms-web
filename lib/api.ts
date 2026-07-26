@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -371,6 +371,18 @@ export const api = {
     call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, { delta, reason }),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
+
+  // ── brand/category term lists ──
+  listCatalogTerms: (type: "brand" | "category") =>
+    call<{ terms?: CatalogTerm[] }>("GET", "/v1/catalog-terms" + qs({ type })).then((r) => r.terms ?? []),
+  listCatalogTermsAdmin: (type: "brand" | "category") =>
+    call<{ terms?: CatalogTerm[] }>("GET", "/v1/admin/catalog-terms" + qs({ type })).then((r) => r.terms ?? []),
+  createCatalogTerm: (type: "brand" | "category", name: string) =>
+    call<CatalogTerm>("POST", "/v1/admin/catalog-terms", { type, name }),
+  updateCatalogTerm: (id: string, name: string, active: boolean) =>
+    call<CatalogTerm>("POST", `/v1/admin/catalog-terms/${id}`, { name, active }),
+  deleteCatalogTerm: (id: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/admin/catalog-terms/${id}/delete`, {}),
 
   // ── predefined property catalog ──
   // Open read (active only) — used by the product form to offer predefined properties.

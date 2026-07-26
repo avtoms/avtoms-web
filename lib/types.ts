@@ -349,6 +349,15 @@ export interface PropertyDefinitionValue {
   position?: number;
 }
 
+// One entry in an admin-managed term list (brand or category).
+export interface CatalogTerm {
+  id: string;
+  type: "brand" | "category";
+  name: string;
+  position?: number;
+  active: boolean;
+}
+
 // One entry in a variant's income/outcome stock ledger.
 export interface StockMovement {
   id: string;

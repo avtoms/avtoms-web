@@ -22,7 +22,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, PropertyDefinition, StockMovement } from "@/lib/types";
+import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm } from "@/lib/types";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
@@ -42,6 +42,8 @@ export default function InventoryPage() {
 
   const [list, setList] = useState<Product[]>([]);
   const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
+  const [brands, setBrands] = useState<CatalogTerm[]>([]);
+  const [categories, setCategories] = useState<CatalogTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
   const [managing, setManaging] = useState<Product | null>(null);
@@ -54,8 +56,12 @@ export default function InventoryPage() {
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
-  // The predefined property catalog powers the product form and value swatches.
-  useEffect(() => { api.listPropertyDefinitions().then(setDefinitions).catch(() => {}); }, []);
+  // The predefined property catalog + brand/category lists power the product form.
+  useEffect(() => {
+    api.listPropertyDefinitions().then(setDefinitions).catch(() => {});
+    api.listCatalogTerms("brand").then(setBrands).catch(() => {});
+    api.listCatalogTerms("category").then(setCategories).catch(() => {});
+  }, []);
 
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
@@ -132,6 +138,8 @@ export default function InventoryPage() {
         product={editing?.product ?? null}
         shopId={shopId}
         definitions={definitions}
+        brands={brands}
+        categories={categories}
         onClose={() => setEditing(null)}
         onSaved={load}
       />

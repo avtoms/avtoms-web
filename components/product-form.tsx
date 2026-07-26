@@ -18,7 +18,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
-import type { Product, PropertyDefinition } from "@/lib/types";
+import type { Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
+
+// TermSelect is a dropdown over an admin-managed term list (brand/category). It
+// tolerates a legacy free-typed value by keeping it selectable, and offers a
+// blank ("—") option.
+const TERM_NONE = "__none__";
+function TermSelect({ value, terms, placeholder, onChange }: { value: string; terms: CatalogTerm[]; placeholder: string; onChange: (v: string) => void }) {
+  const names = terms.map((t) => t.name);
+  const legacy = value && !names.includes(value) ? [value] : [];
+  return (
+    <Select value={value || TERM_NONE} onValueChange={(v) => onChange(v === TERM_NONE ? "" : v)}>
+      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value={TERM_NONE}>—</SelectItem>
+        {legacy.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+        {terms.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
 
 type Kind = PropertyDefinition["kind"];
 type PropRow = {
@@ -120,13 +139,15 @@ function varsFromProduct(p: Product): VarRow[] {
 }
 
 export function ProductForm({
-  open, mode, product, shopId, definitions, onClose, onSaved,
+  open, mode, product, shopId, definitions, brands, categories, onClose, onSaved,
 }: {
   open: boolean;
   mode: "new" | "edit";
   product: Product | null;
   shopId: string;
   definitions: PropertyDefinition[];
+  brands: CatalogTerm[];
+  categories: CatalogTerm[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -250,8 +271,8 @@ export function ProductForm({
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <div className="grid grid-cols-2 gap-2.5">
-            <Field label={t("brand")}><Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Bosch, Shell..." /></Field>
-            <Field label={t("category")}><Input value={category} onChange={(e) => setCategory(e.target.value)} /></Field>
+            <Field label={t("brand")}><TermSelect value={brand} terms={brands} placeholder={t("brand")} onChange={setBrand} /></Field>
+            <Field label={t("category")}><TermSelect value={category} terms={categories} placeholder={t("category")} onChange={setCategory} /></Field>
           </div>
           <div className="grid grid-cols-[1fr_80px] gap-2.5">
             <Field label={t("supplier")}><Input value={supplier} onChange={(e) => setSupplier(e.target.value)} /></Field>
