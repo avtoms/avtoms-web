@@ -140,6 +140,15 @@ const productBody = (p: ProductInput) => ({
   })),
 });
 
+// A service-template material, optionally linked to a warehouse variant.
+export type MenuMaterialInput = {
+  name: string; quantity: number; unit: string; unitCost: number; unitPrice: number; variantId?: string;
+};
+const menuMaterialBody = (x: MenuMaterialInput) => ({
+  name: x.name, quantity: x.quantity, unit: x.unit,
+  unitCost: String(x.unitCost), unitPrice: String(x.unitPrice), variantId: x.variantId ?? "",
+});
+
 // Serialize a lead for the API: every field present, deal_price as a string (int64).
 const leadBody = (l: Partial<Lead>) => ({
   name: l.name ?? "", phone: l.phone ?? "", email: l.email ?? "", company: l.company ?? "",
@@ -282,7 +291,7 @@ export const api = {
   createMenuItem: (shopId: string, m: {
     name: string; defaultPrice: number; defaultCost?: number;
     category?: string; estimatedMinutes?: number;
-    materials?: { name: string; quantity: number; unit: string; unitCost: number; unitPrice: number }[];
+    materials?: MenuMaterialInput[];
   }) =>
     call<MenuItem>("POST", "/v1/menu-items", {
       shopId,
@@ -290,22 +299,18 @@ export const api = {
       nameUzLatn: m.name, nameUzCyrl: m.name, nameRu: m.name,
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
       category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
-      materials: (m.materials ?? []).map((x) => ({
-        name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
-      })),
+      materials: (m.materials ?? []).map(menuMaterialBody),
     }),
   updateMenuItem: (id: string, m: {
     name: string; defaultPrice: number; defaultCost?: number; active: boolean;
     category?: string; estimatedMinutes?: number;
-    materials?: { name: string; quantity: number; unit: string; unitCost: number; unitPrice: number }[];
+    materials?: MenuMaterialInput[];
   }) =>
     call<MenuItem>("POST", `/v1/menu-items/${id}`, {
       nameUzLatn: m.name, nameUzCyrl: m.name, nameRu: m.name,
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
       active: m.active, category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
-      materials: (m.materials ?? []).map((x) => ({
-        name: x.name, quantity: x.quantity, unit: x.unit, unitCost: String(x.unitCost), unitPrice: String(x.unitPrice),
-      })),
+      materials: (m.materials ?? []).map(menuMaterialBody),
     }),
   listMenuPriceHistory: (id: string) =>
     call<{ changes?: import("@/lib/types").MenuPriceChange[] }>("GET", `/v1/menu-items/${id}/price-history`)

@@ -16,11 +16,27 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { SearchSelect } from "@/components/ui-kit/search-select";
+import { ProductForm } from "@/components/product-form";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, durationFmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { MenuItem, MenuPriceChange } from "@/lib/types";
+import type { MenuItem, MenuPriceChange, Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
+
+// A pickable warehouse variant, flattened with its product context, for material rows.
+type PickVar = { id: string; label: string; unit: string; cost: number; price: number };
+function flattenVariants(products: Product[]): PickVar[] {
+  const out: PickVar[] = [];
+  for (const p of products) {
+    for (const v of p.variants ?? []) {
+      if (!v.active || !v.id) continue;
+      const vl = (v.attributes ?? []).map((a) => a.value).join(" · ");
+      out.push({ id: v.id, label: vl ? `${p.name} · ${vl}` : p.name, unit: p.unit ?? "", cost: num(v.unitCost), price: num(v.unitPrice) });
+    }
+  }
+  return out;
+}
 
 function menuName(m: MenuItem, lang: string): string {
   return lang === "uzc" ? m.nameUzCyrl : lang === "ru" ? m.nameRu : m.nameUzLatn;
@@ -129,7 +145,7 @@ export default function MenuPage() {
   );
 }
 
-type MatRow = { name: string; qty: string; unit: string; cost: string; price: string };
+type MatRow = { name: string; qty: string; unit: string; cost: string; price: string; variantId: string };
 const emptyForm = { name: "", category: "", minutes: "", price: "", cost: "" };
 
 function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; onClose: () => void; shopId: string; item?: MenuItem | null; onSaved: () => void }) {
@@ -141,23 +157,44 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
   const [materials, setMaterials] = useState<MatRow[]>([]);
   const [history, setHistory] = useState<MenuPriceChange[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // Warehouse catalog: materials are picked from (or created in) the warehouse.
+  const [products, setProducts] = useState<Product[]>([]);
+  const [defs, setDefs] = useState<PropertyDefinition[]>([]);
+  const [brands, setBrands] = useState<CatalogTerm[]>([]);
+  const [categories, setCategories] = useState<CatalogTerm[]>([]);
+  const [creating, setCreating] = useState(false);
+  const variants = useMemo(() => flattenVariants(products), [products]);
+  const variantOptions = useMemo(() => variants.map((v) => ({ value: v.id, label: v.label })), [variants]);
+
+  const loadProducts = useCallback(() => { api.listProducts(shopId).then(setProducts).catch(() => {}); }, [shopId]);
 
   useEffect(() => {
     if (!open) return;
+    loadProducts();
+    api.listPropertyDefinitions().then(setDefs).catch(() => {});
+    api.listCatalogTerms("brand").then(setBrands).catch(() => {});
+    api.listCatalogTerms("category").then(setCategories).catch(() => {});
     if (item) {
       setF({ name: menuName(item, lang), category: item.category ?? "", minutes: item.estimatedMinutes ? String(item.estimatedMinutes) : "", price: String(num(item.defaultPrice)), cost: item.defaultCost ? String(num(item.defaultCost)) : "" });
       setActive(item.active);
-      setMaterials((item.materials ?? []).map((x) => ({ name: x.name, qty: String(x.quantity), unit: x.unit ?? "pcs", cost: x.unitCost ? String(num(x.unitCost)) : "", price: x.unitPrice ? String(num(x.unitPrice)) : "" })));
+      setMaterials((item.materials ?? []).map((x) => ({ name: x.name, qty: String(x.quantity), unit: x.unit ?? "pcs", cost: x.unitCost ? String(num(x.unitCost)) : "", price: x.unitPrice ? String(num(x.unitPrice)) : "", variantId: x.variantId ?? "" })));
       setHistory(null);
       api.listMenuPriceHistory(item.id).then(setHistory).catch(() => setHistory([]));
     } else {
       setF(emptyForm); setActive(true); setMaterials([]); setHistory(null);
     }
-  }, [open, item, lang]);
+  }, [open, item, lang, loadProducts]);
 
   const setMat = (i: number, patch: Partial<MatRow>) => setMaterials((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "pcs", cost: "", price: "" }]);
+  const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "pcs", cost: "", price: "", variantId: "" }]);
   const delMat = (i: number) => setMaterials((rows) => rows.filter((_, j) => j !== i));
+
+  // Pick a warehouse variant for a material row: fill name/unit/cost/price and link it.
+  const pickVariant = (i: number, variantId: string) => {
+    const v = variants.find((x) => x.id === variantId);
+    if (!v) { setMat(i, { variantId: "" }); return; }
+    setMat(i, { variantId: v.id, name: v.label, unit: v.unit || "pcs", cost: v.cost ? String(v.cost) : "", price: v.price ? String(v.price) : "" });
+  };
 
   const save = async () => {
     if (!f.name.trim() || !f.price || busy) return;
@@ -171,6 +208,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
       materials: materials.filter((m) => m.name.trim()).map((m) => ({
         name: m.name.trim(), quantity: parseFloat(m.qty) || 1, unit: m.unit,
         unitCost: parseInt(m.cost, 10) || 0, unitPrice: parseInt(m.price, 10) || 0,
+        variantId: m.variantId || undefined,
       })),
     };
     try {
@@ -210,21 +248,33 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
             </div>
           )}
 
-          {/* materials editor */}
-          <div className="mt-1 flex items-center justify-between">
+          {/* materials editor — sourced from the warehouse */}
+          <div className="mt-1 flex items-center justify-between gap-2">
             <span className="text-[12.5px] font-semibold text-muted-foreground">{t("materials_needed")}</span>
-            <Button variant="soft" size="sm" onClick={addMat}><Plus /> {t("add_material")}</Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setCreating(true)}><Plus /> {t("new_product")}</Button>
+              <Button variant="soft" size="sm" onClick={addMat}><Plus /> {t("add_material")}</Button>
+            </div>
           </div>
           <div className="flex flex-col gap-2.5">
             {materials.map((m, i) => (
               <div key={i} className="flex flex-col gap-2.5 rounded-[10px] border border-border bg-secondary/30 p-2.5">
-                {/* line 1: name + remove */}
+                {/* line 1: warehouse picker + remove */}
                 <div className="flex items-end gap-2">
-                  <Field label={t("material_name")} className="flex-1">
-                    <Input value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value })} />
+                  <Field label={t("from_warehouse")} className="flex-1">
+                    <SearchSelect
+                      value={m.variantId}
+                      options={variantOptions}
+                      placeholder={t("choose_from_warehouse")}
+                      onChange={(v) => pickVariant(i, v)}
+                    />
                   </Field>
                   <Button variant="ghost" size="icon" onClick={() => delMat(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
                 </div>
+                {/* material name (auto-filled from the warehouse; editable for ad-hoc) */}
+                <Field label={t("material_name")}>
+                  <Input value={m.name} placeholder={t("material_name")} onChange={(e) => setMat(i, { name: e.target.value, variantId: "" })} />
+                </Field>
                 {/* line 2: qty · unit · cost · price */}
                 <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
                   <Field label={t("qty")}>
@@ -268,6 +318,19 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
           <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Create a warehouse product without leaving the service editor. */}
+      <ProductForm
+        open={creating}
+        mode="new"
+        product={null}
+        shopId={shopId}
+        definitions={defs}
+        brands={brands}
+        categories={categories}
+        onClose={() => setCreating(false)}
+        onSaved={loadProducts}
+      />
     </Dialog>
   );
 }

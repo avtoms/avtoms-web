@@ -405,6 +405,9 @@ export const STR: Record<string, Triple> = {
   pt_foreign: ["Xorijiy", "Хорижий", "Иностранный"],
   pt_moped: ["Mototsikl", "Мотоцикл", "Мотоцикл"],
   add_material: ["Material qo'shish", "Материал қўшиш", "Добавить материал"],
+  new_product: ["Yangi mahsulot", "Янги маҳсулот", "Новый товар"],
+  from_warehouse: ["Ombordan", "Омбордан", "Со склада"],
+  choose_from_warehouse: ["Ombordan tanlang", "Омбордан танланг", "Выберите со склада"],
   pricing_policy: ["Narx siyosati", "Нарх сиёсати", "Ценовая политика"],
   max_discount: ["Maksimal chegirma (%)", "Максимал чегирма (%)", "Макс. скидка (%)"],
   max_discount_hint: [

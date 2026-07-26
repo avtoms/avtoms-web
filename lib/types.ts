@@ -172,6 +172,7 @@ export interface MenuMaterial {
   unit?: string; // free-text unit of measure: litr, kg, dona, metr, ...
   unitCost?: string; // tiyin
   unitPrice?: string; // tiyin
+  variantId?: string; // warehouse variant this material is drawn from (empty for ad-hoc)
 }
 
 export interface MenuPriceChange {
