@@ -267,6 +267,11 @@ export const STR: Record<string, Triple> = {
   language: ["Til", "Тил", "Язык"],
   telegram: ["Telegram", "Telegram", "Telegram"],
   walk_in: ["Tasodifiy mijoz", "Тасодифий мижоз", "Разовый клиент"],
+  walk_in_hint: [
+    "Bir martalik mijoz — ismi saqlanmaydi va unga eslatma yuborilmaydi.",
+    "Бир марталик мижоз — исми сақланмайди ва унга эслатма юборилмайди.",
+    "Разовый клиент — имя не сохраняется, напоминания не отправляются.",
+  ],
   vehicles: ["Avtomobillar", "Автомобиллар", "Автомобили"],
   plate: ["Davlat raqami", "Давлат рақами", "Госномер"],
   vin: ["VIN", "VIN", "VIN"],
