@@ -316,6 +316,7 @@ export interface Contragent {
   address?: string;
   notes?: string;
   active: boolean;
+  brand?: string; // optional brand this supplier is tied to (matches Product.brand by name)
 }
 
 // A named option (e.g. "Size") with its allowed values.

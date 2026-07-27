@@ -4,7 +4,7 @@
 // property kind: select/color -> pick from predefined values (color shows swatches);
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
@@ -33,10 +33,13 @@ function TermSelect({ value, terms, placeholder, onChange }: { value: string; te
 // SupplierField picks a contragent (supplier) by id, with an inline "+ new" quick-add
 // so a supplier can be created without leaving the product form. When a product still
 // carries only a free-typed legacy supplier name (unlinked), it shows as the placeholder.
-function SupplierField({ value, legacy, contragents, onChange, onCreated }: {
+// When a brand is chosen on the product, the list narrows to suppliers tied to that brand
+// (plus brand-agnostic suppliers), and a quick-added supplier inherits the brand.
+function SupplierField({ value, legacy, contragents, brand, onChange, onCreated }: {
   value: string;
   legacy: string;
   contragents: Contragent[];
+  brand: string;
   onChange: (id: string) => void;
   onCreated: () => void;
 }) {
@@ -47,11 +50,19 @@ function SupplierField({ value, legacy, contragents, onChange, onCreated }: {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Narrow to the chosen brand: keep suppliers with that brand or no brand at all, and
+  // always keep the currently-selected supplier visible so editing never hides it.
+  const shown = useMemo(() => {
+    const b = brand.trim();
+    if (!b) return contragents;
+    return contragents.filter((c) => c.id === value || !c.brand || c.brand === b);
+  }, [contragents, brand, value]);
+
   const create = async () => {
     if (!nm.trim() || busy) return;
     setBusy(true);
     try {
-      const c = await api.createContragent({ name: nm.trim(), phone: phone.trim() });
+      const c = await api.createContragent({ name: nm.trim(), phone: phone.trim(), brand: brand.trim() || undefined });
       onCreated();
       onChange(c.id);
       setAdding(false); setNm(""); setPhone("");
@@ -78,7 +89,7 @@ function SupplierField({ value, legacy, contragents, onChange, onCreated }: {
       <div className="min-w-0 flex-1">
         <SearchSelect
           value={value}
-          options={contragents.map((c) => ({ value: c.id, label: c.name }))}
+          options={shown.map((c) => ({ value: c.id, label: c.name }))}
           placeholder={legacy || t("supplier")}
           onChange={onChange}
         />
@@ -355,6 +366,7 @@ export function ProductForm({
                 value={supplierId}
                 legacy={supplierLegacy}
                 contragents={contragents}
+                brand={brand}
                 onChange={setSupplierId}
                 onCreated={onContragentsChange}
               />

@@ -406,10 +406,10 @@ export const api = {
   // ── contragents (suppliers) ──
   listContragents: (includeInactive = false) =>
     call<{ contragents?: Contragent[] }>("GET", "/v1/contragents" + qs({ include_inactive: includeInactive ? "true" : undefined })).then((r) => r.contragents ?? []),
-  createContragent: (c: { name: string; phone?: string; address?: string; notes?: string }) =>
-    call<Contragent>("POST", "/v1/contragents", { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "" }),
-  updateContragent: (id: string, c: { name: string; phone?: string; address?: string; notes?: string; active?: boolean }) =>
-    call<Contragent>("POST", `/v1/contragents/${id}`, { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true }),
+  createContragent: (c: { name: string; phone?: string; address?: string; notes?: string; brand?: string }) =>
+    call<Contragent>("POST", "/v1/contragents", { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", brand: c.brand ?? "" }),
+  updateContragent: (id: string, c: { name: string; phone?: string; address?: string; notes?: string; active?: boolean; brand?: string }) =>
+    call<Contragent>("POST", `/v1/contragents/${id}`, { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true, brand: c.brand ?? "" }),
   deleteContragent: (id: string) =>
     call<{ ok?: boolean }>("POST", `/v1/contragents/${id}/delete`, {}),
 

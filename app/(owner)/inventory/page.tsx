@@ -256,7 +256,7 @@ function ManageModal({
                     <Button variant="soft" size="sm" onClick={() => setAdjust(isAdjusting ? null : v)}>{t("adjust_stock")}</Button>
                   </div>
                 </div>
-                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} contragents={contragents} onClose={() => setAdjust(null)} onDone={onDone} />}
+                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} brand={product.brand} contragents={contragents} onClose={() => setAdjust(null)} onDone={onDone} />}
                 {history === v.id && v.id && <HistoryPanel variantId={v.id} unit={product.unit} contragents={contragents} staff={staff} />}
               </div>
             );
@@ -275,10 +275,11 @@ function ManageModal({
 // also records which supplier delivered the stock and the purchase price per unit,
 // so the history shows a full procurement picture.
 function AdjustPanel({
-  variant, unit, contragents, onClose, onDone,
+  variant, unit, brand, contragents, onClose, onDone,
 }: {
   variant: ProductVariant;
   unit?: string;
+  brand?: string;
   contragents: Contragent[];
   onClose: () => void;
   onDone: () => void;
@@ -291,6 +292,14 @@ function AdjustPanel({
   const [supplierId, setSupplierId] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Narrow suppliers to the product's brand (keeping brand-agnostic ones), so receiving
+  // stock offers the same brand-scoped supplier list as the product form.
+  const suppliers = useMemo(() => {
+    const b = (brand ?? "").trim();
+    if (!b) return contragents;
+    return contragents.filter((c) => c.id === supplierId || !c.brand || c.brand === b);
+  }, [contragents, brand, supplierId]);
 
   const receiving = mode === "receive";
   const qty = parseFloat(amount) || 0;
@@ -332,7 +341,7 @@ function AdjustPanel({
           <Field label={t("supplier")}>
             <SearchSelect
               value={supplierId}
-              options={contragents.map((c) => ({ value: c.id, label: c.name }))}
+              options={suppliers.map((c) => ({ value: c.id, label: c.name }))}
               placeholder={t("supplier")}
               onChange={setSupplierId}
             />
