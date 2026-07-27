@@ -71,25 +71,39 @@ export default function InventoryPage() {
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
-      accessorFn: (p) => `${p.name || ""} ${p.brand || ""} ${p.category || ""} ${p.supplier || ""}`,
+      accessorFn: (p) => `${p.name || ""} ${p.brand || ""}`,
       header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
-        const count = (p.variants ?? []).length;
         return (
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              {p.brand && <Badge tone="info">{p.brand}</Badge>}
-              <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
-            </div>
-            <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
-              {p.category && <span>{p.category}</span>}
-              {p.supplier && <span>· {p.supplier}</span>}
-              <span>· {count} {t("variants").toLowerCase()}</span>
-            </div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {p.brand && <Badge tone="info">{p.brand}</Badge>}
+            <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
           </div>
         );
       },
+    },
+    {
+      id: "category",
+      accessorFn: (p) => p.category || "",
+      header: ({ column }) => <SortHeader column={column}>{t("category")}</SortHeader>,
+      cell: ({ row }) => row.original.category
+        ? <span className="text-[13px] text-foreground">{row.original.category}</span>
+        : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "supplier",
+      accessorFn: (p) => p.supplier || "",
+      header: ({ column }) => <SortHeader column={column}>{t("supplier")}</SortHeader>,
+      cell: ({ row }) => row.original.supplier
+        ? <span className="text-[13px] text-foreground">{row.original.supplier}</span>
+        : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "variants",
+      accessorFn: (p) => (p.variants ?? []).length,
+      header: ({ column }) => <SortHeader column={column}>{t("variants")}</SortHeader>,
+      cell: ({ row }) => <span className="font-mono text-[13px] text-muted-foreground">{(row.original.variants ?? []).length}</span>,
     },
     {
       id: "stock",
@@ -133,7 +147,7 @@ export default function InventoryPage() {
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
           toolbar={<Button onClick={() => setEditing({ mode: "new", product: null })}><Plus /> {t("add_part")}</Button>}
-          columnLabels={{ name: t("product_name"), stock: t("in_stock") }}
+          columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock") }}
           pageSize={12}
         />
       )}
