@@ -18,11 +18,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
 import { ProductForm } from "@/components/product-form";
+import { SearchSelect } from "@/components/ui-kit/search-select";
+import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent } from "@/lib/types";
+import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
@@ -45,6 +47,7 @@ export default function InventoryPage() {
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [categories, setCategories] = useState<CatalogTerm[]>([]);
   const [contragents, setContragents] = useState<Contragent[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
   const [managing, setManaging] = useState<Product | null>(null);
@@ -65,8 +68,9 @@ export default function InventoryPage() {
     api.listPropertyDefinitions().then(setDefinitions).catch(() => {});
     api.listCatalogTerms("brand").then(setBrands).catch(() => {});
     api.listCatalogTerms("category").then(setCategories).catch(() => {});
+    api.listStaff(shopId).then(setStaff).catch(() => {});
     loadContragents();
-  }, [loadContragents]);
+  }, [loadContragents, shopId]);
 
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
@@ -167,6 +171,8 @@ export default function InventoryPage() {
       <ManageModal
         product={managing}
         definitions={definitions}
+        contragents={contragents}
+        staff={staff}
         onClose={() => setManaging(null)}
         onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
         onDone={load}
@@ -178,10 +184,12 @@ export default function InventoryPage() {
 // ManageModal lists a product's variants with their stock and a per-variant
 // receive/consume stock adjustment.
 function ManageModal({
-  product, definitions, onClose, onEdit, onDone,
+  product, definitions, contragents, staff, onClose, onEdit, onDone,
 }: {
   product: Product | null;
   definitions: PropertyDefinition[];
+  contragents: Contragent[];
+  staff: Staff[];
   onClose: () => void;
   onEdit: (p: Product) => void;
   onDone: () => void;
@@ -236,8 +244,8 @@ function ManageModal({
                     <Button variant="soft" size="sm" onClick={() => setAdjust(isAdjusting ? null : v)}>{t("adjust_stock")}</Button>
                   </div>
                 </div>
-                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} onClose={() => setAdjust(null)} onDone={onDone} />}
-                {history === v.id && v.id && <HistoryPanel variantId={v.id} unit={product.unit} />}
+                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} contragents={contragents} onClose={() => setAdjust(null)} onDone={onDone} />}
+                {history === v.id && v.id && <HistoryPanel variantId={v.id} unit={product.unit} contragents={contragents} staff={staff} />}
               </div>
             );
           })}
@@ -251,12 +259,15 @@ function ManageModal({
   );
 }
 
-// AdjustPanel is an inline receive/consume control for one variant.
+// AdjustPanel is an inline receive/consume control for one variant. On receive it
+// also records which supplier delivered the stock and the purchase price per unit,
+// so the history shows a full procurement picture.
 function AdjustPanel({
-  variant, unit, onClose, onDone,
+  variant, unit, contragents, onClose, onDone,
 }: {
   variant: ProductVariant;
   unit?: string;
+  contragents: Contragent[];
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -265,14 +276,24 @@ function AdjustPanel({
   const [mode, setMode] = useState<"receive" | "consume">("receive");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [supplierId, setSupplierId] = useState("");
+  const [unitCost, setUnitCost] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const receiving = mode === "receive";
+  const qty = parseFloat(amount) || 0;
+  const cost = parseInt(unitCost, 10) || 0;
+
   const save = async () => {
-    const amt = parseFloat(amount) || 0;
-    if (amt <= 0 || busy || !variant.id) return;
+    if (qty <= 0 || busy || !variant.id) return;
     setBusy(true);
     try {
-      await api.adjustVariantStock(variant.id, mode === "consume" ? -amt : amt, reason.trim() || mode);
+      await api.adjustVariantStock(
+        variant.id,
+        receiving ? qty : -qty,
+        reason.trim() || mode,
+        receiving ? { contragentId: supplierId, unitCost: cost } : undefined,
+      );
       toast(t("save"), { icon: "check" });
       onClose();
       onDone();
@@ -294,6 +315,26 @@ function AdjustPanel({
         </Field>
         <Field label={t("notes")}><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       </div>
+      {receiving && (
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={t("supplier")}>
+            <SearchSelect
+              value={supplierId}
+              options={contragents.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder={t("supplier")}
+              onChange={setSupplierId}
+            />
+          </Field>
+          <Field label={t("purchase_price") + (unit ? ` (${unit})` : "")}>
+            <MoneyInput value={unitCost} onChange={setUnitCost} placeholder="0" hideHint />
+          </Field>
+        </div>
+      )}
+      {receiving && qty > 0 && cost > 0 && (
+        <div className="flex justify-end text-[12px] text-muted-foreground">
+          {t("total")}: <span className="ml-1 font-mono font-semibold text-foreground">{money(qty * cost)}</span>
+        </div>
+      )}
       <div className="flex justify-end">
         <Button disabled={busy} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
       </div>
@@ -301,8 +342,15 @@ function AdjustPanel({
   );
 }
 
-// HistoryPanel shows a variant's income/outcome ledger, newest first.
-function HistoryPanel({ variantId, unit }: { variantId: string; unit?: string }) {
+// HistoryPanel shows a variant's income/outcome ledger, newest first, with the full
+// procurement detail per entry: who received it, which supplier delivered it, and the
+// purchase price (per unit + line total).
+function HistoryPanel({ variantId, unit, contragents, staff }: {
+  variantId: string;
+  unit?: string;
+  contragents: Contragent[];
+  staff: Staff[];
+}) {
   const { t, lang } = useLang();
   const [items, setItems] = useState<StockMovement[] | null>(null);
 
@@ -312,6 +360,9 @@ function HistoryPanel({ variantId, unit }: { variantId: string; unit?: string })
     api.listStockMovements(variantId).then((m) => { if (alive) setItems(m); }).catch(() => { if (alive) setItems([]); });
     return () => { alive = false; };
   }, [variantId]);
+
+  const supplierName = (id?: string) => contragents.find((c) => c.id === id)?.name;
+  const staffName = (id?: string) => staff.find((s) => s.id === id)?.name;
 
   const fmtDate = (iso: string) => {
     const d = new Date(iso);
@@ -324,18 +375,32 @@ function HistoryPanel({ variantId, unit }: { variantId: string; unit?: string })
       {items?.length === 0 && <p className="py-1 text-[12.5px] text-muted-foreground">{t("no_movements")}</p>}
       {items?.map((m) => {
         const income = m.delta >= 0;
+        const supplier = supplierName(m.contragentId);
+        const receiver = staffName(m.staffId);
+        const cost = num(m.unitCost);
         return (
-          <div key={m.id} className="flex items-center justify-between gap-2 text-[12.5px]">
-            <div className="flex items-center gap-2 min-w-0">
-              <Badge tone={income ? "ok" : "danger"}>{income ? t("receive") : t("consume")}</Badge>
-              <span className="truncate text-muted-foreground">{m.reason}</span>
+          <div key={m.id} className="flex flex-col gap-1 rounded-[8px] bg-secondary/30 px-2.5 py-2 text-[12.5px]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Badge tone={income ? "ok" : "danger"}>{income ? t("receive") : t("consume")}</Badge>
+                <span className="truncate text-muted-foreground">{m.reason}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2.5 font-mono">
+                <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>
+                  {income ? "+" : ""}{num(m.delta)}
+                </span>
+                <span className="text-muted-foreground">= {num(m.balanceAfter)}{unit ? " " + unit : ""}</span>
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2.5 font-mono">
-              <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>
-                {income ? "+" : ""}{num(m.delta)}
-              </span>
-              <span className="text-muted-foreground">= {num(m.balanceAfter)}{unit ? " " + unit : ""}</span>
-              <span className="hidden text-muted-foreground sm:inline">{fmtDate(m.createdAt)}</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground">
+              {supplier && <span>🚚 {supplier}</span>}
+              {receiver && <span>👤 {receiver}</span>}
+              {income && cost > 0 && (
+                <span className="font-mono">
+                  {money(cost)}{unit ? "/" + unit : ""} · {t("total")} <span className="font-semibold text-foreground">{money(cost * Math.abs(num(m.delta)))}</span>
+                </span>
+              )}
+              <span className="ml-auto font-mono">{fmtDate(m.createdAt)}</span>
             </div>
           </div>
         );

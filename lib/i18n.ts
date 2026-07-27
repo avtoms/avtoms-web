@@ -152,6 +152,7 @@ export const STR: Record<string, Triple> = {
   no_contragents: ["Hozircha kontragent yo'q", "Ҳозирча контрагент йўқ", "Пока нет контрагентов"],
   delete_contragent_confirm: ["Bu kontragent o'chirilsinmi? Bog'langan mahsulotlar nomni saqlaydi.", "Бу контрагент ўчирилсинми? Боғланган маҳсулотлар номни сақлайди.", "Удалить этого контрагента? У связанных товаров название сохранится."],
   receive: ["Kirim", "Кирим", "Приход"],
+  purchase_price: ["Zakup narxi", "Закуп нархи", "Цена закупа"],
   consume: ["Chiqim", "Чиқим", "Расход"],
   adjust_stock: ["Qoldiqni o'zgartirish", "Қолдиқни ўзгартириш", "Изменить остаток"],
   balance: ["Qoldiq", "Қолдиқ", "Остаток"],

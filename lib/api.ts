@@ -382,8 +382,12 @@ export const api = {
     call<Product>("POST", "/v1/products", { shopId, ...productBody(p) }),
   updateProduct: (id: string, p: ProductInput & { active?: boolean }) =>
     call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
-  adjustVariantStock: (variantId: string, delta: number, reason: string) =>
-    call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, { delta, reason }),
+  adjustVariantStock: (variantId: string, delta: number, reason: string, opts?: { contragentId?: string; unitCost?: number }) =>
+    call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, {
+      delta, reason,
+      contragentId: opts?.contragentId ?? "",
+      unitCost: String(opts?.unitCost ?? 0),
+    }),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
 

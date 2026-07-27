@@ -382,6 +382,9 @@ export interface StockMovement {
   reason: string;
   balanceAfter: number;
   createdAt: string;    // RFC3339
+  staffId?: string;       // who recorded it (resolve name from the staff list)
+  contragentId?: string;  // supplier who delivered (resolve name from contragents)
+  unitCost?: string;      // purchase price per unit for this receipt, tiyin
 }
 
 export interface ShopSettings {
