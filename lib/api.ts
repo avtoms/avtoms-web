@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -97,6 +97,7 @@ export type ProductInput = {
   category?: string;
   unit?: string;
   supplier?: string;
+  supplierId?: string;
   brand?: string;
   properties: ProductProperty[];
   variants: {
@@ -131,7 +132,7 @@ const propertyDefinitionBody = (d: PropertyDefinitionInput) => ({
 // Serialize a product for the API: money as stringified int64 (tiyin) on each variant.
 const productBody = (p: ProductInput) => ({
   name: p.name, description: p.description ?? "", category: p.category ?? "",
-  unit: p.unit ?? "", supplier: p.supplier ?? "", brand: p.brand ?? "",
+  unit: p.unit ?? "", supplier: p.supplier ?? "", supplierId: p.supplierId ?? "", brand: p.brand ?? "",
   properties: p.properties.map((pr) => ({ name: pr.name, values: pr.values })),
   variants: p.variants.map((v) => ({
     sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
@@ -397,6 +398,16 @@ export const api = {
     call<CatalogTerm>("POST", `/v1/admin/catalog-terms/${id}`, { name, active }),
   deleteCatalogTerm: (id: string) =>
     call<{ ok?: boolean }>("POST", `/v1/admin/catalog-terms/${id}/delete`, {}),
+
+  // ── contragents (suppliers) ──
+  listContragents: (includeInactive = false) =>
+    call<{ contragents?: Contragent[] }>("GET", "/v1/contragents" + qs({ include_inactive: includeInactive ? "true" : undefined })).then((r) => r.contragents ?? []),
+  createContragent: (c: { name: string; phone?: string; address?: string; notes?: string }) =>
+    call<Contragent>("POST", "/v1/contragents", { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "" }),
+  updateContragent: (id: string, c: { name: string; phone?: string; address?: string; notes?: string; active?: boolean }) =>
+    call<Contragent>("POST", `/v1/contragents/${id}`, { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true }),
+  deleteContragent: (id: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/contragents/${id}/delete`, {}),
 
   // ── predefined property catalog ──
   // Open read (active only) — used by the product form to offer predefined properties.

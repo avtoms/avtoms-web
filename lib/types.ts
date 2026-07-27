@@ -299,10 +299,23 @@ export interface Product {
   category?: string;
   unit?: string;
   supplier?: string;
+  supplierId?: string; // linked contragent id ("" = none)
   brand?: string;
   active: boolean;
   properties?: ProductProperty[];
   variants?: ProductVariant[];
+}
+
+// A per-shop counterparty — chiefly a supplier ("yetkazib beruvchi") the shop
+// buys products from. Managed from the owner UI, offered as the supplier dropdown.
+export interface Contragent {
+  id: string;
+  shopId: string;
+  name: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  active: boolean;
 }
 
 // A named option (e.g. "Size") with its allowed values.

@@ -22,7 +22,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, durationFmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { MenuItem, MenuPriceChange, Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
+import type { MenuItem, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
 
 // A pickable warehouse variant, flattened with its product context, for material rows.
 type PickVar = { id: string; label: string; unit: string; cost: number; price: number };
@@ -162,11 +162,13 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
   const [defs, setDefs] = useState<PropertyDefinition[]>([]);
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [categories, setCategories] = useState<CatalogTerm[]>([]);
+  const [contragents, setContragents] = useState<Contragent[]>([]);
   const [creating, setCreating] = useState(false);
   const variants = useMemo(() => flattenVariants(products), [products]);
   const variantOptions = useMemo(() => variants.map((v) => ({ value: v.id, label: v.label })), [variants]);
 
   const loadProducts = useCallback(() => { api.listProducts(shopId).then(setProducts).catch(() => {}); }, [shopId]);
+  const loadContragents = useCallback(() => { api.listContragents().then(setContragents).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -174,6 +176,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
     api.listPropertyDefinitions().then(setDefs).catch(() => {});
     api.listCatalogTerms("brand").then(setBrands).catch(() => {});
     api.listCatalogTerms("category").then(setCategories).catch(() => {});
+    loadContragents();
     if (item) {
       setF({ name: menuName(item, lang), category: item.category ?? "", minutes: item.estimatedMinutes ? String(item.estimatedMinutes) : "", price: String(num(item.defaultPrice)), cost: item.defaultCost ? String(num(item.defaultCost)) : "" });
       setActive(item.active);
@@ -183,7 +186,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
     } else {
       setF(emptyForm); setActive(true); setMaterials([]); setHistory(null);
     }
-  }, [open, item, lang, loadProducts]);
+  }, [open, item, lang, loadProducts, loadContragents]);
 
   const setMat = (i: number, patch: Partial<MatRow>) => setMaterials((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "pcs", cost: "", price: "", variantId: "" }]);
@@ -328,6 +331,8 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
         definitions={defs}
         brands={brands}
         categories={categories}
+        contragents={contragents}
+        onContragentsChange={loadContragents}
         onClose={() => setCreating(false)}
         onSaved={loadProducts}
       />

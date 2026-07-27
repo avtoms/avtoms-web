@@ -26,7 +26,7 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto,
   TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, LineItem } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, Contragent, LineItem } from "@/lib/types";
 
 // A single stocked variant, flattened with its product context, for the material picker.
 type PickVariant = { id: string; name: string; unit?: string; unitPrice?: string; unitCost?: string; quantityOnHand: number };
@@ -483,12 +483,14 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [defs, setDefs] = useState<PropertyDefinition[]>([]);
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [categories, setCategories] = useState<CatalogTerm[]>([]);
+  const [contragents, setContragents] = useState<Contragent[]>([]);
   const [creating, setCreating] = useState(false);
   const variantOptions = parts.map((p) => ({ value: p.id, label: p.name }));
 
   const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
 
   const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => setParts(flattenVariants(ps))).catch(() => {}); }, [shopId]);
+  const loadContragents = useCallback(() => { api.listContragents().then(setContragents).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -498,7 +500,8 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     api.listPropertyDefinitions().then(setDefs).catch(() => {});
     api.listCatalogTerms("brand").then(setBrands).catch(() => {});
     api.listCatalogTerms("category").then(setCategories).catch(() => {});
-  }, [open, shopId, loadProducts]);
+    loadContragents();
+  }, [open, shopId, loadProducts, loadContragents]);
 
   // Pick a warehouse variant for an extra material row: fill name/unit/cost/price and link it.
   const pickExtraVariant = (i: number, variantId: string) => {
@@ -687,6 +690,8 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
         definitions={defs}
         brands={brands}
         categories={categories}
+        contragents={contragents}
+        onContragentsChange={loadContragents}
         onClose={() => setCreating(false)}
         onSaved={loadProducts}
       />

@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ClipboardList, CalendarClock, Users, Car, Receipt, BarChart3, Wallet,
-  Tags, Package, Bell, UsersRound, Settings, Menu as MenuIcon, Plus, Wrench, LogOut, Globe,
+  Tags, Package, Truck, Bell, UsersRound, Settings, Menu as MenuIcon, Plus, Wrench, LogOut, Globe,
   Check, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
@@ -47,6 +47,7 @@ const GROUPS: NavGroup[] = [
   { titleKey: "nav_grp_manage", items: [
     { key: "menu", route: "/menu", icon: Tags, labelKey: "nav_menu" },
     { key: "inventory", route: "/inventory", icon: Package, labelKey: "nav_inventory" },
+    { key: "contragents", route: "/contragents", icon: Truck, labelKey: "nav_contragents" },
     { key: "reminders", route: "/reminders", icon: Bell, labelKey: "nav_reminders" },
     { key: "staff", route: "/staff", icon: UsersRound, labelKey: "nav_staff" },
     { key: "settings", route: "/settings", icon: Settings, labelKey: "nav_settings" },

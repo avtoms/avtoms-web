@@ -18,7 +18,7 @@ import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
-import type { Product, PropertyDefinition, CatalogTerm } from "@/lib/types";
+import type { Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
 
 // TermSelect is a dropdown over an admin-managed term list (brand/category). It
 // tolerates a legacy free-typed value by keeping it selectable, and offers a
@@ -28,6 +28,64 @@ function TermSelect({ value, terms, placeholder, onChange }: { value: string; te
   const legacy = value && !names.includes(value) ? [{ value, label: value }] : [];
   const options = [...legacy, ...terms.map((t) => ({ value: t.name, label: t.name }))];
   return <SearchSelect value={value} options={options} placeholder={placeholder} onChange={onChange} />;
+}
+
+// SupplierField picks a contragent (supplier) by id, with an inline "+ new" quick-add
+// so a supplier can be created without leaving the product form. When a product still
+// carries only a free-typed legacy supplier name (unlinked), it shows as the placeholder.
+function SupplierField({ value, legacy, contragents, onChange, onCreated }: {
+  value: string;
+  legacy: string;
+  contragents: Contragent[];
+  onChange: (id: string) => void;
+  onCreated: () => void;
+}) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [adding, setAdding] = useState(false);
+  const [nm, setNm] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const create = async () => {
+    if (!nm.trim() || busy) return;
+    setBusy(true);
+    try {
+      const c = await api.createContragent({ name: nm.trim(), phone: phone.trim() });
+      onCreated();
+      onChange(c.id);
+      setAdding(false); setNm(""); setPhone("");
+      toast(t("save"), { icon: "check" });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally { setBusy(false); }
+  };
+
+  if (adding) {
+    return (
+      <div className="flex flex-col gap-1.5 rounded-[9px] border border-border bg-secondary/30 p-2">
+        <Input value={nm} onChange={(e) => setNm(e.target.value)} placeholder={t("contragent_name")} autoFocus />
+        <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("phone")} />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => { setAdding(false); setNm(""); setPhone(""); }}>{t("cancel")}</Button>
+          <Button type="button" size="sm" disabled={busy || !nm.trim()} onClick={create}>{busy ? <Spinner /> : t("add")}</Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">
+        <SearchSelect
+          value={value}
+          options={contragents.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder={legacy || t("supplier")}
+          onChange={onChange}
+        />
+      </div>
+      <Button type="button" variant="soft" size="icon-sm" aria-label={t("add")} onClick={() => setAdding(true)}><Plus /></Button>
+    </div>
+  );
 }
 
 type Kind = PropertyDefinition["kind"];
@@ -147,7 +205,7 @@ function varsFromProduct(p: Product): VarRow[] {
 }
 
 export function ProductForm({
-  open, mode, product, shopId, definitions, brands, categories, onClose, onSaved,
+  open, mode, product, shopId, definitions, brands, categories, contragents, onContragentsChange, onClose, onSaved,
 }: {
   open: boolean;
   mode: "new" | "edit";
@@ -156,6 +214,8 @@ export function ProductForm({
   definitions: PropertyDefinition[];
   brands: CatalogTerm[];
   categories: CatalogTerm[];
+  contragents: Contragent[];
+  onContragentsChange: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -165,7 +225,8 @@ export function ProductForm({
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
-  const [supplier, setSupplier] = useState("");
+  const [supplierId, setSupplierId] = useState("");
+  const [supplierLegacy, setSupplierLegacy] = useState(""); // free-typed name kept when unlinked
   const [brand, setBrand] = useState("");
   const [unit, setUnit] = useState("pcs");
   const [description, setDescription] = useState("");
@@ -177,14 +238,15 @@ export function ProductForm({
     if (mode === "edit" && product) {
       setName(product.name);
       setCategory(product.category ?? "");
-      setSupplier(product.supplier ?? "");
+      setSupplierId(product.supplierId ?? "");
+      setSupplierLegacy(product.supplier ?? "");
       setBrand(product.brand ?? "");
       setUnit(product.unit || "pcs");
       setDescription(product.description ?? "");
       setProps(propsFromProduct(product, definitions));
       setVars(varsFromProduct(product));
     } else {
-      setName(""); setCategory(""); setSupplier(""); setBrand(""); setUnit("pcs"); setDescription("");
+      setName(""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(""); setUnit("pcs"); setDescription("");
       setProps([]); setVars([blankVar()]);
     }
   }, [open, mode, product, definitions]);
@@ -230,12 +292,17 @@ export function ProductForm({
     if (!name.trim() || busy) return;
     const activeVars = vars.filter((v) => !hasProps || Object.keys(v.attrs).length > 0);
     if (activeVars.length === 0) { toast(t("no_variants"), { icon: "alert", tone: "danger" }); return; }
+    // Resolve the supplier name from the linked contragent; keep the legacy free-typed
+    // name only when nothing is linked (so old unlinked products don't lose their label).
+    const linked = contragents.find((c) => c.id === supplierId);
+    const supplierName = linked ? linked.name : (supplierId ? "" : supplierLegacy.trim());
     const payload: ProductInput = {
       name: name.trim(),
       description: description.trim(),
       category: category.trim(),
       unit,
-      supplier: supplier.trim(),
+      supplier: supplierName,
+      supplierId,
       brand: brand.trim(),
       properties: props
         .filter((p) => p.name.trim() && propValues(p).length > 0)
@@ -283,7 +350,15 @@ export function ProductForm({
             <Field label={t("category")}><TermSelect value={category} terms={categories} placeholder={t("category")} onChange={setCategory} /></Field>
           </div>
           <div className="grid grid-cols-[1fr_80px] gap-2.5">
-            <Field label={t("supplier")}><Input value={supplier} onChange={(e) => setSupplier(e.target.value)} /></Field>
+            <Field label={t("supplier")}>
+              <SupplierField
+                value={supplierId}
+                legacy={supplierLegacy}
+                contragents={contragents}
+                onChange={setSupplierId}
+                onCreated={onContragentsChange}
+              />
+            </Field>
             <Field label={t("unit")}><UnitSelect value={unit} onChange={setUnit} /></Field>
           </div>
           <Field label={t("description")}>
