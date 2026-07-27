@@ -396,10 +396,10 @@ export const api = {
     call<{ terms?: CatalogTerm[] }>("GET", "/v1/catalog-terms" + qs({ type })).then((r) => r.terms ?? []),
   listCatalogTermsAdmin: (type: "brand" | "category") =>
     call<{ terms?: CatalogTerm[] }>("GET", "/v1/admin/catalog-terms" + qs({ type })).then((r) => r.terms ?? []),
-  createCatalogTerm: (type: "brand" | "category", name: string) =>
-    call<CatalogTerm>("POST", "/v1/admin/catalog-terms", { type, name }),
-  updateCatalogTerm: (id: string, name: string, active: boolean) =>
-    call<CatalogTerm>("POST", `/v1/admin/catalog-terms/${id}`, { name, active }),
+  createCatalogTerm: (type: "brand" | "category", name: string, logoUrl = "") =>
+    call<CatalogTerm>("POST", "/v1/admin/catalog-terms", { type, name, logoUrl }),
+  updateCatalogTerm: (id: string, name: string, active: boolean, logoUrl = "") =>
+    call<CatalogTerm>("POST", `/v1/admin/catalog-terms/${id}`, { name, active, logoUrl }),
   deleteCatalogTerm: (id: string) =>
     call<{ ok?: boolean }>("POST", `/v1/admin/catalog-terms/${id}/delete`, {}),
 

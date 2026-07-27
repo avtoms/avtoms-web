@@ -72,6 +72,13 @@ export default function InventoryPage() {
     loadContragents();
   }, [loadContragents, shopId]);
 
+  // Brand name -> logo URL, so a product's brand can show its logo in the list.
+  const brandLogos = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
+    return m;
+  }, [brands]);
+
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
@@ -79,8 +86,13 @@ export default function InventoryPage() {
       header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
+        const logo = p.brand ? brandLogos[p.brand] : undefined;
         return (
           <div className="flex min-w-0 items-center gap-1.5">
+            {logo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logo} alt="" className="size-6 shrink-0 rounded-[6px] object-contain" />
+            )}
             {p.brand && <Badge tone="info">{p.brand}</Badge>}
             <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
           </div>
@@ -137,7 +149,7 @@ export default function InventoryPage() {
         </div>
       ),
     },
-  ], [t]);
+  ], [t, brandLogos]);
 
   return (
     <div className="flex flex-col gap-4">

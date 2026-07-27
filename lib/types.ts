@@ -372,6 +372,7 @@ export interface CatalogTerm {
   name: string;
   position?: number;
   active: boolean;
+  logoUrl?: string; // optional brand logo (superadmin-uploaded)
 }
 
 // One entry in a variant's income/outcome stock ledger.
