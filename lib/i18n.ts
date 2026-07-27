@@ -227,7 +227,7 @@ export const STR: Record<string, Triple> = {
   unit_g: ["g", "г", "г"],
   unit_m: ["metr", "метр", "м"],
   unit_roll: ["rulon", "рулон", "рулон"],
-  price: ["Narx", "Нарх", "Цена"],
+  price: ["Sotuv narxi", "Сотув нархи", "Цена продажи"],
   sell_price: ["Sotuv narxi", "Сотув нархи", "Цена продажи"],
   unit_price: ["Birlik narxi", "Бирлик нархи", "Цена за ед."],
   subtotal: ["Oraliq summa", "Оралиқ сумма", "Подытог"],

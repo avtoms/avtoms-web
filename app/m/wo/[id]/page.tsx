@@ -173,9 +173,8 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Segmented options={LINE_ITEM_KINDS.map((k) => ({ value: k, label: t(k) }))} value={kind} onChange={(v) => setKind(v as LineItemKind)} style={{ width: "100%" }} />
           <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 76px", gap: 10 }}>
-            <Field label={t("agreed_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-            <Field label={t("unit_cost")}><MoneyInput value={cost} onChange={setCost} /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 76px", gap: 10 }}>
+            <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
             <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
           </div>
           {from.defaultPrice > 0 && (

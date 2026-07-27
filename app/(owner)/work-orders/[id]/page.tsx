@@ -442,9 +442,8 @@ function EditLineItemModal({ item, onClose, onSave, busy }: {
         <DialogHeader><DialogTitle>{t("edit")}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-3.5 py-1">
           <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
-          <div className="grid grid-cols-[1fr_1fr_76px] gap-2.5">
-            <Field label={t("agreed_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-            <Field label={t("unit_cost")}><MoneyInput value={cost} onChange={setCost} /></Field>
+          <div className="grid grid-cols-[1fr_76px] gap-2.5">
+            <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
             <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="text-center font-mono" /></Field>
           </div>
         </DialogBody>
@@ -606,9 +605,8 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                 </Tabs>
               )}
               <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
-              <div className="grid grid-cols-[1fr_1fr_76px] gap-2.5">
-                <Field label={t("agreed_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-                <Field label={t("unit_cost")}><MoneyInput value={cost} onChange={setCost} /></Field>
+              <div className="grid grid-cols-[1fr_76px] gap-2.5">
+                <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
                 <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="text-center font-mono" /></Field>
               </div>
               {from.defaultPrice > 0 && (
@@ -652,15 +650,12 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                       <Field label={t("material_name")}>
                         <Input value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value, variantId: "" })} />
                       </Field>
-                      <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
+                      <div className="grid grid-cols-3 items-end gap-2">
                         <Field label={t("qty")}>
                           <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="h-10 text-center font-mono" />
                         </Field>
                         <Field label={t("unit")}>
                           <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
-                        </Field>
-                        <Field label={t("unit_cost")}>
-                          <MoneyInput value={e.cost} onChange={(v) => setExtra(i, { cost: v })} placeholder={t("unit_cost")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
                         </Field>
                         <Field label={t("price")}>
                           <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
