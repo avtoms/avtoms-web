@@ -236,10 +236,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
             <Field label={t("category")}><Input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} /></Field>
             <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("default_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
-            <Field label={t("default_cost") + " (" + t("soum") + ")"}><MoneyInput value={f.cost} onChange={(v) => setF({ ...f, cost: v })} /></Field>
-          </div>
+          <Field label={t("sell_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
 
           {isEdit && (
             <div className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3.5 py-2.5">
