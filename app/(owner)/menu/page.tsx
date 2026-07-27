@@ -229,6 +229,14 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
     <Input value={v} onChange={(e) => on(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={ph} className="font-mono" />
   );
 
+  // Category options come from the shared category catalog (same list products use),
+  // keeping a legacy free-typed value selectable so old services don't lose their label.
+  const categoryOptions = useMemo(() => {
+    const names = categories.map((c) => c.name);
+    const legacy = f.category && !names.includes(f.category) ? [{ value: f.category, label: f.category }] : [];
+    return [...legacy, ...categories.map((c) => ({ value: c.name, label: c.name }))];
+  }, [categories, f.category]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[520px]">
@@ -236,7 +244,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
         <DialogBody className="flex flex-col gap-3 py-1">
           <Field label={t("service_name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={t("category")}><Input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} /></Field>
+            <Field label={t("category")}><SearchSelect value={f.category} options={categoryOptions} placeholder={t("category")} onChange={(v) => setF({ ...f, category: v })} /></Field>
             <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
           </div>
           <Field label={t("sell_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
