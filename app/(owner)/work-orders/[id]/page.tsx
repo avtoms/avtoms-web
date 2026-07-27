@@ -549,10 +549,17 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       for (const e of extras) {
         if (!e.name.trim()) continue;
         const label = e.name.trim() + (e.unit ? ` · ${e.qty} ${e.unit}` : "");
-        // When picked from stock, tie the material to its warehouse variant so it's deducted by
-        // exactly the quantity billed on this line.
-        const eqty = parseInt(e.qty, 10) || 1;
-        items.push({ kind: "material", description: label, unitPrice: parseInt(e.price, 10) || 0, quantity: eqty, cost: parseInt(e.cost, 10) || 0, variantId: e.variantId || undefined, consumedQty: e.variantId ? eqty : undefined });
+        // Materials can be fractional (e.g. 3.5 L of oil). Bill as one line whose
+        // price/cost already covers the whole amount (billing quantity is a whole
+        // number), and draw the exact fractional amount from stock via consumedQty.
+        const eqty = parseFloat(e.qty) || 1;
+        items.push({
+          kind: "material", description: label,
+          unitPrice: Math.round((parseInt(e.price, 10) || 0) * eqty), quantity: 1,
+          cost: Math.round((parseInt(e.cost, 10) || 0) * eqty),
+          variantId: e.variantId || undefined,
+          consumedQty: e.variantId ? eqty : undefined,
+        });
       }
     }
     onAdd(items);
@@ -652,7 +659,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                       </Field>
                       <div className="grid grid-cols-3 items-end gap-2">
                         <Field label={t("qty")}>
-                          <Input value={e.qty} inputMode="numeric" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/\D/g, "") })} className="h-10 text-center font-mono" />
+                          <Input value={e.qty} inputMode="decimal" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/[^\d.]/g, "") })} className="h-10 text-center font-mono" />
                         </Field>
                         <Field label={t("unit")}>
                           <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
