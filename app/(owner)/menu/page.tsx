@@ -65,42 +65,45 @@ export default function MenuPage() {
   const columns = useMemo<ColumnDef<MenuItem>[]>(() => [
     {
       id: "name",
-      accessorFn: (m) => `${menuName(m, lang)} ${m.category || ""}`,
+      accessorFn: (m) => menuName(m, lang),
       header: ({ column }) => <SortHeader column={column}>{t("service_name")}</SortHeader>,
       cell: ({ row }) => {
         const m = row.original;
-        return (
-          <div className={cn("min-w-0", !m.active && "opacity-55")}>
-            <div className="truncate text-[14px] font-semibold text-foreground">{menuName(m, lang)}</div>
-            {(m.category || num(m.estimatedMinutes) > 0) && (
-              <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
-                {m.category && <span>{m.category}</span>}
-                {num(m.estimatedMinutes) > 0 && <span>· {durationFmt(num(m.estimatedMinutes))}</span>}
-              </div>
-            )}
-            {m.materials && m.materials.length > 0 && (
-              <div className="mt-1 text-[11.5px] text-muted-foreground">
-                <span className="font-semibold">{t("materials_needed")}:</span>{" "}
-                {m.materials.map((x) => x.name + (x.unit ? ` · ${x.quantity} ${x.unit}` : x.quantity > 1 ? " ×" + x.quantity : "")).join(", ")}
-              </div>
-            )}
-          </div>
-        );
+        return <div className={cn("truncate text-[14px] font-semibold text-foreground", !m.active && "opacity-55")}>{menuName(m, lang)}</div>;
+      },
+    },
+    {
+      id: "category",
+      accessorFn: (m) => m.category || "",
+      header: ({ column }) => <SortHeader column={column}>{t("category")}</SortHeader>,
+      cell: ({ row }) => row.original.category
+        ? <span className="text-[13px] text-ink-2">{row.original.category}</span>
+        : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "time",
+      accessorFn: (m) => num(m.estimatedMinutes),
+      header: ({ column }) => <SortHeader column={column}>{t("est_time")}</SortHeader>,
+      cell: ({ row }) => num(row.original.estimatedMinutes) > 0
+        ? <span className="font-mono text-[13px] text-ink-2">{durationFmt(num(row.original.estimatedMinutes))}</span>
+        : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "materials",
+      accessorFn: (m) => m.materials?.length ?? 0,
+      header: ({ column }) => <SortHeader column={column}>{t("materials_needed")}</SortHeader>,
+      cell: ({ row }) => {
+        const mats = row.original.materials ?? [];
+        if (mats.length === 0) return <span className="text-muted-foreground">—</span>;
+        const label = mats.map((x) => x.name + (x.unit ? ` · ${x.quantity} ${x.unit}` : x.quantity > 1 ? " ×" + x.quantity : "")).join(", ");
+        return <span className="block max-w-[260px] truncate text-[12.5px] text-muted-foreground" title={label}>{label}</span>;
       },
     },
     {
       id: "price",
       accessorFn: (m) => num(m.defaultPrice),
       header: ({ column }) => <SortHeader column={column}>{t("price")}</SortHeader>,
-      cell: ({ row }) => {
-        const m = row.original;
-        return (
-          <div>
-            <div className="font-mono text-[14px] font-bold text-foreground">{money(m.defaultPrice)}</div>
-            {num(m.defaultCost) > 0 && <div className="font-mono text-[11.5px] text-muted-foreground">{t("cost")}: {money(m.defaultCost!)}</div>}
-          </div>
-        );
-      },
+      cell: ({ row }) => <div className="font-mono text-[14px] font-bold text-foreground">{money(row.original.defaultPrice)}</div>,
     },
     {
       id: "status",
@@ -134,7 +137,7 @@ export default function MenuPage() {
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
           toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
-          columnLabels={{ name: t("service_name"), price: t("price"), status: t("status") }}
+          columnLabels={{ name: t("service_name"), category: t("category"), time: t("est_time"), materials: t("materials_needed"), price: t("price"), status: t("status") }}
           onRowClick={(m) => setEditing(m)}
           pageSize={12}
         />
