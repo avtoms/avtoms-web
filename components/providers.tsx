@@ -1,14 +1,14 @@
 "use client";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { translate, type Lang } from "@/lib/i18n";
+import { translate, translateProp, type Lang } from "@/lib/i18n";
 import { applyTheme, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { getSession, setSession as persist, clearSession, type Session } from "@/lib/session";
 import { sessionFromTokenPair } from "@/lib/session";
 import type { TokenPair } from "@/lib/types";
 
 /* ── i18n ── */
-const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: string) => string }>({
-  lang: "uz", setLang: () => {}, t: (k) => k,
+const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: string) => string; tp: (name: string) => string }>({
+  lang: "uz", setLang: () => {}, t: (k) => k, tp: (n) => n,
 });
 export const useLang = () => useContext(LangCtx);
 export const useT = () => useContext(LangCtx).t;
@@ -62,6 +62,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const setLang = useCallback((l: Lang) => { localStorage.setItem("an_lang", l); setLangState(l); }, []);
   const t = useCallback((k: string) => translate(lang, k), [lang]);
+  const tp = useCallback((n: string) => translateProp(lang, n), [lang]);
   const set = useCallback((p: Partial<{ theme: ThemeName; font: FontName; density: Density }>) => {
     if (p.theme) setTheme(p.theme);
     if (p.font) setFont(p.font);
@@ -84,7 +85,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <LangCtx.Provider value={{ lang, setLang, t }}>
+    <LangCtx.Provider value={{ lang, setLang, t, tp }}>
       <ThemeCtx.Provider value={{ theme, font, density, set }}>
         <AuthCtx.Provider value={{ session, login, logout, ready }}>
           <ToastCtx.Provider value={{ toast }}>

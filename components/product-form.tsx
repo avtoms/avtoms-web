@@ -230,7 +230,7 @@ export function ProductForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { t } = useLang();
+  const { t, tp } = useLang();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -386,7 +386,7 @@ export function ProductForm({
                   value=""
                   allowClear={false}
                   placeholder={t("add_property")}
-                  options={[...available.map((d) => ({ value: d.id, label: d.name })), { value: ADHOC, label: t("custom_property") }]}
+                  options={[...available.map((d) => ({ value: d.id, label: tp(d.name) })), { value: ADHOC, label: t("custom_property") }]}
                   onChange={addPropertyFromCatalog}
                 />
               </div>
@@ -397,7 +397,7 @@ export function ProductForm({
                 <div className="flex items-center justify-between gap-2">
                   {p.defId ? (
                     <span className="text-[13.5px] font-semibold text-foreground">
-                      {p.name}
+                      {tp(p.name)}
                       {p.kind === "number" && p.unit ? <span className="text-muted-foreground"> ({p.unit})</span> : null}
                     </span>
                   ) : (

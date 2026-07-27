@@ -549,3 +549,44 @@ export function translate(lang: Lang, key: string): string {
   if (!row) return key;
   return row[LANG_INDEX[lang]] || row[0];
 }
+
+// Translations for the admin-managed property-definition catalog. Keyed by the
+// canonical (English) property name, which is also the stored identifier. Custom
+// property names an admin adds outside this list fall back to their raw text.
+export const PROP_NAMES: Record<string, Triple> = {
+  "Color": ["Rang", "Ранг", "Цвет"],
+  "Size": ["O'lcham", "Ўлчам", "Размер"],
+  "Material": ["Material", "Материал", "Материал"],
+  "Oil viscosity": ["Moy qovushqoqligi", "Мой қовушқоқлиги", "Вязкость масла"],
+  "Oil type": ["Moy turi", "Мой тури", "Тип масла"],
+  "API spec": ["API standarti", "API стандарти", "Спецификация API"],
+  "Position": ["Joylashuvi", "Жойлашуви", "Расположение"],
+  "Side": ["Tomoni", "Томони", "Сторона"],
+  "Season": ["Mavsum", "Мавсум", "Сезон"],
+  "Brake fluid (DOT)": ["Tormoz suyuqligi (DOT)", "Тормоз суюқлиги (DOT)", "Тормозная жидкость (DOT)"],
+  "Tyre diameter": ["Shina diametri", "Шина диаметри", "Диаметр шины"],
+  "Bulb base": ["Lampa sokoli", "Лампа соколи", "Цоколь лампы"],
+  "Voltage": ["Kuchlanish", "Кучланиш", "Напряжение"],
+  "Volume": ["Hajm", "Ҳажм", "Объём"],
+  "Weight": ["Og'irlik", "Оғирлик", "Вес"],
+  "Length": ["Uzunlik", "Узунлик", "Длина"],
+  "Diameter": ["Diametr", "Диаметр", "Диаметр"],
+  "Tyre width": ["Shina kengligi", "Шина кенглиги", "Ширина шины"],
+  "Tyre profile": ["Shina profili", "Шина профили", "Профиль шины"],
+  "Battery capacity": ["Akkumulyator sig'imi", "Аккумулятор сиғими", "Ёмкость аккумулятора"],
+  "Power": ["Quvvat", "Қувват", "Мощность"],
+  "Color temperature": ["Rang harorati", "Ранг ҳарорати", "Цветовая температура"],
+  "Thread pitch": ["Rezba qadami", "Резба қадами", "Шаг резьбы"],
+  "Brand": ["Brend", "Бренд", "Бренд"],
+  "OEM / Article number": ["OEM / Artikul raqami", "OEM / Артикул рақами", "OEM / Артикул"],
+  "Compatibility": ["Moslik", "Мослик", "Совместимость"],
+  "Country of origin": ["Ishlab chiqarilgan davlat", "Ишлаб чиқарилган давлат", "Страна происхождения"],
+};
+
+// translateProp renders a property name in the given language, falling back to the
+// raw name for custom properties that aren't in the shared catalog.
+export function translateProp(lang: Lang, name: string): string {
+  const row = PROP_NAMES[name];
+  if (!row) return name;
+  return row[LANG_INDEX[lang]] || row[0];
+}
