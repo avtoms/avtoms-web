@@ -10,12 +10,13 @@ import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Badge } from "@/components/ui-kit/badge";
-import { Spinner } from "@/components/ui-kit/misc";
+import { Spinner, Switch } from "@/components/ui-kit/misc";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
 import { pickLangText } from "@/lib/i18n";
@@ -114,6 +115,7 @@ type PropRow = {
 };
 type VarRow = {
   key: string;
+  id: string;   // "" for a row the owner just added; an edit sends it so the save lands on the same variant
   sku: string;
   qty: string;
   reorder: string;
@@ -166,7 +168,7 @@ function hexOf(defs: PropertyDefinition[], propName: string, value: string): str
 }
 
 const blankVar = (attrs: Record<string, string> = {}): VarRow => ({
-  key: newKey(), sku: genSku(), qty: "", reorder: "", cost: "", price: "", active: true, attrs,
+  key: newKey(), id: "", sku: genSku(), qty: "", reorder: "", cost: "", price: "", active: true, attrs,
 });
 
 // Rebuild the variant grid from a set of properties, preserving the data already entered for
@@ -206,6 +208,7 @@ function varsFromProduct(p: Product): VarRow[] {
     for (const a of v.attributes ?? []) attrs[a.property] = a.value;
     return {
       key: newKey(),
+      id: v.id ?? "",
       sku: v.sku ?? "",
       qty: v.quantityOnHand ? String(v.quantityOnHand) : "",
       reorder: v.reorderLevel ? String(v.reorderLevel) : "",
@@ -273,6 +276,15 @@ export function ProductForm({
   const [description, setDescription] = useState("");
   const [props, setProps] = useState<PropRow[]>([]);
   const [vars, setVars] = useState<VarRow[]>(() => [blankVar()]);
+  // Stock arriving with this save is a delivery from the supplier. On credit unless the owner
+  // says what was handed over; skipDebt is for goods the shop already owned.
+  const [paidNow, setPaidNow] = useState("");
+  const [skipDebt, setSkipDebt] = useState(false);
+  // What each variant held when the form opened, so an edit can price only the stock added.
+  const [openingQty, setOpeningQty] = useState<Record<string, number>>({});
+  // What each supplier is owed right now, so the form can say where this delivery leaves them.
+  // Owner-only, and the form is still usable without it.
+  const [balances, setBalances] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -285,14 +297,32 @@ export function ProductForm({
       setUnit(product.unit || "pcs");
       setDescription(product.description ?? "");
       setProps(propsFromProduct(product, definitions));
-      setVars(varsFromProduct(product));
+      const rows = varsFromProduct(product);
+      setVars(rows);
+      setOpeningQty(Object.fromEntries(rows.filter((v) => v.id).map((v) => [v.id, parseFloat(v.qty) || 0])));
     } else {
       setName(""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(""); setUnit("pcs"); setDescription("");
-      setProps([]); setVars([blankVar()]);
+      setProps([]); setVars([blankVar()]); setOpeningQty({});
     }
-  }, [open, mode, product, definitions]);
+    setPaidNow(""); setSkipDebt(false);
+    api.contragentBalances(shopId).then((r) => {
+      const m: Record<string, number> = {};
+      for (const b of r.balances ?? []) m[b.contragentId] = parseInt(b.balance, 10) || 0;
+      setBalances(m);
+    }).catch(() => {});
+  }, [open, mode, product, definitions, shopId]);
 
   const hasProps = props.some((p) => p.name.trim() && propValues(p).length > 0);
+
+  // What this save actually brings in. On an edit only the increase counts — the stock already
+  // on the shelf was paid for (or owed for) when it arrived, and charging it again would double
+  // the debt every time somebody corrected a typo in the product name.
+  const arriving = vars.reduce((sum, v) => {
+    const qty = parseFloat(v.qty) || 0;
+    const added = v.id ? qty - (openingQty[v.id] ?? 0) : qty;
+    return added > 0 ? sum + Math.round(added * (parseInt(v.cost, 10) || 0)) : sum;
+  }, 0);
+  const paidNowAmount = Math.min(parseInt(paidNow, 10) || 0, arriving);
 
   const addPropertyFromCatalog = (defId: string) => {
     if (defId === ADHOC) {
@@ -348,7 +378,10 @@ export function ProductForm({
       properties: props
         .filter((p) => p.name.trim() && propValues(p).length > 0)
         .map((p) => ({ name: p.name.trim(), values: propValues(p) })),
+      paidAmount: paidNowAmount,
+      skipDebt,
       variants: activeVars.map((v) => ({
+        id: v.id,
         sku: v.sku.trim(),
         quantityOnHand: parseFloat(v.qty) || 0,
         reorderLevel: parseFloat(v.reorder) || 0,
@@ -521,6 +554,35 @@ export function ProductForm({
               );
             })}
           </div>
+
+          {/* Stock arriving with this save is a delivery, settled here the same way the receive
+              panel settles one. Without this the goods landed on the shelf and the supplier's
+              account never heard about it. */}
+          {supplierId && arriving > 0 && (
+            <div className="flex flex-col gap-2.5 rounded-[12px] border border-border p-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12.5px] font-bold text-foreground">{t("cg_delivery")}</span>
+                <label className="flex cursor-pointer items-center gap-2 text-[11.5px] text-muted-foreground">
+                  {t("cg_no_debt")}
+                  <Switch checked={skipDebt} onCheckedChange={setSkipDebt} />
+                </label>
+              </div>
+              {!skipDebt && (
+                <>
+                  <Field label={t("paid_now")}>
+                    <MoneyInput value={paidNow} onChange={setPaidNow} placeholder="0" hideHint />
+                  </Field>
+                  <DeliverySummary
+                    supplierId={supplierId}
+                    total={arriving}
+                    paid={paidNowAmount}
+                    balance={balances[supplierId] ?? 0}
+                  />
+                </>
+              )}
+            </div>
+          )}
+          <NoSupplierNote show={!supplierId && arriving > 0} />
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>

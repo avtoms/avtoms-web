@@ -4,7 +4,6 @@
 // dialog to view/adjust each variant's stock, and hosts the create/edit form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { Plus } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
@@ -28,7 +27,7 @@ import { money, num } from "@/lib/format";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
-import { BalanceLine } from "../contragents/_account";
+import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
@@ -199,7 +198,8 @@ export default function InventoryPage() {
         contragents={contragents}
         onContragentsChange={loadContragents}
         onClose={() => setEditing(null)}
-        onSaved={load}
+        // A product save can bring stock in, so the supplier balances move with it.
+        onSaved={() => { load(); loadContragents(); }}
       />
       <ManageModal
         product={managing}
@@ -406,28 +406,9 @@ function AdjustPanel({
           <MoneyInput value={paidNow} onChange={setPaidNow} placeholder="0" hideHint />
         </Field>
       )}
-      {/* Nothing was bought from anyone, so nothing can be owed to anyone. Said plainly,
-          because a receipt with a price but no supplier looks like it recorded a purchase. */}
-      {receiving && total > 0 && !supplierId && (
-        <p className="text-[11.5px] leading-relaxed text-muted-foreground">{t("cg_no_supplier_note")}</p>
-      )}
-      {/* What this delivery does to the supplier's account, before it is saved. */}
-      {receiving && supplierId && total > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-[10px] bg-secondary/60 px-3 py-2.5 text-[12px]">
-          <Line label={t("total")} value={money(total)} />
-          {paid > 0 && <Line label={t("paid_now")} value={"−" + money(paid)} tone="ok" />}
-          <Line label={t("cg_will_owe")} value={money(owed)} tone={owed > 0 ? "debt" : undefined} strong />
-          <div className="mt-0.5 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5">
-            <span className="text-[11.5px] text-muted-foreground">{t("cg_balance_after")}</span>
-            <div className="flex items-center gap-2">
-              <BalanceLine balance={(balances[supplierId] ?? 0) + owed} />
-              <Link href={`/contragents?open=${supplierId}`} className="shrink-0 text-[11.5px] font-semibold text-primary hover:underline">
-                {t("cg_open_account")}
-              </Link>
-            </div>
-          </div>
-          {owed > 0 && <p className="text-[11px] leading-relaxed text-muted-foreground">{t("cg_credit_note")}</p>}
-        </div>
+      <NoSupplierNote show={receiving && total > 0 && !supplierId} />
+      {receiving && (
+        <DeliverySummary supplierId={supplierId} total={total} paid={paid} balance={balances[supplierId] ?? 0} />
       )}
       <div className="flex justify-end">
         <Button disabled={busy} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
@@ -436,19 +417,6 @@ function AdjustPanel({
   );
 }
 
-// One label/amount row of the delivery summary.
-function Line({ label, value, tone, strong }: { label: string; value: string; tone?: "ok" | "debt"; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-[11.5px] text-muted-foreground">{label}</span>
-      <span className={cn(
-        "font-mono tabular-nums",
-        strong ? "text-[13px] font-extrabold" : "text-[12.5px] font-semibold",
-        tone === "ok" ? "text-success" : tone === "debt" ? "text-destructive" : "text-foreground",
-      )}>{value}</span>
-    </div>
-  );
-}
 
 // HistoryPanel shows a variant's income/outcome ledger, newest first, with the full
 // procurement detail per entry: who received it, which supplier delivered it, and the

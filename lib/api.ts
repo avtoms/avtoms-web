@@ -197,7 +197,13 @@ export type ProductInput = {
   supplierId?: string;
   brand?: string;
   properties: ProductProperty[];
+  // Stock arriving with this save is a delivery from supplierId: paidAmount is what was handed
+  // over now, the rest becomes debt on their account. skipDebt records the stock and leaves the
+  // account alone.
+  paidAmount?: number;
+  skipDebt?: boolean;
   variants: {
+    id?: string;   // sent on edit so the save lands on the same variant it came from
     sku?: string;
     quantityOnHand: number;
     reorderLevel: number;
@@ -239,9 +245,11 @@ const propertyDefinitionBody = (d: PropertyDefinitionInput) => ({
 const productBody = (p: ProductInput) => ({
   name: p.name, description: p.description ?? "", category: p.category ?? "",
   unit: p.unit ?? "", supplier: p.supplier ?? "", supplierId: p.supplierId ?? "", brand: p.brand ?? "",
+  paidAmount: String(p.paidAmount ?? 0),
+  skipDebt: p.skipDebt ?? false,
   properties: p.properties.map((pr) => ({ name: pr.name, values: pr.values })),
   variants: p.variants.map((v) => ({
-    sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
+    id: v.id ?? "", sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
     unitCost: String(v.unitCost), unitPrice: String(v.unitPrice), active: v.active,
     attributes: v.attributes,
   })),
