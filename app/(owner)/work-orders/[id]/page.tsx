@@ -535,15 +535,29 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   };
   const addCustom = () => {
     if (!desc.trim() || !price) return;
-    const items: LineItemInput[] = [{
-      kind, description: desc.trim(),
-      unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1, cost: parseInt(cost, 10) || 0,
-      menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
-      // When picked from stock, tie the material to its warehouse variant so it's deducted by
-      // exactly the quantity billed on this line.
-      variantId: kind === "material" && fromVariant ? fromVariant : undefined,
-      consumedQty: kind === "material" && fromVariant ? (parseInt(qty, 10) || 1) : undefined,
-    }];
+    let first: LineItemInput;
+    if (kind === "material") {
+      // A separately-added material may be fractional (e.g. 3.5 L). LineItem.quantity is a
+      // whole number, so bill it as a single line whose price/cost already cover the whole
+      // amount (unitPrice = per-unit × qty), and draw the exact fractional amount from stock
+      // via consumedQty. Same pattern as bundled recipe materials.
+      const mq = parseFloat(qty) || 1;
+      const unitPrice = Math.round((parseInt(price, 10) || 0) * mq);
+      first = {
+        kind, description: desc.trim() + (mq !== 1 ? ` · ${mq}` : ""),
+        unitPrice, quantity: 1, cost: Math.round((parseInt(cost, 10) || 0) * mq),
+        menuItemId: from.menuItemId || undefined, defaultPrice: unitPrice,
+        variantId: fromVariant || undefined,
+        consumedQty: fromVariant ? mq : undefined,
+      };
+    } else {
+      first = {
+        kind, description: desc.trim(),
+        unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1, cost: parseInt(cost, 10) || 0,
+        menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
+      };
+    }
+    const items: LineItemInput[] = [first];
     if (kind === "service") {
       for (const m of mats) if (m.on) items.push(matLine(m.mat));
       for (const e of extras) {
@@ -614,7 +628,9 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
               <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
               <div className="grid grid-cols-[1fr_76px] gap-2.5">
                 <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-                <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="text-center font-mono" /></Field>
+                {/* Services are billed in whole units; a separately-added material may be
+                    fractional (e.g. 3.5 L of oil), so it accepts a decimal quantity. */}
+                <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(kind === "material" ? /[^\d.]/g : /\D/g, ""))} inputMode={kind === "material" ? "decimal" : "numeric"} className="text-center font-mono" /></Field>
               </div>
               {from.defaultPrice > 0 && (
                 <div className="flex justify-between gap-2 text-[12.5px] text-muted-foreground">

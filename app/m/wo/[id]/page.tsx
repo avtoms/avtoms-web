@@ -123,14 +123,26 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
     if (!desc.trim() || !price) return;
     setSaving(true);
     try {
-      await onAdd({
-        kind, description: desc.trim(),
-        unitPrice: parseInt(price, 10) || 0,
-        quantity: parseInt(qty, 10) || 1,
-        cost: parseInt(cost, 10) || 0,
-        menuItemId: from.menuItemId || undefined,
-        defaultPrice: from.defaultPrice || undefined,
-      });
+      if (kind === "material") {
+        // Materials can be fractional (e.g. 3.5 L). Bill as a single line whose price/cost
+        // cover the whole amount, since LineItem.quantity is a whole number.
+        const mq = parseFloat(qty) || 1;
+        const unitPrice = Math.round((parseInt(price, 10) || 0) * mq);
+        await onAdd({
+          kind, description: desc.trim() + (mq !== 1 ? ` · ${mq}` : ""),
+          unitPrice, quantity: 1, cost: Math.round((parseInt(cost, 10) || 0) * mq),
+          menuItemId: from.menuItemId || undefined, defaultPrice: unitPrice,
+        });
+      } else {
+        await onAdd({
+          kind, description: desc.trim(),
+          unitPrice: parseInt(price, 10) || 0,
+          quantity: parseInt(qty, 10) || 1,
+          cost: parseInt(cost, 10) || 0,
+          menuItemId: from.menuItemId || undefined,
+          defaultPrice: from.defaultPrice || undefined,
+        });
+      }
       onClose();
     } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
   };
@@ -175,7 +187,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
           <Field label={t("description")}><TextInput value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 76px", gap: 10 }}>
             <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-            <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
+            <Field label={t("qty")}><TextInput value={qty} onChange={(e) => setQty(e.target.value.replace(kind === "material" ? /[^\d.]/g : /\D/g, ""))} inputMode={kind === "material" ? "decimal" : "numeric"} style={{ fontFamily: "var(--font-mono)", textAlign: "center" }} /></Field>
           </div>
           {from.defaultPrice > 0 && (
             <div style={{ fontSize: 12.5, color: "var(--ink-3)", display: "flex", justifyContent: "space-between", gap: 8 }}>
