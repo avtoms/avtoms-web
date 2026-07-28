@@ -619,3 +619,11 @@ export function translateProp(lang: Lang, name: string): string {
   if (!row) return name;
   return row[LANG_INDEX[lang]] || row[0];
 }
+
+// pickLangText returns the admin-entered translation for the active language, falling back
+// to `fallback` (the canonical text) when that language has been left blank. Used for the
+// property catalog, whose names/values are translatable from the admin panel.
+export function pickLangText(lang: Lang, uz: string | undefined, uzc: string | undefined, ru: string | undefined, fallback: string): string {
+  const picked = lang === "ru" ? ru : lang === "uzc" ? uzc : uz;
+  return picked?.trim() || fallback;
+}

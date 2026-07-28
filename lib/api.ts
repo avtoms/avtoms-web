@@ -117,16 +117,25 @@ export type PropertyDefinitionInput = {
   name: string;
   kind: "text" | "number" | "select" | "color";
   unit?: string;
-  values: { value: string; colorHex?: string }[];
+  nameUzLatn?: string;
+  nameUzCyrl?: string;
+  nameRu?: string;
+  values: { value: string; colorHex?: string; valueUzLatn?: string; valueUzCyrl?: string; valueRu?: string }[];
 };
 
 const propertyDefinitionBody = (d: PropertyDefinitionInput) => ({
   name: d.name,
   kind: d.kind,
   unit: d.unit ?? "",
+  nameUzLatn: d.nameUzLatn ?? "",
+  nameUzCyrl: d.nameUzCyrl ?? "",
+  nameRu: d.nameRu ?? "",
   // Values only matter for select/color kinds; send them as-is for those.
   values: (d.kind === "select" || d.kind === "color")
-    ? d.values.filter((v) => v.value.trim()).map((v) => ({ value: v.value.trim(), colorHex: v.colorHex ?? "" }))
+    ? d.values.filter((v) => v.value.trim()).map((v) => ({
+      value: v.value.trim(), colorHex: v.colorHex ?? "",
+      valueUzLatn: v.valueUzLatn?.trim() ?? "", valueUzCyrl: v.valueUzCyrl?.trim() ?? "", valueRu: v.valueRu?.trim() ?? "",
+    }))
     : [],
 });
 

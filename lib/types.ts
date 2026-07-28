@@ -353,20 +353,29 @@ export interface VariantAttribute {
 // select/color = pick from `values`; text = free text.
 export interface PropertyDefinition {
   id: string;
+  // Canonical name and the stable identifier a product's properties reference. The name*
+  // fields are admin-editable display translations (blank falls back to name).
   name: string;
   kind: "text" | "number" | "select" | "color";
   unit?: string;
   position?: number;
   active: boolean;
+  nameUzLatn?: string;
+  nameUzCyrl?: string;
+  nameRu?: string;
   values?: PropertyDefinitionValue[];
 }
 
 // One predefined value in a select/color property (colorHex set for color kind).
+// value is the canonical identifier stored on a variant; value* are display translations.
 export interface PropertyDefinitionValue {
   id?: string;
   value: string;
   colorHex?: string;
   position?: number;
+  valueUzLatn?: string;
+  valueUzCyrl?: string;
+  valueRu?: string;
 }
 
 // One entry in an admin-managed term list (brand or category).

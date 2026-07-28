@@ -4,7 +4,7 @@
 // property kind: select/color -> pick from predefined values (color shows swatches);
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
@@ -18,7 +18,8 @@ import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
-import type { Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
+import { pickLangText } from "@/lib/i18n";
+import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm, Contragent } from "@/lib/types";
 
 // TermSelect is a dropdown over an admin-managed term list (brand/category). It
 // tolerates a legacy free-typed value by keeping it selectable, and offers a
@@ -230,9 +231,36 @@ export function ProductForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { t, tp } = useLang();
+  const { t, tp, lang } = useLang();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
+
+  // Display labels for the property catalog: an admin-entered translation wins, then the
+  // built-in dictionary (for catalogs predating admin translations), then the canonical text.
+  const defLabel = useCallback(
+    (d: PropertyDefinition) => pickLangText(lang, d.nameUzLatn, d.nameUzCyrl, d.nameRu, tp(d.name)),
+    [lang, tp],
+  );
+  const valLabel = useCallback(
+    (v: PropertyDefinitionValue) => pickLangText(lang, v.valueUzLatn, v.valueUzCyrl, v.valueRu, v.value),
+    [lang],
+  );
+  // A property row carries only the canonical name, so resolve its definition for the label.
+  const propLabel = useCallback(
+    (name: string) => {
+      const d = definitions.find((x) => x.name === name);
+      return d ? defLabel(d) : tp(name);
+    },
+    [definitions, defLabel, tp],
+  );
+  // A variant attribute stores canonical (property, value) pairs; translate the value for display.
+  const attrLabel = useCallback(
+    (prop: string, val: string) => {
+      const v = definitions.find((d) => d.name === prop)?.values?.find((x) => x.value === val);
+      return v ? valLabel(v) : val;
+    },
+    [definitions, valLabel],
+  );
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -386,7 +414,7 @@ export function ProductForm({
                   value=""
                   allowClear={false}
                   placeholder={t("add_property")}
-                  options={[...available.map((d) => ({ value: d.id, label: tp(d.name) })), { value: ADHOC, label: t("custom_property") }]}
+                  options={[...available.map((d) => ({ value: d.id, label: defLabel(d) })), { value: ADHOC, label: t("custom_property") }]}
                   onChange={addPropertyFromCatalog}
                 />
               </div>
@@ -397,7 +425,7 @@ export function ProductForm({
                 <div className="flex items-center justify-between gap-2">
                   {p.defId ? (
                     <span className="text-[13.5px] font-semibold text-foreground">
-                      {tp(p.name)}
+                      {propLabel(p.name)}
                       {p.kind === "number" && p.unit ? <span className="text-muted-foreground"> ({p.unit})</span> : null}
                     </span>
                   ) : (
@@ -416,7 +444,7 @@ export function ProductForm({
                         <button key={v.value} type="button" onClick={() => toggleChosen(p.key, v.value)}
                           className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
                           <span className="size-3.5 rounded-full border border-black/10" style={{ background: v.colorHex || "#888" }} />
-                          {v.value}
+                          {valLabel(v)}
                         </button>
                       );
                     })}
@@ -428,7 +456,7 @@ export function ProductForm({
                       return (
                         <button key={v.value} type="button" onClick={() => toggleChosen(p.key, v.value)}
                           className={`rounded-full border px-2.5 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
-                          {v.value}
+                          {valLabel(v)}
                         </button>
                       );
                     })}
@@ -468,7 +496,7 @@ export function ProductForm({
                           return (
                             <Badge key={prop} tone="neutral">
                               {hex && <span className="mr-1 inline-block size-2.5 rounded-full border border-black/10 align-middle" style={{ background: hex }} />}
-                              {val}
+                              {attrLabel(prop, val)}
                             </Badge>
                           );
                         })}

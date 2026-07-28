@@ -19,7 +19,16 @@ import { api, ApiError, type PropertyDefinitionInput } from "@/lib/api";
 import type { PropertyDefinition } from "@/lib/types";
 
 type Kind = PropertyDefinition["kind"];
-type ValRow = { value: string; colorHex: string };
+type ValRow = { value: string; colorHex: string; uz: string; uzc: string; ru: string };
+// Names/values carry a canonical text (the stable identifier products reference) plus a
+// display translation per language; a blank translation falls back to the canonical text.
+type Tr = { uz: string; uzc: string; ru: string };
+const EMPTY_TR: Tr = { uz: "", uzc: "", ru: "" };
+const LANG_FIELDS: { key: keyof Tr; label: string }[] = [
+  { key: "uz", label: "O'zbekcha" },
+  { key: "uzc", label: "Ўзбекча" },
+  { key: "ru", label: "Русский" },
+];
 
 const KINDS: { value: Kind; label: string; hint: string }[] = [
   { value: "select", label: "Ro'yxat (tanlanadigan)", hint: "Oldindan belgilangan qiymatlar ro'yxati" },
@@ -30,40 +39,74 @@ const KINDS: { value: Kind; label: string; hint: string }[] = [
 const hasValues = (k: Kind) => k === "select" || k === "color";
 const DEFAULT_HEX = "#888888";
 
-// ValueEditor edits the predefined values for select/color kinds.
+// TranslationFields renders the three per-language display inputs for a name or value.
+function TranslationFields({ tr, onChange, placeholder }: { tr: Tr; onChange: (t: Tr) => void; placeholder: string }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {LANG_FIELDS.map((f) => (
+        <Field key={f.key} label={f.label}>
+          <Input
+            value={tr[f.key]}
+            onChange={(e) => onChange({ ...tr, [f.key]: e.target.value })}
+            placeholder={placeholder}
+            className="h-9"
+          />
+        </Field>
+      ))}
+    </div>
+  );
+}
+
+// ValueEditor edits the predefined values for select/color kinds. Each value has a canonical
+// text (stored on products) plus optional per-language display translations.
 function ValueEditor({ kind, values, onChange }: { kind: Kind; values: ValRow[]; onChange: (v: ValRow[]) => void }) {
   const set = (i: number, patch: Partial<ValRow>) => onChange(values.map((v, j) => (j === i ? { ...v, ...patch } : v)));
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Qiymatlar</span>
       {values.map((v, i) => (
-        <div key={i} className="flex items-center gap-2">
-          {kind === "color" && (
-            <input
-              type="color"
-              value={/^#[0-9a-fA-F]{6}$/.test(v.colorHex) ? v.colorHex : DEFAULT_HEX}
-              onChange={(e) => set(i, { colorHex: e.target.value })}
-              className="size-9 shrink-0 cursor-pointer rounded-[8px] border border-input bg-transparent p-0.5"
-              title="Rang"
-            />
-          )}
-          <Input value={v.value} onChange={(e) => set(i, { value: e.target.value })} placeholder="Qiymat" className="h-9" />
-          <Button variant="ghost" size="sm" onClick={() => onChange(values.filter((_, j) => j !== i))}><Trash2 /></Button>
+        <div key={i} className="flex flex-col gap-2 rounded-[10px] border border-border bg-card p-2.5">
+          <div className="flex items-center gap-2">
+            {kind === "color" && (
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(v.colorHex) ? v.colorHex : DEFAULT_HEX}
+                onChange={(e) => set(i, { colorHex: e.target.value })}
+                className="size-9 shrink-0 cursor-pointer rounded-[8px] border border-input bg-transparent p-0.5"
+                title="Rang"
+              />
+            )}
+            <Input value={v.value} onChange={(e) => set(i, { value: e.target.value })} placeholder="Qiymat (asosiy)" className="h-9" />
+            <Button variant="ghost" size="sm" onClick={() => onChange(values.filter((_, j) => j !== i))}><Trash2 /></Button>
+          </div>
+          <TranslationFields
+            tr={{ uz: v.uz, uzc: v.uzc, ru: v.ru }}
+            onChange={(t) => set(i, { uz: t.uz, uzc: t.uzc, ru: t.ru })}
+            placeholder="Tarjima (ixtiyoriy)"
+          />
         </div>
       ))}
-      <Button variant="soft" size="sm" className="self-start" onClick={() => onChange([...values, { value: "", colorHex: DEFAULT_HEX }])}>
+      <Button variant="soft" size="sm" className="self-start" onClick={() => onChange([...values, { value: "", colorHex: DEFAULT_HEX, ...EMPTY_TR }])}>
         <Plus /> Qiymat qo'shish
       </Button>
     </div>
   );
 }
 
-function buildInput(name: string, kind: Kind, unit: string, values: ValRow[]): PropertyDefinitionInput {
+function buildInput(name: string, kind: Kind, unit: string, values: ValRow[], tr: Tr): PropertyDefinitionInput {
   return {
     name: name.trim(),
     kind,
     unit: kind === "number" ? unit.trim() : "",
-    values: hasValues(kind) ? values.filter((v) => v.value.trim()) : [],
+    nameUzLatn: tr.uz.trim(),
+    nameUzCyrl: tr.uzc.trim(),
+    nameRu: tr.ru.trim(),
+    values: hasValues(kind)
+      ? values.filter((v) => v.value.trim()).map((v) => ({
+        value: v.value, colorHex: v.colorHex,
+        valueUzLatn: v.uz, valueUzCyrl: v.uzc, valueRu: v.ru,
+      }))
+      : [],
   };
 }
 
@@ -72,16 +115,17 @@ export function CreatePropertyForm() {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<Kind>("select");
   const [unit, setUnit] = useState("");
+  const [tr, setTr] = useState<Tr>(EMPTY_TR);
   const [values, setValues] = useState<ValRow[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const reset = () => { setName(""); setKind("select"); setUnit(""); setValues([]); };
+  const reset = () => { setName(""); setKind("select"); setUnit(""); setTr(EMPTY_TR); setValues([]); };
 
   const save = async () => {
     if (!name.trim() || busy) return;
     setBusy(true);
     try {
-      await api.createPropertyDefinition(buildInput(name, kind, unit, values));
+      await api.createPropertyDefinition(buildInput(name, kind, unit, values, tr));
       reset();
       toast.success("Saqlandi");
       router.refresh();
@@ -97,8 +141,8 @@ export function CreatePropertyForm() {
       <CardContent className="flex flex-col gap-3">
         <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">Yangi xususiyat qo'shish</div>
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Nomi" className="flex-[2_1_200px]">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rang, Yopishqoqlik, Hajm..." />
+          <Field label="Nomi (asosiy)" className="flex-[2_1_200px]" hint="Mahsulotlar shu nom bilan bog'lanadi">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Color, Size, Volume..." />
           </Field>
           <Field label="Turi" className="flex-[1_1_180px]">
             <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
@@ -114,6 +158,7 @@ export function CreatePropertyForm() {
             </Field>
           )}
         </div>
+        <TranslationFields tr={tr} onChange={setTr} placeholder="Tarjima (ixtiyoriy)" />
         {hasValues(kind) && <ValueEditor kind={kind} values={values} onChange={setValues} />}
         <div className="flex justify-end">
           <Button disabled={busy || !name.trim()} onClick={save}>
@@ -132,7 +177,11 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
   const [kind, setKind] = useState<Kind>(def.kind);
   const [unit, setUnit] = useState(def.unit ?? "");
   const [active, setActive] = useState(def.active);
-  const [values, setValues] = useState<ValRow[]>((def.values ?? []).map((v) => ({ value: v.value, colorHex: v.colorHex || DEFAULT_HEX })));
+  const [tr, setTr] = useState<Tr>({ uz: def.nameUzLatn ?? "", uzc: def.nameUzCyrl ?? "", ru: def.nameRu ?? "" });
+  const [values, setValues] = useState<ValRow[]>((def.values ?? []).map((v) => ({
+    value: v.value, colorHex: v.colorHex || DEFAULT_HEX,
+    uz: v.valueUzLatn ?? "", uzc: v.valueUzCyrl ?? "", ru: v.valueRu ?? "",
+  })));
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -140,7 +189,7 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
     if (!name.trim() || busy) return;
     setBusy(true);
     try {
-      await api.updatePropertyDefinition(def.id, { ...buildInput(name, kind, unit, values), active });
+      await api.updatePropertyDefinition(def.id, { ...buildInput(name, kind, unit, values, tr), active });
       toast.success("Saqlandi");
       router.refresh();
     } catch (e) {
@@ -188,7 +237,7 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
       {expanded && (
         <div className="flex flex-col gap-3 bg-secondary/30 px-4 py-3">
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Nomi" className="flex-[2_1_200px]"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+            <Field label="Nomi (asosiy)" className="flex-[2_1_200px]" hint="Mahsulotlar shu nom bilan bog'lanadi"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
             <Field label="Turi" className="flex-[1_1_180px]">
               <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -199,6 +248,7 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
               <Field label="Birlik" className="flex-[1_1_120px]"><Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="L, mm, kg..." /></Field>
             )}
           </div>
+          <TranslationFields tr={tr} onChange={setTr} placeholder="Tarjima (ixtiyoriy)" />
           {hasValues(kind) && <ValueEditor kind={kind} values={values} onChange={setValues} />}
           <div className="flex justify-between">
             <Button variant="ghost" size="sm" onClick={del} disabled={busy} className="text-destructive"><Trash2 /> O'chirish</Button>

@@ -23,6 +23,7 @@ import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
+import { pickLangText, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
 
@@ -35,6 +36,12 @@ const variantLabel = (v: ProductVariant) =>
 // Resolve a color swatch for an attribute value from the predefined catalog.
 const hexOf = (defs: PropertyDefinition[], prop: string, value: string) =>
   defs.find((d) => d.name === prop && d.kind === "color")?.values?.find((x) => x.value === value)?.colorHex || undefined;
+
+// Attributes store the canonical value; show the admin's translation for the active language.
+const attrLabelOf = (defs: PropertyDefinition[], lang: Lang, prop: string, value: string) => {
+  const v = defs.find((d) => d.name === prop)?.values?.find((x) => x.value === value);
+  return v ? pickLangText(lang, v.valueUzLatn, v.valueUzCyrl, v.valueRu, value) : value;
+};
 
 export default function InventoryPage() {
   const { session } = useAuth();
@@ -206,7 +213,7 @@ function ManageModal({
   onEdit: (p: Product) => void;
   onDone: () => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [adjust, setAdjust] = useState<ProductVariant | null>(null);
   const [history, setHistory] = useState<string | null>(null); // variant id whose history is open
   useEffect(() => { if (!product) { setAdjust(null); setHistory(null); } }, [product]);
@@ -237,7 +244,7 @@ function ManageModal({
                         return (
                           <span key={a.property} className="inline-flex items-center gap-1">
                             {hex && <span className="inline-block size-2.5 rounded-full border border-black/10" style={{ background: hex }} />}
-                            {a.value}
+                            {attrLabelOf(definitions, lang, a.property, a.value)}
                           </span>
                         );
                       }) : (variantLabel(v) || t("variant"))}
