@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { cn } from "@/lib/utils";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import { fiscalFromProto, paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
@@ -54,6 +55,8 @@ export default function InvoicesPage() {
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+  // Other staff change these records while this tab sits open; refresh when it regains focus.
+  useAutoRefresh(load);
 
   const pay = async (inv: Invoice, method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
     try {

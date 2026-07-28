@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
@@ -98,6 +99,8 @@ export default function WorkOrderDetailPage() {
   }, [id, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+  // Other staff change these records while this tab sits open; refresh when it regains focus.
+  useAutoRefresh(load);
   useEffect(() => {
     api.listStaff(shopId).then((s) => setMechanics(s.filter((x) => x.role === "ROLE_MECHANIC" && x.active))).catch(() => {});
   }, [shopId]);

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui-kit/misc";
 import { ChartCard, HBarChart, type BarDatum } from "@/components/admin/charts";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
 import { woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
 import type { Dashboard, WorkOrder } from "@/lib/types";
@@ -52,9 +53,11 @@ export default function DashboardPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     const tick = setInterval(() => setAgo((a) => (a + 1) % 30), 1000);
-    const refresh = setInterval(() => { load(); setAgo(0); }, 30000);
-    return () => { clearInterval(tick); clearInterval(refresh); };
-  }, [load]);
+    return () => clearInterval(tick);
+  }, []);
+  // Poll every 30s, but only while this tab is actually visible; also refresh the moment it
+  // regains focus, so returning to a backgrounded dashboard never shows stale numbers.
+  useAutoRefresh(useCallback(async () => { await load(); setAgo(0); }, [load]), { intervalMs: 30000 });
 
   // WO status breakdown (counts per state, localized, non-zero).
   const statusBars = useMemo<BarDatum[]>(() => {

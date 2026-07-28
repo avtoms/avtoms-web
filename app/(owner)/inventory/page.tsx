@@ -22,6 +22,7 @@ import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,8 @@ export default function InventoryPage() {
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+  // Other staff change these records while this tab sits open; refresh when it regains focus.
+  useAutoRefresh(load);
   // The predefined property catalog + brand/category lists power the product form.
   const loadContragents = useCallback(() => {
     api.listContragents().then(setContragents).catch(() => {});

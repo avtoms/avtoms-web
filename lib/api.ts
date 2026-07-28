@@ -24,6 +24,19 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+  // A route this build calls that the deployed gateway doesn't serve yet (or a genuinely
+  // missing record). Callers use this to degrade instead of failing a whole page.
+  get isMissing() { return this.status === 404 || this.status === 405; }
+}
+
+// optional wraps a call whose endpoint may not exist on an older backend: during a rolling
+// deploy the web image can land before the gateway's. A missing route yields the fallback
+// rather than an error toast; every other failure still propagates.
+export function optional<T>(p: Promise<T>, fallback: T): Promise<T> {
+  return p.catch((e) => {
+    if (e instanceof ApiError && e.isMissing) return fallback;
+    throw e;
+  });
 }
 
 // Single in-flight refresh shared by all concurrent 401s, so the rotating refresh token
@@ -76,9 +89,20 @@ async function call<T>(method: string, path: string, body?: unknown, auth = true
     }
   }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  // A body is not guaranteed to be JSON: a proxy error page, a gateway timeout or an
+  // unmatched route can all answer in HTML/plain text. Parsing defensively keeps those
+  // surfacing as a clean ApiError instead of a SyntaxError no caller is looking for.
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      if (res.ok) throw new ApiError(res.status, `Invalid response from server`);
+      throw new ApiError(res.status, text.slice(0, 200) || `HTTP ${res.status}`);
+    }
+  }
   if (!res.ok) {
-    const msg = (data && (data.message || data.error)) || `HTTP ${res.status}`;
+    const msg = (data.message as string) || (data.error as string) || `HTTP ${res.status}`;
     throw new ApiError(res.status, msg);
   }
   return data as T;
@@ -462,9 +486,14 @@ export const api = {
     }),
 
   // ── shop payment cards (the shop's own receiving cards) ──
+  // Degrades to an empty list on a backend that predates shop cards, so the pay flow still
+  // works (cash/other, plus an ad-hoc card number) instead of erroring.
   listShopCards: (shopId?: string) =>
-    call<{ cards?: ShopCard[] }>("GET", "/v1/shop-cards" + (shopId ? qs({ shopId }) : ""))
-      .then((r) => r.cards ?? []),
+    optional(
+      call<{ cards?: ShopCard[] }>("GET", "/v1/shop-cards" + (shopId ? qs({ shopId }) : ""))
+        .then((r) => r.cards ?? []),
+      [] as ShopCard[],
+    ),
   createShopCard: (c: { label?: string; cardNumber: string; holder?: string }) =>
     call<ShopCard>("POST", "/v1/shop-cards", { label: c.label ?? "", cardNumber: c.cardNumber, holder: c.holder ?? "" }),
   updateShopCard: (id: string, c: { label?: string; cardNumber: string; holder?: string; active?: boolean }) =>
@@ -527,16 +556,21 @@ export const api = {
     call<Report>("GET", "/v1/reports" + qs({ shopId, kind: REPORT_KINDS[kindKey] || kindKey })),
   // Income broken down by payment method + receiving card over an optional date window.
   // Dates are YYYY-MM-DD; pass an ISO string and it is truncated.
+  // Degrades to no rows on a backend that predates the payment-methods report, so the
+  // breakdown shows its empty state rather than breaking the page around it.
   paymentBreakdown: (shopId: string, from?: string, to?: string) =>
-    call<Report>("GET", "/v1/reports" + qs({ shopId, kind: "REPORT_KIND_PAYMENT_METHODS", from: from?.slice(0, 10), to: to?.slice(0, 10) }))
-      .then((r) => (r.rows ?? []).map((row) => ({
-        method: row.cells.method || "other",
-        cardId: row.cells.card_id || "",
-        cardLabel: row.cells.card_label || "",
-        cardNumber: row.cells.card_number || "",
-        amount: Number(row.cells.amount || 0),
-        count: Number(row.cells.count || 0),
-      }))),
+    optional(
+      call<Report>("GET", "/v1/reports" + qs({ shopId, kind: "REPORT_KIND_PAYMENT_METHODS", from: from?.slice(0, 10), to: to?.slice(0, 10) }))
+        .then((r) => (r.rows ?? []).map((row) => ({
+          method: row.cells.method || "other",
+          cardId: row.cells.card_id || "",
+          cardLabel: row.cells.card_label || "",
+          cardNumber: row.cells.card_number || "",
+          amount: Number(row.cells.amount || 0),
+          count: Number(row.cells.count || 0),
+        }))),
+      [] as { method: string; cardId: string; cardLabel: string; cardNumber: string; amount: number; count: number }[],
+    ),
 
   // ── super-admin platform analytics ──
   // Top-selling services aggregated across every shop. shop_id is intentionally not sent:

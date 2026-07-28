@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { translate, translateProp, type Lang } from "@/lib/i18n";
+import { clearStaleBundleGuard, isStaleBundleError, reloadOnceForStaleBundle } from "@/lib/stale-bundle";
 import { applyTheme, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { getSession, setSession as persist, clearSession, type Session } from "@/lib/session";
 import { sessionFromTokenPair } from "@/lib/session";
@@ -55,6 +56,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } catch {}
     setSessionState(getSession());
     setReady(true);
+  }, []);
+
+  // A deploy replaces the hashed JS chunks this tab was served. Navigating afterwards asks
+  // for a chunk that no longer exists, which surfaces as a "not found"-looking failure with
+  // no way forward but a manual reload. Catch those (they escape the React error boundary
+  // when they come from a navigation or a dynamic import) and reload once to pick up the new
+  // build. Reaching this effect at all means the app rendered, so re-arm the guard first.
+  useEffect(() => {
+    clearStaleBundleGuard();
+    const onError = (e: ErrorEvent) => { if (isStaleBundleError(e.error ?? e)) reloadOnceForStaleBundle(); };
+    const onRejection = (e: PromiseRejectionEvent) => { if (isStaleBundleError(e.reason)) reloadOnceForStaleBundle(); };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, []);
 
   useEffect(() => { applyTheme(theme, font, density); }, [theme, font, density]);

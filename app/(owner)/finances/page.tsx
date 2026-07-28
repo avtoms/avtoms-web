@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
@@ -117,6 +118,8 @@ export default function FinancesPage() {
   }, [shopId, range, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+  // Other staff change these records while this tab sits open; refresh when it regains focus.
+  useAutoRefresh(load);
   useEffect(() => { loadTrend(); }, [loadTrend]);
   const reload = () => { load(); loadTrend(); };
 
