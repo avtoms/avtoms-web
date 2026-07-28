@@ -19,7 +19,7 @@ import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
-import { IncomeBreakdownModal } from "@/components/income-breakdown";
+import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
 import { Row, StatCard } from "../_shared";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
@@ -190,6 +190,12 @@ export default function FinancesPage() {
               <Separator className="my-1.5" />
               <PLRow label={t("net_profit")} value={net} pct={pct(net, revenue)} strong tone={net >= 0 ? "ok" : "danger"} />
             </div>
+          </Card>
+
+          {/* income by payment method (cash / card — which card / other) */}
+          <Card className="p-5">
+            <div className="mb-3 text-[15px] font-bold text-foreground">{t("income_by_method")}</div>
+            <IncomeBreakdownPanel shopId={shopId} from={range.from} to={range.to} />
           </Card>
 
           {/* 12-month trend */}

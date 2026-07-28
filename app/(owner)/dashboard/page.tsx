@@ -15,7 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
 import type { Dashboard, WorkOrder } from "@/lib/types";
-import { IncomeBreakdownModal } from "@/components/income-breakdown";
+import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
 import { SecTitle, StatCard, WORow } from "../_shared";
 
 const STATE_ORDER: WoState[] = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed", "canceled"];
@@ -116,6 +116,12 @@ export default function DashboardPage() {
           {revenueBars.length ? <HBarChart data={revenueBars} color="var(--chart-1)" unit="so'm" formatter={(v) => money(v)} /> : <div className="grid h-[160px] place-items-center text-[13px] text-muted-foreground">{t("empty")}</div>}
         </ChartCard>
       </div>
+
+      {/* Today's income by payment method (cash / card — which card / other) */}
+      <Card className="p-5">
+        <SecTitle>{t("income_by_method")}</SecTitle>
+        <IncomeBreakdownPanel shopId={shopId} from={today} to={today} />
+      </Card>
 
       {/* Recent + fiscal */}
       <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
