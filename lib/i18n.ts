@@ -374,6 +374,14 @@ export const STR: Record<string, Triple> = {
   edit_discount: ["Chegirmani tahrirlash", "Чегирмани таҳрирлаш", "Изменить скидку"],
   remove_discount: ["Chegirmani olib tashlash", "Чегирмани олиб ташлаш", "Убрать скидку"],
   discount_value: ["Chegirma qiymati", "Чегирма қиймати", "Значение скидки"],
+  // ── order status flow ──
+  status_flow: ["Buyurtma holatlari", "Буюртма ҳолатлари", "Статусы заказов"],
+  status_flow_hint: [
+    "Qaysi holatlar ishlatilishini tanlang. O'chirilgan holat doskada ko'rinmaydi va buyurtma uni o'tkazib yuboradi.",
+    "Қайси ҳолатлар ишлатилишини танланг. Ўчирилган ҳолат доскада кўринмайди ва буюртма уни ўтказиб юборади.",
+    "Выберите используемые статусы. Отключённый статус не показывается на доске, и заказ его пропускает.",
+  ],
+  status_always_on: ["Doimiy holatlar", "Доимий ҳолатлар", "Всегда включены"],
   // ── income breakdown ──
   income_breakdown: ["Daromad taqsimoti", "Даромад тақсимоти", "Разбивка дохода"],
   income_by_method: ["To'lov usuli bo'yicha daromad", "Тўлов усули бўйича даромад", "Доход по способу оплаты"],

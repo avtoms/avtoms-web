@@ -21,8 +21,9 @@ export const STATE_LABEL: Record<WoState, string> = {
 };
 
 // Allowed forward transitions used by the action bar. Mirrors the backend state machine
-// in avtoms-workorder (service.go allowedTransitions) exactly, so the UI never offers a
-// transition the server will reject.
+// in avtoms-workorder exactly for a shop using every status, so the UI never offers a
+// transition the server will reject. A shop that configured its flow needs the derived
+// version instead — see transitionsFor() below.
 export const TRANSITIONS: Record<WoState, WoState[]> = {
   draft: ["estimated", "canceled"],
   estimated: ["approved", "draft", "canceled"],
@@ -41,6 +42,70 @@ export const woStateFromProto = (s?: string): WoState => {
   return (WO_STATES.includes(k as WoState) ? k : "draft") as WoState;
 };
 export const woStateToProto = (s: WoState): string => WO_PREFIX + s.toUpperCase();
+
+/* ── configurable status flow ────────────────────────────────────────────────────────────
+   A shop picks which statuses its work orders move through. These five are always on:
+   orders are created in draft, the mechanic's done roll-up targets ready, invoicing moves
+   ready → invoiced, revenue reporting counts invoiced + closed, and canceled is the escape
+   hatch. Mirrors lockedStates/canonicalOrder in avtoms-workorder (service.go). */
+export const LOCKED_STATES: WoState[] = ["draft", "ready", "invoiced", "closed", "canceled"];
+export const OPTIONAL_STATES: WoState[] = ["estimated", "approved", "in_progress"];
+export const isLockedState = (s: WoState) => LOCKED_STATES.includes(s);
+
+// The lifecycle in order; canceled sits outside it, reachable from any non-terminal state.
+const CANONICAL_ORDER: WoState[] = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed"];
+
+// enabledSet resolves a shop's stored flow (proto state names) to short keys, always folding
+// the locked states back in. Empty/undefined means every status, the default for a shop that
+// never configured one.
+export function enabledSet(enabled?: string[]): Set<WoState> {
+  const out = new Set<WoState>();
+  if (!enabled || enabled.length === 0) {
+    for (const s of WO_STATES) out.add(s);
+    return out;
+  }
+  for (const raw of enabled) {
+    const s = woStateFromProto(raw);
+    if (WO_STATES.includes(s)) out.add(s);
+  }
+  for (const s of LOCKED_STATES) out.add(s);
+  return out;
+}
+
+// visibleStates decides which columns a board shows. `present` are states that currently
+// hold orders: an order can sit in a status the shop has since switched off, and hiding that
+// column would make the card vanish — so it stays until the order moves on.
+export function visibleStates(enabled?: string[], present: Iterable<WoState> = []): Set<WoState> {
+  const out = enabledSet(enabled);
+  for (const s of present) out.add(s);
+  return out;
+}
+
+// transitionsFor derives the legal moves per state from the shop's flow, mirroring
+// shopTransitions in avtoms-workorder: a forward move lands on the next ENABLED state (so a
+// disabled step is skipped), and the two back-moves (estimated → draft, ready → in_progress)
+// fall back to the nearest enabled predecessor. Every state gets an entry, including
+// disabled ones, so an order stranded in a switched-off status can still move on.
+export function transitionsFor(enabled?: string[]): Record<WoState, WoState[]> {
+  const on = enabledSet(enabled);
+  const out = {} as Record<WoState, WoState[]>;
+  for (const s of WO_STATES) out[s] = [];
+  CANONICAL_ORDER.forEach((from, i) => {
+    if (from === "closed") return; // terminal
+    const moves: WoState[] = [];
+    const next = CANONICAL_ORDER.slice(i + 1).find((c) => on.has(c));
+    if (next) moves.push(next);
+    if (from === "estimated" || from === "ready") {
+      for (let j = i - 1; j >= 0; j--) {
+        if (on.has(CANONICAL_ORDER[j])) { moves.push(CANONICAL_ORDER[j]); break; }
+      }
+    }
+    // An invoiced order is billed; cancelling it is not a state move.
+    if (from !== "invoiced") moves.push("canceled");
+    out[from] = moves;
+  });
+  return out;
+}
 
 export const roleFromProto = (s?: string): Role =>
   s === "ROLE_MECHANIC" ? "mechanic" : s === "ROLE_ADMIN" ? "admin" : "owner";

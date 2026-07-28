@@ -474,11 +474,15 @@ export const api = {
   deletePropertyDefinition: (id: string) =>
     call<{ ok?: boolean }>("POST", `/v1/admin/property-definitions/${id}/delete`, {}),
 
-  // ── shop pricing policy ──
-  // shopId is taken from the auth context by the gateway, so it is not sent.
+  // ── shop policy: pricing + status flow ──
+  // shopId is taken from the auth context by the gateway, so it is not sent. Both fields
+  // travel together, so a caller changing one must pass the other's current value.
   getShopSettings: () => call<ShopSettings>("GET", "/v1/shop/settings"),
-  updateShopSettings: (maxDiscountPercent: number) =>
-    call<ShopSettings>("POST", "/v1/shop/settings", { maxDiscountPercent }),
+  updateShopSettings: (s: { maxDiscountPercent: number; enabledStates?: string[] }) =>
+    call<ShopSettings>("POST", "/v1/shop/settings", {
+      maxDiscountPercent: s.maxDiscountPercent,
+      enabledStates: s.enabledStates ?? [],
+    }),
 
   // ── invoices ──
   listInvoices: (shopId: string) =>

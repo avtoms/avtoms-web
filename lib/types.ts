@@ -404,6 +404,9 @@ export interface StockMovement {
 export interface ShopSettings {
   shopId: string;
   maxDiscountPercent: number; // 0-100; 100 = no cap
+  // Proto state names, in flow order, for the statuses this shop uses. The server always
+  // returns the resolved set (always-on states included); empty means every status.
+  enabledStates?: string[];
 }
 
 export interface Integration {

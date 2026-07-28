@@ -15,7 +15,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { WO_STATES, STATE_LABEL, TRANSITIONS, woStateFromProto, type WoState } from "@/lib/enums";
+import { WO_STATES, STATE_LABEL, visibleStates, transitionsFor, woStateFromProto, type WoState } from "@/lib/enums";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
@@ -46,6 +47,10 @@ export default function WorkOrdersPage() {
   const [filter, setFilter] = useState<"all" | WoState>("all");
   const [list, setList] = useState<WorkOrder[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The shop's configured status flow; undefined until loaded, meaning "every status".
+  const [enabled, setEnabled] = useState<string[] | undefined>(undefined);
+
+  useEffect(() => { api.getShopSettings().then((s) => setEnabled(s.enabledStates)).catch(() => {}); }, []);
 
   // On the board we load the whole shop and bucket client-side; on the list we let the
   // server filter by the selected state.
@@ -61,6 +66,8 @@ export default function WorkOrdersPage() {
   }, [shopId, view, filter, t, toast]);
 
   useEffect(() => { void load(); }, [load]);
+  // Other staff move orders while this board sits open; refresh when it regains focus.
+  useAutoRefresh(load);
 
   // Owner board move: a plain state transition (the backend rejects invalid hops with a
   // clear error, which we surface). No timer side-effects here — that's the mechanic's flow.
@@ -80,7 +87,16 @@ export default function WorkOrdersPage() {
     }
   };
 
-  const cols = PIPELINE.map((c) => ({ ...c, label: t(c.label) }));
+  // Show the shop's statuses, plus any status that still holds an order — a card must never
+  // disappear just because its status was switched off after the order landed there.
+  const shown = useMemo(() => {
+    const present = (list ?? []).map((w) => woStateFromProto(w.state));
+    return visibleStates(enabled, present);
+  }, [enabled, list]);
+  const cols = PIPELINE.filter((c) => shown.has(c.key)).map((c) => ({ ...c, label: t(c.label) }));
+  // Moves must match the shop's flow, not the full lifecycle, or the board would offer a hop
+  // the server rejects.
+  const flowTransitions = useMemo(() => transitionsFor(enabled), [enabled]);
 
   const columns = useMemo<ColumnDef<WorkOrder>[]>(() => [
     {
@@ -153,7 +169,7 @@ export default function WorkOrdersPage() {
           onOpen={(id) => router.push(`/work-orders/${id}`)}
           hint={t("board_hint")}
           emptyLabel={t("no_orders_col")}
-          moveTargets={(cur) => TRANSITIONS[cur] || []}
+          moveTargets={(cur) => flowTransitions[cur] || []}
         />
       ) : (
         <DataTable
@@ -169,7 +185,7 @@ export default function WorkOrdersPage() {
               <SelectTrigger size="sm" className="w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("all")}</SelectItem>
-                {WO_STATES.map((s) => <SelectItem key={s} value={s}>{t(STATE_LABEL[s])}</SelectItem>)}
+                {WO_STATES.filter((s) => shown.has(s)).map((s) => <SelectItem key={s} value={s}>{t(STATE_LABEL[s])}</SelectItem>)}
               </SelectContent>
             </Select>
           }

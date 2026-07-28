@@ -15,6 +15,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth, useLang, useTheme, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import {
+  WO_STATES, STATE_LABEL, LOCKED_STATES, OPTIONAL_STATES, enabledSet, woStateToProto, type WoState,
+} from "@/lib/enums";
 import type { ShopCard } from "@/lib/types";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
@@ -35,30 +38,52 @@ export default function SettingsPage() {
   useEffect(() => { setShop(loadShopProfile()); }, []);
   const saveShop = () => { saveShopProfile(shop); toast(t("save"), { icon: "check" }); };
 
-  // Pricing policy (real): the per-shop max discount %. 100 = no cap.
+  // Shop policy (real backend): the max discount %, and which statuses the order flow uses.
+  // Both live on the same record, so each save sends the current value of the other.
   const [maxDiscount, setMaxDiscount] = useState("100");
+  const [flow, setFlow] = useState<Set<WoState>>(() => new Set(WO_STATES));
   const [policyLoading, setPolicyLoading] = useState(true);
   const [savingPolicy, setSavingPolicy] = useState(false);
+  const [savingFlow, setSavingFlow] = useState(false);
 
   useEffect(() => {
     api.getShopSettings()
-      .then((s) => setMaxDiscount(String(s.maxDiscountPercent)))
+      .then((s) => { setMaxDiscount(String(s.maxDiscountPercent)); setFlow(enabledSet(s.enabledStates)); })
       .catch(() => {})
       .finally(() => setPolicyLoading(false));
   }, []);
 
+  const currentPct = () => Math.max(0, Math.min(100, parseInt(maxDiscount, 10) || 0));
+  const flowList = (f: Set<WoState>) => WO_STATES.filter((s) => f.has(s)).map(woStateToProto);
+
   const savePolicy = async () => {
     if (savingPolicy) return;
-    const pct = Math.max(0, Math.min(100, parseInt(maxDiscount, 10) || 0));
     setSavingPolicy(true);
     try {
-      const s = await api.updateShopSettings(pct);
+      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(flow) });
       setMaxDiscount(String(s.maxDiscountPercent));
       toast(t("save"), { icon: "check" });
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
       setSavingPolicy(false);
+    }
+  };
+
+  const saveFlow = async (next: Set<WoState>) => {
+    if (savingFlow) return;
+    const prev = flow;
+    setFlow(next); // optimistic: the toggle should feel instant
+    setSavingFlow(true);
+    try {
+      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(next) });
+      setFlow(enabledSet(s.enabledStates)); // trust the server's resolved set
+      toast(t("save"), { icon: "check" });
+    } catch (e) {
+      setFlow(prev);
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setSavingFlow(false);
     }
   };
 
@@ -95,6 +120,44 @@ export default function SettingsPage() {
             </Field>
             <div className="text-[12px] text-muted-foreground">{t("max_discount_hint")}</div>
             <Button disabled={savingPolicy} onClick={savePolicy}>{savingPolicy ? <Spinner /> : t("save")}</Button>
+          </div>
+        )}
+      </Card>
+
+      {/* order status flow — which statuses this shop's board uses */}
+      <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
+        <SecTitle>{t("status_flow")}</SecTitle>
+        <div className="mb-3 text-[12px] text-muted-foreground">{t("status_flow_hint")}</div>
+        {policyLoading ? (
+          <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              {OPTIONAL_STATES.map((s) => {
+                const on = flow.has(s);
+                return (
+                  <button key={s} disabled={savingFlow}
+                    onClick={() => { const n = new Set(flow); if (on) n.delete(s); else n.add(s); void saveFlow(n); }}
+                    className={cn(
+                      "flex items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
+                      on ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
+                    )}>
+                    <span className={cn("text-[14.5px] font-semibold", on ? "text-primary-emphasis" : "text-foreground")}>
+                      {t(STATE_LABEL[s])}
+                    </span>
+                    {on && <Check className="size-[17px] text-primary-emphasis" />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="rounded-[9px] border border-dashed border-border px-3.5 py-2.5">
+              <div className="mb-1 text-[12px] font-semibold text-muted-foreground">{t("status_always_on")}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {LOCKED_STATES.map((s) => (
+                  <span key={s} className="rounded-full bg-secondary px-2.5 py-1 text-[12px] text-muted-foreground">{t(STATE_LABEL[s])}</span>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </Card>
