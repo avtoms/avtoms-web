@@ -81,3 +81,26 @@ export function qrMatrix(str: string, size = 25): boolean[][] {
   finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
   return m;
 }
+
+// ── dates ──
+// Uzbek Cyrillic has no widely-shipped CLDR data, so it borrows the Latin locale; Intl falls
+// back to the runtime default if either tag is unavailable, which is fine for these short forms.
+export function localeTag(lang: string): string {
+  return lang === "ru" ? "ru-RU" : "uz-UZ";
+}
+
+export function shortDate(iso: string | undefined, lang: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(localeTag(lang), { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Day + time, dropping the year — board cards and timelines are about recent activity, and
+// the year is noise there.
+export function shortDateTime(iso: string | undefined, lang: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(localeTag(lang), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}

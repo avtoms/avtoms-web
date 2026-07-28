@@ -1,17 +1,18 @@
 "use client";
-// Shared Jira-style work-order board: column buckets, drag-and-drop between columns,
-// a per-card "move to" dropdown, and a mobile column switcher. Used by both the mechanic
-// shop-floor board (app/m) and the owner pipeline board (app/(owner)/work-orders).
+// Shared work-order board: column buckets, drag-and-drop between columns, a per-card
+// "move to" dropdown, and a mobile column switcher. Used by both the mechanic shop-floor
+// board (app/m) and the owner pipeline board (app/(owner)/work-orders).
 // The owner of *what a move means* (timers, valid transitions) stays with the caller via
 // onMove — this component only renders and routes drag/click intents.
 import React, { useEffect, useRef, useState } from "react";
-import { Segmented, useIsMobile } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { CalendarDays, ChevronDown, ChevronRight, ClipboardList, Timer } from "lucide-react";
+import { useIsMobile } from "@/components/ui";
 import { useLang } from "@/components/providers";
-import { woStateFromProto, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
+import { woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
-import { money, num, orderLabel } from "@/lib/format";
+import { money, num, orderLabel, shortDateTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { WorkOrder } from "@/lib/types";
 
 export type Tone = "accent" | "warn" | "ok";
@@ -34,9 +35,18 @@ function useElapsedLabel(startedAt?: string): string | null {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+// Share of the order's service lines that are finished. Returns null when the order was
+// loaded without its line items (the owner board lists heads only), so the bar is shown
+// only where it means something.
+function serviceProgress(wo: WorkOrder): { done: number; total: number } | null {
+  const lines = (wo.lineItems || []).filter((li) => !kindIsMaterial(kindFromProto(li.kind)));
+  if (lines.length === 0) return null;
+  return { done: lines.filter((li) => lineStatusFromProto(li.status) === "done").length, total: lines.length };
+}
+
 type MoveTarget = { key: WoState; label: string; accent: string };
 
-// ── per-card status dropdown (Jira-style "move to") ──
+// ── per-card status dropdown ──
 // `targets` are the LEGAL next states for this card (driven by the state machine, not the
 // board layout) so the menu never offers an illegal move and can reach off-board states
 // like Closed/Canceled. The button shows the current state styled by its column.
@@ -46,27 +56,31 @@ function StatusMenu({ currentCol, targets, onMove, disabled }: {
   const [open, setOpen] = useState(false);
   const dead = disabled || targets.length === 0;
   return (
-    <div style={{ position: "relative", flexShrink: 0, maxWidth: "100%" }}>
-      <button disabled={dead} onClick={() => setOpen((o) => !o)} className="an-btn" style={{
-        display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 9px", borderRadius: 999, maxWidth: "100%",
-        border: "1px solid var(--line)", background: currentCol.soft, color: currentCol.accent,
-        cursor: dead ? "default" : "pointer", fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-      }}>
-        <span style={{ width: 7, height: 7, borderRadius: 99, background: "currentColor", flexShrink: 0 }} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{currentCol.label}</span>
-        {targets.length > 0 && <Icon name="chevD" size={13} style={{ flexShrink: 0 }} />}
+    <div className="relative max-w-full shrink-0">
+      <button
+        disabled={dead}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold whitespace-nowrap outline-none",
+          dead ? "cursor-default" : "cursor-pointer hover:brightness-[0.97]",
+        )}
+        style={{ background: currentCol.soft, color: currentCol.accent }}
+      >
+        <span className="size-1.5 shrink-0 rounded-full bg-current" />
+        <span className="truncate">{currentCol.label}</span>
+        {targets.length > 0 && <ChevronDown className="size-3 shrink-0" />}
       </button>
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
-          <div className="an-modal-in" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 91, minWidth: 180, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)", boxShadow: "var(--shadow-lg)", padding: 6 }}>
+          <div onClick={() => setOpen(false)} className="fixed inset-0 z-[90]" />
+          <div className="an-modal-in absolute left-0 top-[calc(100%+6px)] z-[91] min-w-[180px] rounded-[12px] border border-border bg-card p-1.5 shadow-[var(--shadow-lg)]">
             {targets.map((tg) => (
-              <button key={tg.key} onClick={() => { setOpen(false); onMove(tg.key); }} className="an-row-btn" style={{
-                display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 10px", border: "none",
-                background: "transparent", color: "var(--ink)", cursor: "pointer",
-                borderRadius: "var(--radius-sm)", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 13.5, textAlign: "left",
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: 99, background: tg.accent }} />
+              <button
+                key={tg.key}
+                onClick={() => { setOpen(false); onMove(tg.key); }}
+                className="flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13.5px] font-semibold text-foreground outline-none hover:bg-secondary"
+              >
+                <span className="size-2 rounded-full" style={{ background: tg.accent }} />
                 {tg.label}
               </button>
             ))}
@@ -78,78 +92,93 @@ function StatusMenu({ currentCol, targets, onMove, disabled }: {
 }
 
 // ── work-order card ──
-function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragStart, onDragEnd }: {
-  wo: WorkOrder; col: ColDef; targets: MoveTarget[]; busy: boolean; dragging: boolean; t: (k: string) => string;
+function WOCard({ wo, col, targets, busy, dragging, t, lang, onOpen, onMove, onDragStart, onDragEnd }: {
+  wo: WorkOrder; col: ColDef; targets: MoveTarget[]; busy: boolean; dragging: boolean;
+  t: (k: string) => string; lang: string;
   onOpen: () => void; onMove: (s: WoState) => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
-  const total = num(wo.total);
-  const shortId = orderLabel(wo);
   const running = col.key === "in_progress";
   const elapsed = useElapsedLabel(running ? wo.activeTimerStartedAt : undefined);
+  const prog = serviceProgress(wo);
+  const pct = prog ? Math.round((prog.done / prog.total) * 100) : 0;
+  const customer = wo.customerName || "";
+  const initial = customer.trim().charAt(0).toUpperCase();
+
   return (
     <div
       draggable={!busy}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", wo.id); onDragStart(); }}
       onDragEnd={onDragEnd}
-      style={{
-        position: "relative", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)",
-        boxShadow: dragging ? "var(--shadow-lg)" : "var(--shadow)", padding: "13px 14px 13px 16px", cursor: busy ? "wait" : "grab",
-        opacity: dragging ? 0.5 : busy ? 0.7 : 1, transition: "box-shadow .12s, opacity .12s, transform .08s",
-      }}
-      className="an-card-hover"
+      className={cn(
+        "an-card-hover relative flex flex-col gap-2.5 rounded-[14px] border border-border bg-card py-3.5 pl-4 pr-3.5",
+        "transition-[box-shadow,opacity,transform] duration-100",
+        dragging ? "cursor-grabbing opacity-50 shadow-[var(--shadow-lg)]" : busy ? "cursor-wait opacity-70 shadow-[var(--shadow)]" : "cursor-grab shadow-[var(--shadow)]",
+      )}
     >
-      {/* accent bar — rounded to match the card so no overflow:hidden is needed (keeps the status dropdown un-clipped) */}
-      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: col.accent, borderTopLeftRadius: "var(--radius)", borderBottomLeftRadius: "var(--radius)" }} />
-      {/* order number + status-change control side by side (status menu opens downward) */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, rowGap: 8, flexWrap: "wrap", marginBottom: 11 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink-2)", fontSize: 12.5, flexShrink: 0 }}>
-          <Icon name="clipboard" size={14} style={{ color: "var(--ink-3)" }} /> {shortId}
+      {/* accent bar — rounded to match the card so no overflow:hidden is needed (which would
+          clip the status dropdown) */}
+      <span className="absolute inset-y-0 left-0 w-1 rounded-l-[14px]" style={{ background: col.accent }} />
+
+      {/* order number ←→ status control */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 font-mono text-[12px] font-bold text-muted-foreground">
+          <ClipboardList className="size-3.5 shrink-0" />
+          <span className="truncate">{orderLabel(wo)}</span>
         </span>
         <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} />
-        {running && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--warn)", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)", background: "var(--warn-soft)", padding: "3px 8px", borderRadius: 999, marginLeft: "auto" }}>
-            <span className="an-pulse" style={{ width: 7, height: 7, borderRadius: 99, background: "currentColor" }} />
-            <Icon name="clock" size={13} />
-            {elapsed ?? t("timer_running")}
-          </span>
-        )}
       </div>
 
-      {/* vehicle: make/model + plate. Plate gets its own row so it has the full card width
-          (it's a fixed-size element and would overflow a narrow flex column otherwise). */}
-      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 9 }}>
-        {/* The make's logo makes a card recognisable at a glance; CarImage falls back to a
-            brand monogram, then the car glyph, keeping this column's tint either way. */}
-        <CarImage make={wo.make} size={40} radius={11} bg={col.soft} fg={col.accent} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {/* vehicle — the make's logo makes a card recognisable at a glance; CarImage falls back
+          to a brand monogram, then the car glyph, keeping this column's tint either way */}
+      <div className="flex items-center gap-2.5">
+        <CarImage src={wo.vehicleImageUrl} make={wo.make} size={38} radius={10} bg={col.soft} fg={col.accent} />
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+          <div className="w-full truncate text-[14px] font-bold tracking-[-0.01em] text-foreground">
             {[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}
           </div>
+          {wo.plate && <PlatePreview plate={wo.plate} size="sm" />}
         </div>
       </div>
-      {wo.plate && (
-        <div style={{ minWidth: 0, marginBottom: 9 }}><PlatePreview plate={wo.plate} size="sm" /></div>
+
+      {/* how far this order's services have got — hidden once everything is finished */}
+      {prog && pct < 100 && (
+        <div className="flex items-center gap-2">
+          <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-secondary">
+            <div className="h-full rounded-full transition-[width] duration-200" style={{ width: `${pct}%`, background: col.accent }} />
+          </div>
+          <span className="font-mono text-[11px] font-bold text-muted-foreground">{pct}%</span>
+        </div>
       )}
 
-      {/* customer + total */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, color: "var(--ink-2)", fontSize: 12.5 }}>
-          <Icon name="users" size={14} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wo.customerName || "—"}</span>
+      {/* customer ←→ price */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium text-ink-2">
+          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary-soft text-[9px] font-extrabold text-primary-emphasis">{initial || "—"}</span>
+          <span className="truncate">{customer || "—"}</span>
         </span>
-        <span style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14px * var(--scale))", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
-          {money(total)} <span style={{ fontSize: 11, fontWeight: 500, color: "var(--ink-3)" }}>{t("soum")}</span>
-        </span>
+        <span className="shrink-0 font-mono text-[13.5px] font-extrabold text-foreground">{money(num(wo.total))}</span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <button onClick={onOpen} className="an-btn" style={{
-          display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: "var(--radius-sm)", flexShrink: 0, marginLeft: "auto",
-          border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer",
-          fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 12.5,
-        }}>
-          {t("open")} <Icon name="chevR" size={14} />
+      {/* footer: what is happening now ←→ open */}
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
+        {running && elapsed ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2 py-1 font-mono text-[11.5px] font-bold text-warning">
+            <span className="an-pulse size-1.5 rounded-full bg-current" />
+            <Timer className="size-3.5" />
+            {elapsed}
+          </span>
+        ) : (
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] font-semibold text-muted-foreground">
+            <CalendarDays className="size-3.5 shrink-0" />
+            <span className="truncate">{shortDateTime(wo.createdAt, lang)}</span>
+          </span>
+        )}
+        <button
+          onClick={onOpen}
+          className="inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-bold text-primary-emphasis outline-none hover:underline"
+        >
+          {t("open")} <ChevronRight className="size-3.5" />
         </button>
       </div>
     </div>
@@ -173,7 +202,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   // off-board Closed/Canceled) for the owner board.
   moveTargets?: (current: WoState) => WoState[];
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const isMobile = useIsMobile();
   const [col, setCol] = useState<WoState>(cols[0]?.key);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -194,34 +223,56 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   const endDrag = () => { dragIdRef.current = null; setDragId(null); setOverCol(null); };
   const dropOn = (target: WoState) => { const id = dragIdRef.current; setOverCol(null); if (id) onMove(id, target); };
 
+  const cardProps = (w: WorkOrder, c: ColDef) => ({
+    wo: w, col: c, targets: targetsFor(c.key), busy: busyId === w.id, t, lang,
+    onOpen: () => onOpen(w.id), onMove: (s: WoState) => onMove(w.id, s),
+  });
+
   // ── mobile: column switcher + stacked cards ──
   if (isMobile) {
     const active = cols.find((c) => c.key === col) ? col : cols[0]?.key;
     const items = byState(active);
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ overflowX: "auto" }}>
-          <Segmented options={cols.map((c) => ({ value: c.key, label: `${c.label} · ${byState(c.key).length}` }))} value={active} onChange={(v) => setCol(v as WoState)} size="sm" style={{ flexWrap: "nowrap" }} />
+      <div className="flex flex-col gap-3.5">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {cols.map((c) => {
+            const on = c.key === active;
+            return (
+              <button
+                key={c.key}
+                onClick={() => setCol(c.key)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] font-bold outline-none transition-colors",
+                  on ? "" : "border border-border bg-card text-muted-foreground",
+                )}
+                style={on ? { background: c.soft, color: c.accent } : undefined}
+              >
+                <span className="size-2 rounded-full" style={{ background: on ? "currentColor" : c.accent }} />
+                {c.label}
+                <span className="rounded-full bg-card/70 px-1.5 font-mono text-[11.5px]">{byState(c.key).length}</span>
+              </button>
+            );
+          })}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+        <div className="flex flex-col gap-2.5">
           {items.length === 0 ? (
-            <div style={{ padding: "32px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 14 }}>{emptyLabel}</div>
+            <div className="py-8 text-center text-[14px] text-muted-foreground">{emptyLabel}</div>
           ) : items.map((w) => {
             const c = cols.find((x) => x.key === woStateFromProto(w.state))!;
-            return <WOCard key={w.id} wo={w} col={c} targets={targetsFor(c.key)} busy={busyId === w.id} dragging={false} t={t} onOpen={() => onOpen(w.id)} onMove={(s) => onMove(w.id, s)} onDragStart={() => {}} onDragEnd={() => {}} />;
+            return <WOCard key={w.id} {...cardProps(w, c)} dragging={false} onDragStart={() => {}} onDragEnd={() => {}} />;
           })}
         </div>
       </div>
     );
   }
 
-  // ── desktop: Jira-style board with drag & drop; scrolls horizontally when columns are many ──
+  // ── desktop: board with drag & drop; scrolls horizontally when columns are many ──
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+    <div className="flex flex-col gap-4">
+      <div className="overflow-x-auto pb-1">
         {/* Cap column width (max 300px) so cards don't balloon on wide screens; the 230px
             floor lets the row scroll horizontally only when the viewport is genuinely narrow. */}
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols.length}, minmax(230px, 300px))`, gap: 16, alignItems: "start", justifyContent: "start" }}>
+        <div className="grid items-start justify-start gap-4" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(230px, 300px))` }}>
           {cols.map((c) => {
             const items = byState(c.key);
             const isOver = overCol === c.key;
@@ -231,25 +282,29 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overCol !== c.key) setOverCol(c.key); }}
                 onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
                 onDrop={(e) => { e.preventDefault(); dropOn(c.key); }}
-                style={{ display: "flex", flexDirection: "column", gap: 11 }}
+                className="flex flex-col gap-2.5"
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "var(--radius-sm)", background: c.soft, color: c.accent }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13.5, letterSpacing: "-0.01em" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 99, background: "currentColor" }} /> {c.label}
+                <div className="flex items-center justify-between rounded-[12px] px-3.5 py-2.5" style={{ background: c.soft, color: c.accent }}>
+                  <span className="inline-flex items-center gap-2 text-[13.5px] font-bold tracking-[-0.01em]">
+                    <span className="size-2 rounded-full bg-current" /> {c.label}
                   </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: 13, minWidth: 22, height: 22, borderRadius: 999, background: "var(--surface)", color: c.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 7px" }}>{items.length}</span>
+                  <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-card px-1.5 font-mono text-[12.5px] font-extrabold" style={{ color: c.accent }}>
+                    {items.length}
+                  </span>
                 </div>
-                <div style={{
-                  display: "flex", flexDirection: "column", gap: 11, minHeight: 120, borderRadius: "var(--radius)",
-                  padding: 11, background: isOver ? c.soft : "var(--surface-2)",
-                  outline: isOver ? `2px dashed ${c.accent}` : "2px dashed transparent", transition: "background .12s, outline-color .12s",
-                }}>
+                <div
+                  className={cn(
+                    "flex min-h-[120px] flex-col gap-2.5 rounded-[14px] p-2.5 outline-2 outline-dashed transition-colors duration-100",
+                    isOver ? "" : "bg-secondary/60 outline-transparent",
+                  )}
+                  style={isOver ? { background: c.soft, outlineColor: c.accent } : undefined}
+                >
                   {items.length === 0 ? (
-                    <div style={{ padding: "26px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 12.5, fontWeight: 500 }}>
+                    <div className="py-6 text-center text-[12.5px] font-medium text-muted-foreground">
                       {isOver ? t("drop_here") : emptyLabel}
                     </div>
                   ) : items.map((w) => (
-                    <WOCard key={w.id} wo={w} col={c} targets={targetsFor(c.key)} busy={busyId === w.id} dragging={dragId === w.id} t={t} onOpen={() => onOpen(w.id)} onMove={(s) => onMove(w.id, s)} onDragStart={() => startDrag(w.id)} onDragEnd={endDrag} />
+                    <WOCard key={w.id} {...cardProps(w, c)} dragging={dragId === w.id} onDragStart={() => startDrag(w.id)} onDragEnd={endDrag} />
                   ))}
                 </div>
               </div>
@@ -257,9 +312,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
           })}
         </div>
       </div>
-      {hint && (
-        <div style={{ fontSize: 12, color: "var(--ink-3)", textAlign: "center" }}>{hint}</div>
-      )}
+      {hint && <div className="text-center text-[12px] text-muted-foreground">{hint}</div>}
     </div>
   );
 }

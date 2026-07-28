@@ -1,20 +1,40 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth, useLang, useToast } from "@/components/providers";
 import {
-  Btn, IconBtn, Card, StateBadge, Badge, Field, TextInput, TextArea, Segmented, Modal, Empty, Spinner, useIsMobile, Skeleton, SkeletonRows,
-} from "@/components/ui";
-import { Icon } from "@/components/icons";
+  ArrowLeft, CalendarDays, Check, Gauge, Phone, Play, Plus, RotateCcw, Send, Square, Timer, Users,
+} from "lucide-react";
+import { useAuth, useLang, useToast } from "@/components/providers";
+import { Btn, Field, TextInput, Segmented, Modal, Empty, Spinner, useIsMobile } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Button } from "@/components/ui-kit/button";
+import { Badge } from "@/components/ui-kit/badge";
+import { Skeleton } from "@/components/ui-kit/misc";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui-kit/tabs";
 import { MoneyInput } from "@/components/catalog-fields";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError } from "@/lib/api";
-import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemKind, type LineItemStatus } from "@/lib/enums";
-import { money, num, durationFmt, minutesBetween, orderLabel, vehicleTitle } from "@/lib/format";
+import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, lineStatusFromProto, lineStatusToProto, STATE_LABEL, type WoState, type LineItemKind, type LineItemStatus } from "@/lib/enums";
+import { money, num, durationFmt, minutesBetween, orderLabel, vehicleTitle, shortDate, shortDateTime } from "@/lib/format";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
-import type { WorkOrder, MenuItem } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import type { WorkOrder, MenuItem, AuditEntry, Vehicle, Customer } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
+
+const AUDIT_LABEL: Record<string, string> = {
+  state: "audit_state", line_added: "audit_line_added",
+  line_removed: "audit_line_removed", mechanic_assigned: "audit_mechanic_assigned",
+  order_discount: "order_discount",
+};
+
+// The state badge tone mirrors the board columns, so a status means the same colour wherever
+// the mechanic sees it.
+const STATE_TONE: Record<string, "neutral" | "accent" | "warn" | "ok" | "danger" | "info"> = {
+  draft: "neutral", estimated: "info", approved: "accent", in_progress: "warn",
+  ready: "ok", invoiced: "accent", closed: "neutral", canceled: "danger",
+};
 
 // Payload for adding a line item (agreed price + optional shop cost + price-list origin).
 type LineItemInput = {
@@ -22,20 +42,11 @@ type LineItemInput = {
   cost?: number; menuItemId?: string; defaultPrice?: number;
 };
 
-function SecTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+function PanelTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-      <h3 style={{ margin: 0, fontSize: "calc(13px * var(--scale))", fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{children}</h3>
+    <div className="flex items-center justify-between gap-3">
+      <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{children}</h3>
       {right}
-    </div>
-  );
-}
-
-function Row({ label, value, mono, strong }: { label: string; value: React.ReactNode; mono?: boolean; strong?: boolean }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, padding: "3px 0" }}>
-      <span style={{ color: "var(--ink-2)", fontSize: "calc(14px * var(--scale))", fontWeight: strong ? 700 : 500 }}>{label}</span>
-      <span style={{ color: "var(--ink)", fontSize: `calc(${strong ? 17 : 14.5}px * var(--scale))`, fontWeight: strong ? 800 : 600, fontFamily: mono ? "var(--font-mono)" : "var(--font-sans)", letterSpacing: strong ? "-0.02em" : 0 }}>{value}</span>
     </div>
   );
 }
@@ -64,18 +75,18 @@ function LineStatusControl({ status, editable, busy, t, onSet }: {
     return <Badge tone={m.tone} dot>{m.label}</Badge>;
   }
   if (status === "pending")
-    return <Btn variant="soft" size="sm" icon="play" disabled={busy} onClick={() => onSet("in_progress")}>{t("ln_start")}</Btn>;
+    return <Button variant="soft" size="sm" disabled={busy} onClick={() => onSet("in_progress")}><Play />{t("ln_start")}</Button>;
   if (status === "in_progress")
     return (
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <div className="flex items-center gap-2">
         <Badge tone="warn" dot>{t("ln_inprogress")}</Badge>
-        <Btn variant="primary" size="sm" icon="check" disabled={busy} onClick={() => onSet("done")}>{t("ln_finish")}</Btn>
+        <Button size="sm" disabled={busy} onClick={() => onSet("done")}><Check />{t("ln_finish")}</Button>
       </div>
     );
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <div className="flex items-center gap-2">
       <Badge tone="ok" dot>{t("ln_done")}</Badge>
-      <Btn variant="ghost" size="sm" disabled={busy} onClick={() => onSet("in_progress")} style={{ color: "var(--ink-3)" }}>{t("ln_reopen")}</Btn>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={() => onSet("in_progress")}><RotateCcw />{t("ln_reopen")}</Button>
     </div>
   );
 }
@@ -136,7 +147,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
         defaultPrice: from.defaultPrice || undefined,
       });
       onClose();
-    } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
+    } catch { /* surfaced by parent toast */ } finally { setSaving(false); }
   };
 
   const agreed = parseInt(price, 10) || 0;
@@ -198,11 +209,34 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
   );
 }
 
+/* ── order history ── */
+function Timeline({ entries, lang, t, limit }: { entries: AuditEntry[]; lang: string; t: (k: string) => string; limit?: number }) {
+  const shown = limit ? entries.slice(0, limit) : entries;
+  if (shown.length === 0) return <div className="py-4 text-center text-[13px] text-muted-foreground">{t("no_history")}</div>;
+  return (
+    <div className="flex flex-col">
+      {shown.map((e, i) => (
+        <div key={e.id} className="relative flex gap-3 pb-4 last:pb-0">
+          {i < shown.length - 1 && <span className="absolute bottom-0 left-[5px] top-4 w-px bg-border" />}
+          <span className={cn("mt-1 size-[11px] shrink-0 rounded-full border-2", i === 0 ? "border-primary-soft bg-primary" : "border-secondary bg-ink-3")} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-bold text-foreground">
+              {t(AUDIT_LABEL[e.action] ?? "history")}
+              {e.detail && <span className="font-medium text-ink-2"> · {e.detail}</span>}
+            </div>
+            <div className="font-mono text-[11px] text-muted-foreground">{shortDateTime(e.createdAt, lang)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function MechanicWoDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { session } = useAuth();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -214,6 +248,12 @@ export default function MechanicWoDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  // Context the work order doesn't carry: the car's odometer and the owner's contacts. Both
+  // are best-effort — the page is fully usable without them.
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [visits, setVisits] = useState(0);
 
   // running timer: track the started_at returned by start/stop so we can tick live elapsed.
   const [runningSince, setRunningSince] = useState<string | null>(null);
@@ -225,6 +265,9 @@ export default function MechanicWoDetailPage() {
       setWo(data);
       // restore a running timer (e.g. after a page reload) from the work order itself
       setRunningSince(data.activeTimerStartedAt || null);
+      api.getAuditLog(woId)
+        .then((e) => setEntries([...e].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))))
+        .catch(() => {});
     } catch (e) {
       toast(errMsg(e), { tone: "danger", icon: "alert" });
     } finally {
@@ -233,11 +276,29 @@ export default function MechanicWoDetailPage() {
   }, [woId, toast]);
 
   useEffect(() => { void load(); }, [load]);
+  useAutoRefresh(load);
+
+  // Resolve the car (for its odometer) from the plate, then its owner (for call/Telegram) and
+  // how often this car has been in. Every step is optional and silent on failure.
+  const plate = wo?.plate;
+  useEffect(() => {
+    if (!shopId || !plate) return;
+    let cancelled = false;
+    api.searchVehicles(shopId, plate).then((vs) => {
+      const v = vs[0];
+      if (cancelled || !v) return;
+      setVehicle(v);
+      api.getCustomer(v.customerId).then((c) => { if (!cancelled) setCustomer(c); }).catch(() => {});
+      api.listWorkOrders(shopId, undefined, undefined, v.id).then((ws) => { if (!cancelled) setVisits(ws.length); }).catch(() => {});
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [shopId, plate]);
 
   const state: WoState = wo ? woStateFromProto(wo.state) : "draft";
-  const items = wo?.lineItems || [];
+  const items = useMemo(() => wo?.lineItems || [], [wo]);
   const subtotal = useMemo(() => items.reduce((s, i) => s + num(i.unitPrice) * (i.quantity || 0), 0), [items]);
-  const total = subtotal; // VAT (QQS/НДС) disabled: total equals subtotal
+  const discount = num(wo?.discountAmount);
+  const total = Math.max(0, subtotal - discount);
 
   const startTimer = async () => {
     if (!wo) return;
@@ -324,123 +385,204 @@ export default function MechanicWoDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <Card><div style={{ display: "flex", flexDirection: "column", gap: 12 }}><Skeleton w="40%" h={20} r={8} /><Skeleton w="60%" h={13} /></div></Card>
-        <Card pad={0}><SkeletonRows rows={4} avatar={false} /></Card>
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-9 w-1/3 rounded-[10px]" />
+        <Skeleton className="h-[86px] rounded-[14px]" />
+        <Skeleton className="h-[260px] rounded-[14px]" />
       </div>
     );
   }
-  if (!wo) {
-    return <Empty icon="clipboard" text={t("error")} />;
-  }
+  if (!wo) return <Empty icon="clipboard" text={t("error")} />;
 
   // mechanic state actions
-  const actions: { label: string; icon: string; on: () => void }[] = [];
-  if (state === "approved") actions.push({ label: t("start_work"), icon: "play", on: () => void doTransition("in_progress", t("start_work")) });
-  if (state === "in_progress") actions.push({ label: t("mark_ready"), icon: "check", on: () => void doTransition("ready", t("mark_ready")) });
+  const actions: { label: string; icon: React.ReactNode; on: () => void }[] = [];
+  if (state === "approved") actions.push({ label: t("start_work"), icon: <Play />, on: () => void doTransition("in_progress", t("start_work")) });
+  if (state === "in_progress") actions.push({ label: t("mark_ready"), icon: <Check />, on: () => void doTransition("ready", t("mark_ready")) });
 
   const canControlTimer = state === "approved" || state === "in_progress";
   const running = !!runningSince;
+  const phone = customer?.phone || "";
+  const tgHandle = (customer?.telegramHandle || "").replace(/^@/, "");
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: actions.length ? 90 : 16 }}>
-      {/* header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <IconBtn icon="arrowL" onClick={() => router.push("/m")} aria-label={t("back")} />
-        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h1 style={{ margin: 0, fontSize: "calc(22px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.02em", fontFamily: "var(--font-mono)" }}>{orderLabel(wo)}</h1>
-          <StateBadge state={state} />
-        </div>
-      </div>
-
-      {/* vehicle / wo summary */}
-      <Card pad={16}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <CarImage make={wo.make} size={46} radius={12} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
-            <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vehicleTitle(wo) || t("work_order")}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {wo.plate && <PlatePreview plate={wo.plate} size="sm" />}
-              {wo.customerName && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "var(--ink-3)" }}><Icon name="users" size={13} />{wo.customerName}</span>}
+  const overview = (
+    <div className="flex flex-col gap-4">
+      {/* vehicle ←→ customer */}
+      <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-[1.4fr_1fr]")}>
+        <Card className="flex-row items-center justify-between gap-4 px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <CarImage src={wo.vehicleImageUrl || vehicle?.imageUrl} make={wo.make} size={52} radius={12} />
+            <div className="min-w-0">
+              <div className="truncate text-[16px] font-extrabold tracking-[-0.01em] text-foreground">{vehicleTitle(wo) || t("work_order")}</div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
+                {wo.plate && <PlatePreview plate={wo.plate} size="sm" />}
+                {num(vehicle?.mileage) > 0 && (
+                  <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
+                    <Gauge className="size-3.5" />{money(num(vehicle?.mileage))} km
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
+                  <CalendarDays className="size-3.5" />{shortDate(wo.createdAt, lang)}
+                </span>
+              </div>
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{t("total")}</div>
-            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 800, color: "var(--ink)", fontSize: "calc(16px * var(--scale))" }}>{money(total)} {t("soum")}</div>
+          <div className="shrink-0 text-right">
+            <div className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">{t("total")}</div>
+            <div className="font-mono text-[22px] font-extrabold tracking-[-0.02em] text-foreground">{money(total)}</div>
           </div>
-        </div>
-      </Card>
+        </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr", gap: 16, alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* line items (read-only list, mechanic may add) */}
-          <Card pad={0}>
-            <div style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line)" }}>
-              <SecTitle>{t("line_items")}</SecTitle>
-              <Btn variant="soft" size="sm" icon="plus" onClick={() => setAddOpen(true)}>{t("add_item")}</Btn>
-            </div>
-            <div>
-              {items.length === 0 && <div style={{ padding: 20 }}><Empty icon="list" text={t("empty")} /></div>}
-              {items.map((it, i) => {
-                const isService = !kindIsMaterial(kindFromProto(it.kind));
-                const mine = !it.assignedMechanicId || it.assignedMechanicId === mechanicId;
-                return (
-                <div key={it.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)", flexWrap: "wrap", rowGap: 8 }}>
-                  <Badge tone={kindIsMaterial(kindFromProto(it.kind)) ? "info" : "neutral"}>{t(kindFromProto(it.kind))}</Badge>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{it.description}</div>
-                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>{money(it.unitPrice)} × {it.quantity}</div>
-                  </div>
-                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))" }}>{money(num(it.unitPrice) * (it.quantity || 0))}</span>
-                  {isService && it.id && (
-                    <div style={{ flexBasis: "100%" }}>
-                      <LineStatusControl status={lineStatusFromProto(it.status)} editable={mine} busy={busy} t={t}
-                        onSet={(next) => setLineStatus(it.id!, next)} />
-                    </div>
-                  )}
-                </div>
-                );
-              })}
-            </div>
-            <div style={{ padding: "14px 18px", background: "var(--surface-2)" }}>
-              <Row label={t("total")} value={`${money(total)} ${t("soum")}`} mono strong />
-            </div>
-          </Card>
-
-          {wo.notes ? (
-            <Card pad={16}>
-              <SecTitle>{t("notes")}</SecTitle>
-              <div style={{ fontSize: "calc(14px * var(--scale))", color: "var(--ink-2)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{wo.notes}</div>
-            </Card>
-          ) : null}
-        </div>
-
-        {/* timer panel */}
-        <Card pad={16}>
-          <SecTitle right={
-            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 800, fontSize: "calc(18px * var(--scale))", color: running ? "var(--accent-2)" : "var(--ink)" }}>
-              {running ? durationFmt(liveMins) : "—"}
+        <Card className="gap-3 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-[14px] font-extrabold text-primary-foreground">
+              {(wo.customerName || "?").trim().charAt(0).toUpperCase()}
             </span>
-          }>{t("total_time")}</SecTitle>
-
-          {running ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-              <span className="an-pulse" style={{ width: 9, height: 9, borderRadius: 99, background: "var(--accent)" }} />
-              <span style={{ fontWeight: 600, color: "var(--ink-2)", fontSize: 14, flex: 1 }}>{t("timer_running")}</span>
-              <Btn variant="danger" size="md" icon="stop" disabled={busy} onClick={() => void stopTimer()}>{t("stop_timer")}</Btn>
+            <div className="min-w-0">
+              <div className="truncate text-[14.5px] font-bold text-foreground">{wo.customerName || "—"}</div>
+              <div className="text-[11.5px] font-semibold text-muted-foreground">
+                {t("customer")}{visits > 0 ? ` · ${visits} ${t("visits_short")}` : ""}
+              </div>
             </div>
-          ) : canControlTimer ? (
-            <Btn variant="primary" full size="lg" icon="play" disabled={busy} onClick={() => void startTimer()}>{t("start_timer")}</Btn>
-          ) : null}
+          </div>
+          {/* Contact buttons only exist once we know how to reach the owner — a dead button is
+              worse than none on a phone the mechanic is holding with oily hands. */}
+          <div className="flex gap-2">
+            {phone ? (
+              <Button asChild variant="secondary" size="sm" className="flex-1">
+                <a href={`tel:${phone}`}><Phone />{t("call")}</a>
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" className="flex-1" disabled><Phone />{t("call")}</Button>
+            )}
+            {tgHandle ? (
+              <Button asChild variant="secondary" size="sm" className="flex-1">
+                <a href={`https://t.me/${tgHandle}`} target="_blank" rel="noreferrer"><Send />{t("write")}</a>
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" className="flex-1" disabled><Send />{t("write")}</Button>
+            )}
+          </div>
         </Card>
       </div>
 
+      {/* work ←→ timer + history */}
+      <div className={cn("grid items-start gap-4", isMobile ? "grid-cols-1" : "grid-cols-[1.6fr_1fr]")}>
+        <Card className="px-5 py-4">
+          <PanelTitle right={<Button variant="soft" size="sm" onClick={() => setAddOpen(true)}><Plus />{t("add_item")}</Button>}>
+            {t("line_items")}
+          </PanelTitle>
+
+          <div className="mt-1.5">
+            {items.length === 0 && <div className="py-6"><Empty icon="list" text={t("empty")} /></div>}
+            {items.map((it, i) => {
+              const material = kindIsMaterial(kindFromProto(it.kind));
+              const mine = !it.assignedMechanicId || it.assignedMechanicId === mechanicId;
+              return (
+                <div key={it.id || i} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border py-3 first:border-t-0">
+                  <Badge tone={material ? "warn" : "accent"} className="shrink-0 rounded-[7px] px-2 py-1 text-[10.5px] uppercase">
+                    {t(kindFromProto(it.kind))}
+                  </Badge>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-bold text-foreground">{it.description}</div>
+                    <div className="font-mono text-[11.5px] font-semibold text-muted-foreground">{money(it.unitPrice)} × {it.quantity}</div>
+                  </div>
+                  <span className="shrink-0 font-mono text-[14px] font-extrabold text-foreground">{money(num(it.unitPrice) * (it.quantity || 0))}</span>
+                  {!material && it.id && (
+                    <div className="basis-full">
+                      <LineStatusControl status={lineStatusFromProto(it.status)} editable={mine} busy={busy} t={t} onSet={(next) => setLineStatus(it.id!, next)} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-1.5 border-t-2 border-foreground pt-3.5">
+            {discount > 0 && (
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[12.5px] font-semibold text-muted-foreground">{t("discount")}</span>
+                <span className="font-mono text-[13.5px] font-bold text-primary-emphasis">−{money(discount)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-bold text-muted-foreground">{t("total")}</span>
+              <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-foreground">{money(total)} <span className="font-sans text-[12px] font-semibold text-muted-foreground">{t("soum")}</span></span>
+            </div>
+          </div>
+
+          {wo.notes && (
+            <div className="mt-3.5 rounded-[10px] border border-warning/30 bg-warning-soft px-3.5 py-3 text-[12.5px] font-semibold leading-relaxed text-warning">
+              <b className="mb-1 block text-[11px] uppercase tracking-[0.03em]">{t("notes")}</b>
+              <span className="whitespace-pre-wrap">{wo.notes}</span>
+            </div>
+          )}
+        </Card>
+
+        <div className="flex flex-col gap-4">
+          <Card className="gap-3 px-5 py-4">
+            <PanelTitle right={
+              <span className={cn("font-mono text-[17px] font-extrabold", running ? "text-primary-emphasis" : "text-foreground")}>
+                {running ? durationFmt(liveMins) : "—"}
+              </span>
+            }>{t("total_time")}</PanelTitle>
+            {running ? (
+              <Button variant="destructive" size="lg" className="w-full" disabled={busy} onClick={() => void stopTimer()}>
+                <Square />{t("stop_timer")}
+              </Button>
+            ) : canControlTimer ? (
+              <Button size="lg" className="w-full" disabled={busy} onClick={() => void startTimer()}>
+                <Play />{t("start_timer")}
+              </Button>
+            ) : (
+              <div className="text-center text-[12.5px] font-medium text-muted-foreground">{t(STATE_LABEL[state])}</div>
+            )}
+            {running && (
+              <div className="flex items-center justify-center gap-2 text-[12px] font-semibold text-muted-foreground">
+                <span className="an-pulse size-2 rounded-full bg-primary" /><Timer className="size-3.5" />{t("timer_running")}
+              </div>
+            )}
+          </Card>
+
+          <Card className="gap-3 px-5 py-4">
+            <PanelTitle>{t("audit_log")}</PanelTitle>
+            <Timeline entries={entries} lang={lang} t={t} limit={4} />
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={cn("flex flex-col gap-4", actions.length ? "pb-[90px]" : "")}>
+      {/* back · number · status */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="secondary" size="icon" onClick={() => router.push("/m")} aria-label={t("back")}><ArrowLeft /></Button>
+        <h1 className="font-mono text-[22px] font-extrabold tracking-[-0.02em] text-foreground">{orderLabel(wo)}</h1>
+        <Badge tone={STATE_TONE[state] ?? "neutral"} dot>{t(STATE_LABEL[state])}</Badge>
+        {wo.customerName && (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
+            <Users className="size-3.5" />{wo.customerName}
+          </span>
+        )}
+      </div>
+
+      <Tabs defaultValue="overview" className="flex flex-col gap-4">
+        <TabsList>
+          <TabsTrigger value="overview">{t("overview")}</TabsTrigger>
+          <TabsTrigger value="history">{t("history")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview">{overview}</TabsContent>
+        <TabsContent value="history">
+          <Card className="px-5 py-4"><Timeline entries={entries} lang={lang} t={t} /></Card>
+        </TabsContent>
+      </Tabs>
+
       {/* sticky action bar */}
       {actions.length > 0 && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, padding: 14, background: "color-mix(in oklch, var(--bg), transparent 8%)", borderTop: "1px solid var(--line)", backdropFilter: "blur(8px)" }}>
-          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-[color-mix(in_oklch,var(--bg),transparent_8%)] p-3.5 backdrop-blur-md">
+          <div className="mx-auto flex max-w-[720px] justify-end gap-2.5">
             {actions.map((a, i) => (
-              <Btn key={i} variant="primary" size="lg" icon={a.icon} disabled={busy} onClick={a.on} style={{ flex: isMobile ? 1 : "0 0 auto" }}>{a.label}</Btn>
+              <Button key={i} size="lg" disabled={busy} onClick={a.on} className={isMobile ? "flex-1" : ""}>{a.icon}{a.label}</Button>
             ))}
           </div>
         </div>

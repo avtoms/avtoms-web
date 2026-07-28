@@ -1,8 +1,39 @@
 "use client";
+// Mechanic shell — a slim app bar over a brand hairline. The root carries `app-scope`, which
+// activates the Tailwind + shadcn token bridge, so this surface inherits the runtime theme
+// (Workshop / Steel / Carbon incl. dark mode) exactly like the owner console does.
 import React from "react";
 import { useRouter } from "next/navigation";
+import { Wrench, Globe, LogOut, Check, ChevronDown } from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
-import { Logo, LangSwitcher, IconBtn } from "@/components/ui";
+import { LANGS, type Lang } from "@/lib/i18n";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui-kit/dropdown-menu";
+import { cn } from "@/lib/utils";
+
+function LangMenu({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+  const cur = LANGS.find((l) => l.code === lang) || LANGS[0];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 text-[12.5px] font-bold text-foreground outline-none transition-colors hover:bg-secondary">
+          <Globe className="size-4 text-muted-foreground" />
+          {cur.short}
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        {LANGS.map((l) => (
+          <DropdownMenuItem key={l.code} onClick={() => setLang(l.code)} className={cn(l.code === lang && "bg-primary-soft text-primary-emphasis")}>
+            <span className="flex-1">{l.label}</span>
+            {l.code === lang ? <Check className="size-4 !text-primary-emphasis" /> : <span className="text-[11px] font-bold text-muted-foreground">{l.short}</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function MechanicLayout({ children }: { children: React.ReactNode }) {
   const { session, logout } = useAuth();
@@ -18,54 +49,31 @@ export default function MechanicLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", display: "flex", flexDirection: "column" }}>
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 60,
-          background: "color-mix(in oklch, var(--bg), transparent 6%)",
-          borderBottom: "1px solid var(--line)",
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1040,
-            margin: "0 auto",
-            padding: "11px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <Logo size={36} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontWeight: 800,
-                color: "var(--ink)",
-                fontSize: "calc(15px * var(--scale))",
-                letterSpacing: "-0.02em",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {name || t("role_mechanic")}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--font-mono)" }}>
-              {phone}
-            </div>
+    <div className="app-scope flex min-h-[100dvh] flex-col bg-background">
+      {/* brand hairline — the only piece of pure decoration, and it anchors the header */}
+      <div className="h-[5px] shrink-0 bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" />
+
+      <header className="sticky top-0 z-50 border-b border-border bg-[color-mix(in_oklch,var(--bg),transparent_6%)] backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-[1240px] items-center gap-3 px-4 py-2.5">
+          <div className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-primary text-primary-foreground">
+            <Wrench className="size-[18px]" strokeWidth={2.2} />
           </div>
-          <LangSwitcher lang={lang} onChange={setLang} compact />
-          <IconBtn icon="logout" onClick={signOut} aria-label={t("sign_out")} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14.5px] font-bold tracking-[-0.02em] text-foreground">{name || t("role_mechanic")}</div>
+            <div className="truncate font-mono text-[12px] text-muted-foreground">{phone}</div>
+          </div>
+          <LangMenu lang={lang} setLang={setLang} />
+          <button
+            onClick={signOut}
+            aria-label={t("sign_out")}
+            className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground outline-none transition-colors hover:bg-destructive-soft hover:text-destructive"
+          >
+            <LogOut className="size-[17px]" />
+          </button>
         </div>
       </header>
 
-      <main style={{ flex: 1, width: "100%", maxWidth: 1040, margin: "0 auto", padding: "16px 16px 40px", boxSizing: "border-box" }}>
-        {children}
-      </main>
+      <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 pb-10 pt-4">{children}</main>
     </div>
   );
 }

@@ -1,11 +1,17 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, Search } from "lucide-react";
 import { useAuth, useLang, useToast } from "@/components/providers";
-import { Badge, Btn, Card, SkeletonRows } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
+import { Button } from "@/components/ui-kit/button";
+import { Input } from "@/components/ui-kit/input";
+import { Skeleton } from "@/components/ui-kit/misc";
 import { CreateWOModal } from "@/app/(owner)/_create-wo";
+import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, woStateToProto, kindFromProto, kindIsMaterial, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemStatus } from "@/lib/enums";
+import { money, num, orderLabel } from "@/lib/format";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
 import type { WorkOrder, LineItem } from "@/lib/types";
 
@@ -17,6 +23,21 @@ const COLS = (t: (k: string) => string): ColDef[] => [
   { key: "ready", label: t("kb_ready"), tone: "ok", accent: "var(--ok)", soft: "var(--ok-soft)" },
 ];
 
+// A headline number with its label. `tone` colours the value only — the card itself stays
+// neutral so a row of them reads as one strip rather than four competing blocks.
+function Stat({ label, value, suffix, tone }: { label: string; value: string; suffix?: string; tone?: "accent" | "warn" | "ok" }) {
+  const color = tone === "warn" ? "text-warning" : tone === "ok" ? "text-success" : tone === "accent" ? "text-primary-emphasis" : "text-foreground";
+  return (
+    <Card className="gap-0.5 px-4 py-3.5">
+      <span className="text-[12px] font-semibold text-muted-foreground">{label}</span>
+      <span className={`font-mono text-[20px] font-extrabold tracking-[-0.02em] ${color}`}>
+        {value}
+        {suffix && <span className="ml-1 font-sans text-[12px] font-semibold text-muted-foreground">{suffix}</span>}
+      </span>
+    </Card>
+  );
+}
+
 export default function MechanicBoardPage() {
   const { session } = useAuth();
   const { t } = useLang();
@@ -24,11 +45,11 @@ export default function MechanicBoardPage() {
   const router = useRouter();
 
   const mechanicId = session?.staff.id ?? "";
-  const mechName = session?.staff.name ?? "";
   const shopId = session?.staff.shopId ?? "";
 
   const [orders, setOrders] = useState<WorkOrder[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   // Whether the owner granted this mechanic the create-orders capability. Read live from the
   // backend (not the login session) so a fresh grant shows up without re-logging in.
   const [canCreate, setCanCreate] = useState(false);
@@ -51,6 +72,9 @@ export default function MechanicBoardPage() {
   }, [shopId, mechanicId, toast]);
 
   useEffect(() => { void load(); }, [load]);
+  // The board is the screen a mechanic leaves open all day while the office edits orders
+  // behind him, so keep it current without a manual reload.
+  useAutoRefresh(load, { intervalMs: 60000 });
 
   // The mechanic's own SERVICE lines on an order (his sub-work).
   const myLines = useCallback((wo: WorkOrder): LineItem[] =>
@@ -75,8 +99,19 @@ export default function MechanicBoardPage() {
   // Board buckets by woStateFromProto(w.state); override it with the mechanic's effective state.
   const boardOrders = useMemo(() => (orders || []).map((w) => ({ ...w, state: woStateToProto(myState(w)) })), [orders, myState]);
 
-  const cols = COLS(t);
-  const byState = (s: WoState) => boardOrders.filter((w) => woStateFromProto(w.state) === s);
+  // Search matches the handful of things a mechanic actually knows about a car in front of
+  // him: its plate, its make/model, whose it is, or the order number on the paperwork.
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return boardOrders;
+    return boardOrders.filter((w) =>
+      [orderLabel(w), w.plate, w.make, w.model, w.customerName].filter(Boolean).join(" ").toLowerCase().includes(q));
+  }, [boardOrders, query]);
+
+  const cols = useMemo(() => COLS(t), [t]);
+  const byState = (s: WoState) => shown.filter((w) => woStateFromProto(w.state) === s);
+  const onBoard = useMemo(() => shown.filter((w) => cols.some((c) => c.key === woStateFromProto(w.state))), [shown, cols]);
+  const sum = useMemo(() => onBoard.reduce((acc, w) => acc + num(w.total), 0), [onBoard]);
 
   // Moving a card only changes the mechanic's OWN service lines (start/finish). The order
   // auto-readies on the backend once EVERY service is done — one mechanic can't ready it alone.
@@ -112,29 +147,50 @@ export default function MechanicBoardPage() {
 
   if (orders === null) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-        {[0, 1, 2].map((i) => <Card key={i} pad={0}><SkeletonRows rows={3} avatar={false} /></Card>)}
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[70px] rounded-[14px]" />)}
+        </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-[210px] rounded-[14px]" />)}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+    <div className="flex flex-col gap-4">
+      {/* title ←→ search + create */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 style={{ margin: 0, fontSize: "calc(20px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.025em" }}>{t("my_jobs")}</h2>
-          <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>{mechName}</div>
+          <h1 className="text-[24px] font-extrabold tracking-[-0.025em] text-foreground">{t("my_jobs")}</h1>
+          <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">{session?.staff.name} · {t("role_mechanic")}</div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {cols.map((c) => (
-            <Badge key={c.key} tone={c.tone} dot>{c.label} · {byState(c.key).length}</Badge>
-          ))}
-          {canCreate && <Btn variant="primary" size="sm" icon="plus" onClick={() => setCreateOpen(true)}>{t("new_wo")}</Btn>}
+        <div className="flex items-center gap-2.5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("search")}
+              className="h-9 w-[190px] pl-9 text-[13px]"
+            />
+          </div>
+          {canCreate && <Button onClick={() => setCreateOpen(true)}><Plus />{t("new_wo")}</Button>}
         </div>
       </div>
+
+      {/* the day at a glance, over the board it summarises */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label={t("stat_my_orders")} value={String(onBoard.length)} />
+        <Stat label={t("kb_in_progress")} value={String(byState("in_progress").length)} tone="warn" />
+        <Stat label={t("kb_ready")} value={String(byState("ready").length)} tone="ok" />
+        <Stat label={t("stat_board_total")} value={money(sum)} suffix={t("soum")} tone="accent" />
+      </div>
+
       {canCreate && <CreateWOModal open={createOpen} onClose={() => setCreateOpen(false)} basePath="/m/wo" />}
       <WorkOrderBoard
-        orders={boardOrders}
+        orders={shown}
         cols={cols}
         busyId={busyId}
         onMove={(id, s) => void moveTo(id, s)}
