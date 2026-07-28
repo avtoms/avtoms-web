@@ -424,10 +424,12 @@ function EditLineItemModal({ item, onClose, onSave, busy }: {
     if (item) { setDesc(item.description); setPrice(String(num(item.unitPrice))); setCost(String(num(item.cost))); setQty(String(item.quantity || 1)); }
   }, [item]);
   if (!item) return null;
+  // A material may carry a fractional quantity (e.g. 3.5 L); a service stays whole.
+  const material = kindIsMaterial(kindFromProto(item.kind));
 
   const save = () => {
     if (!desc.trim() || !price) return;
-    const quantity = parseInt(qty, 10) || 1;
+    const quantity = material ? (parseFloat(qty) || 1) : (parseInt(qty, 10) || 1);
     // Keep the exact stock draw unless it tracked the billing quantity (a directly-picked
     // material), in which case follow the new quantity. Bundled recipe amounts stay fixed.
     const oldQty = item.quantity || 0;
@@ -444,7 +446,7 @@ function EditLineItemModal({ item, onClose, onSave, busy }: {
           <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
           <div className="grid grid-cols-[1fr_76px] gap-2.5">
             <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-            <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="text-center font-mono" /></Field>
+            <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(material ? /[^\d.]/g : /\D/g, ""))} inputMode={material ? "decimal" : "numeric"} className="text-center font-mono" /></Field>
           </div>
         </DialogBody>
         <DialogFooter>
@@ -522,55 +524,38 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   };
   const matLine = (mat: import("@/lib/types").MenuMaterial): LineItemInput => {
     const q = mat.quantity || 1;
-    const label = mat.name + (mat.unit ? ` · ${mat.quantity} ${mat.unit}` : mat.quantity > 1 ? ` ×${mat.quantity}` : "");
-    const unitPrice = Math.round(num(mat.unitPrice) * q);
-    // Bundled recipe material: billed as one line but drawn from stock at its exact (possibly
-    // fractional) recipe amount, so tie the variant and pass consumed_qty = the recipe quantity.
+    const label = mat.name + (mat.unit ? ` (${mat.unit})` : "");
+    // Bundled recipe material: billed as a per-unit price × its (possibly fractional) recipe
+    // quantity, and drawn from stock at that exact amount via consumed_qty.
     return {
-      kind: "material", description: label, unitPrice, quantity: 1,
-      cost: Math.round(num(mat.unitCost) * q), defaultPrice: unitPrice,
+      kind: "material", description: label, unitPrice: num(mat.unitPrice), quantity: q,
+      cost: num(mat.unitCost), defaultPrice: num(mat.unitPrice),
       variantId: mat.variantId || undefined,
       consumedQty: mat.variantId ? q : undefined,
     };
   };
   const addCustom = () => {
     if (!desc.trim() || !price) return;
-    let first: LineItemInput;
-    if (kind === "material") {
-      // A separately-added material may be fractional (e.g. 3.5 L). LineItem.quantity is a
-      // whole number, so bill it as a single line whose price/cost already cover the whole
-      // amount (unitPrice = per-unit × qty), and draw the exact fractional amount from stock
-      // via consumedQty. Same pattern as bundled recipe materials.
-      const mq = parseFloat(qty) || 1;
-      const unitPrice = Math.round((parseInt(price, 10) || 0) * mq);
-      first = {
-        kind, description: desc.trim() + (mq !== 1 ? ` · ${mq}` : ""),
-        unitPrice, quantity: 1, cost: Math.round((parseInt(cost, 10) || 0) * mq),
-        menuItemId: from.menuItemId || undefined, defaultPrice: unitPrice,
-        variantId: fromVariant || undefined,
-        consumedQty: fromVariant ? mq : undefined,
-      };
-    } else {
-      first = {
-        kind, description: desc.trim(),
-        unitPrice: parseInt(price, 10) || 0, quantity: parseInt(qty, 10) || 1, cost: parseInt(cost, 10) || 0,
-        menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
-      };
-    }
-    const items: LineItemInput[] = [first];
+    // Services are whole units; a material may be fractional (e.g. 3.5 L). Quantity is a real
+    // number now, so the line total is unit_price × quantity and, for a stock material, exactly
+    // that amount is drawn from the warehouse (consumed_qty).
+    const q = kind === "material" ? (parseFloat(qty) || 1) : (parseInt(qty, 10) || 1);
+    const items: LineItemInput[] = [{
+      kind, description: desc.trim(),
+      unitPrice: parseInt(price, 10) || 0, quantity: q, cost: parseInt(cost, 10) || 0,
+      menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
+      variantId: kind === "material" && fromVariant ? fromVariant : undefined,
+      consumedQty: kind === "material" && fromVariant ? q : undefined,
+    }];
     if (kind === "service") {
       for (const m of mats) if (m.on) items.push(matLine(m.mat));
       for (const e of extras) {
         if (!e.name.trim()) continue;
-        const label = e.name.trim() + (e.unit ? ` · ${e.qty} ${e.unit}` : "");
-        // Materials can be fractional (e.g. 3.5 L of oil). Bill as one line whose
-        // price/cost already covers the whole amount (billing quantity is a whole
-        // number), and draw the exact fractional amount from stock via consumedQty.
+        const label = e.name.trim() + (e.unit ? ` (${e.unit})` : "");
         const eqty = parseFloat(e.qty) || 1;
         items.push({
           kind: "material", description: label,
-          unitPrice: Math.round((parseInt(e.price, 10) || 0) * eqty), quantity: 1,
-          cost: Math.round((parseInt(e.cost, 10) || 0) * eqty),
+          unitPrice: parseInt(e.price, 10) || 0, quantity: eqty, cost: parseInt(e.cost, 10) || 0,
           variantId: e.variantId || undefined,
           consumedQty: e.variantId ? eqty : undefined,
         });

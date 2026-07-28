@@ -123,26 +123,17 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
     if (!desc.trim() || !price) return;
     setSaving(true);
     try {
-      if (kind === "material") {
-        // Materials can be fractional (e.g. 3.5 L). Bill as a single line whose price/cost
-        // cover the whole amount, since LineItem.quantity is a whole number.
-        const mq = parseFloat(qty) || 1;
-        const unitPrice = Math.round((parseInt(price, 10) || 0) * mq);
-        await onAdd({
-          kind, description: desc.trim() + (mq !== 1 ? ` · ${mq}` : ""),
-          unitPrice, quantity: 1, cost: Math.round((parseInt(cost, 10) || 0) * mq),
-          menuItemId: from.menuItemId || undefined, defaultPrice: unitPrice,
-        });
-      } else {
-        await onAdd({
-          kind, description: desc.trim(),
-          unitPrice: parseInt(price, 10) || 0,
-          quantity: parseInt(qty, 10) || 1,
-          cost: parseInt(cost, 10) || 0,
-          menuItemId: from.menuItemId || undefined,
-          defaultPrice: from.defaultPrice || undefined,
-        });
-      }
+      // A material may be fractional (e.g. 3.5 L); a service stays whole. The line total is
+      // unit_price × quantity.
+      const q = kind === "material" ? (parseFloat(qty) || 1) : (parseInt(qty, 10) || 1);
+      await onAdd({
+        kind, description: desc.trim(),
+        unitPrice: parseInt(price, 10) || 0,
+        quantity: q,
+        cost: parseInt(cost, 10) || 0,
+        menuItemId: from.menuItemId || undefined,
+        defaultPrice: from.defaultPrice || undefined,
+      });
       onClose();
     } catch (e) { /* surfaced by parent toast */ } finally { setSaving(false); }
   };
