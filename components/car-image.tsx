@@ -20,7 +20,11 @@ function brandInitials(make: string): string {
   return make.trim().slice(0, 2).toUpperCase();
 }
 
-export function CarImage({ src, make, size = 46, radius = 12 }: { src?: string; make?: string; size?: number; radius?: number }) {
+// bg/fg tint the fallback tiers (monogram, generic icon). The kanban board colours its slot
+// per column, so it passes its own pair to keep that tint; everywhere else takes the default.
+export function CarImage({ src, make, size = 46, radius = 12, bg, fg }: {
+  src?: string; make?: string; size?: number; radius?: number; bg?: string; fg?: string;
+}) {
   // Brand logo uploaded by the super admin (looked up by make name), used when there is no
   // per-car photo. Falls through to the monogram emblem when the brand has no logo.
   const logo = useCarMakeLogo(make);
@@ -39,13 +43,13 @@ export function CarImage({ src, make, size = 46, radius = 12 }: { src?: string; 
   if (make && make.trim()) {
     const hue = brandHue(make);
     return (
-      <div title={make} style={{ width: size, height: size, borderRadius: radius, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: `oklch(0.92 0.05 ${hue})`, color: `oklch(0.45 0.13 ${hue})`, fontWeight: 800, fontSize: size * 0.34, letterSpacing: "-0.02em", fontFamily: "var(--font-sans)" }}>
+      <div title={make} style={{ width: size, height: size, borderRadius: radius, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: bg ?? `oklch(0.92 0.05 ${hue})`, color: fg ?? `oklch(0.45 0.13 ${hue})`, fontWeight: 800, fontSize: size * 0.34, letterSpacing: "-0.02em", fontFamily: "var(--font-sans)" }}>
         {brandInitials(make)}
       </div>
     );
   }
   return (
-    <div style={{ width: size, height: size, borderRadius: radius, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", color: "var(--accent-2)" }}>
+    <div style={{ width: size, height: size, borderRadius: radius, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: bg ?? "var(--accent-soft)", color: fg ?? "var(--accent-2)" }}>
       <Icon name="car" size={Math.round(size * 0.5)} />
     </div>
   );

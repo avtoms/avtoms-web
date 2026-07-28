@@ -20,6 +20,7 @@ import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
+import { CarImage } from "@/components/car-image";
 
 // The owner board shows the full lifecycle, left to right — every status is a column,
 // including the terminal Closed/Canceled. Each card's status menu still offers only the
@@ -123,9 +124,12 @@ export default function WorkOrdersPage() {
       cell: ({ row }) => {
         const w = row.original;
         return (
-          <div className="min-w-0">
-            <div className="truncate text-[14px] font-semibold text-foreground">{vehicleTitle(w) || t("work_order")}</div>
-            {w.customerName && <div className="truncate text-[12px] text-muted-foreground">{w.customerName}</div>}
+          <div className="flex min-w-0 items-center gap-2.5">
+            <CarImage make={w.make} size={30} radius={8} />
+            <div className="min-w-0">
+              <div className="truncate text-[14px] font-semibold text-foreground">{vehicleTitle(w) || t("work_order")}</div>
+              {w.customerName && <div className="truncate text-[12px] text-muted-foreground">{w.customerName}</div>}
+            </div>
           </div>
         );
       },

@@ -11,6 +11,7 @@ import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, lineStatusFromProto, lineStatusToProto, type WoState, type LineItemKind, type LineItemStatus } from "@/lib/enums";
 import { money, num, durationFmt, minutesBetween, orderLabel, vehicleTitle } from "@/lib/format";
 import { PlatePreview } from "@/components/plate";
+import { CarImage } from "@/components/car-image";
 import type { WorkOrder, MenuItem } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
@@ -355,9 +356,7 @@ export default function MechanicWoDetailPage() {
       {/* vehicle / wo summary */}
       <Card pad={16}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 46, height: 46, borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon name="car" size={24} />
-          </div>
+          <CarImage make={wo.make} size={46} radius={12} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
             <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(16px * var(--scale))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vehicleTitle(wo) || t("work_order")}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

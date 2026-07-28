@@ -13,6 +13,7 @@ import { Input } from "@/components/ui-kit/input";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
+import { CarImage } from "@/components/car-image";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
@@ -91,9 +92,12 @@ export default function InvoicesPage() {
         const w = woById[row.original.workOrderId];
         const title = w ? vehicleTitle(w) : "";
         return (
-          <div className="min-w-0">
-            <div className="truncate text-[14px] font-semibold text-foreground">{title || "—"}</div>
-            {w?.customerName && <div className="truncate text-[12px] text-muted-foreground">{w.customerName}</div>}
+          <div className="flex min-w-0 items-center gap-2.5">
+            <CarImage make={w?.make} size={30} radius={8} />
+            <div className="min-w-0">
+              <div className="truncate text-[14px] font-semibold text-foreground">{title || "—"}</div>
+              {w?.customerName && <div className="truncate text-[12px] text-muted-foreground">{w.customerName}</div>}
+            </div>
           </div>
         );
       },

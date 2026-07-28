@@ -10,6 +10,7 @@ import { Icon } from "@/components/icons";
 import { useLang } from "@/components/providers";
 import { woStateFromProto, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
+import { CarImage } from "@/components/car-image";
 import { money, num, orderLabel } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 
@@ -118,9 +119,9 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
       {/* vehicle: make/model + plate. Plate gets its own row so it has the full card width
           (it's a fixed-size element and would overflow a narrow flex column otherwise). */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 9 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 11, background: col.soft, color: col.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Icon name="car" size={21} />
-        </div>
+        {/* The make's logo makes a card recognisable at a glance; CarImage falls back to a
+            brand monogram, then the car glyph, keeping this column's tint either way. */}
+        <CarImage make={wo.make} size={40} radius={11} bg={col.soft} fg={col.accent} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}

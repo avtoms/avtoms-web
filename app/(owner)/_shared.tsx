@@ -13,6 +13,7 @@ import { useIsMobile } from "@/components/ui";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import { woStateFromProto } from "@/lib/enums";
 import { StateBadge } from "@/components/ui";
+import { CarImage } from "@/components/car-image";
 import { cn } from "@/lib/utils";
 import type { WorkOrder } from "@/lib/types";
 
@@ -109,6 +110,7 @@ export function WORow({ wo }: { wo: WorkOrder }) {
         <span className="font-mono text-[13.5px] font-bold text-foreground">{orderLabel(wo)}</span>
         <span className="font-mono text-[11px] text-muted-foreground">{created}</span>
       </div>
+      <CarImage make={wo.make} size={30} radius={8} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-bold tracking-[-0.01em] text-foreground">{title}</div>
         <div className="flex gap-2 text-[12px] text-muted-foreground">
