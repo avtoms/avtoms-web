@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
@@ -440,8 +440,23 @@ export const api = {
   getInvoice: (id: string) => call<Invoice>("GET", `/v1/invoices/${id}`),
   generateInvoice: (shopId: string, workOrderId: string, total: number) =>
     call<Invoice>("POST", "/v1/invoices", { shopId, workOrderId, total: String(total) }),
-  markPaid: (id: string, method: PaymentMethod) =>
-    call<Invoice>("POST", `/v1/invoices/${id}/pay`, { paymentMethod: paymentToProto(method) }),
+  markPaid: (id: string, method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) =>
+    call<Invoice>("POST", `/v1/invoices/${id}/pay`, {
+      paymentMethod: paymentToProto(method),
+      cardId: card?.cardId ?? "",
+      cardNumber: card?.cardNumber ?? "",
+    }),
+
+  // ── shop payment cards (the shop's own receiving cards) ──
+  listShopCards: (shopId?: string) =>
+    call<{ cards?: ShopCard[] }>("GET", "/v1/shop-cards" + (shopId ? qs({ shopId }) : ""))
+      .then((r) => r.cards ?? []),
+  createShopCard: (c: { label?: string; cardNumber: string; holder?: string }) =>
+    call<ShopCard>("POST", "/v1/shop-cards", { label: c.label ?? "", cardNumber: c.cardNumber, holder: c.holder ?? "" }),
+  updateShopCard: (id: string, c: { label?: string; cardNumber: string; holder?: string; active?: boolean }) =>
+    call<ShopCard>("POST", `/v1/shop-cards/${id}`, { label: c.label ?? "", cardNumber: c.cardNumber, holder: c.holder ?? "", active: c.active ?? true }),
+  deleteShopCard: (id: string) =>
+    call<{ id: string }>("DELETE", `/v1/shop-cards/${id}`),
 
   // ── super-admin user management (admin only) ──
   listAllStaff: () =>

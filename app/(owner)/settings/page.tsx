@@ -3,17 +3,19 @@
 // UI language, theme/font/density tweaks (useTheme().set), and sign out.
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, LogOut } from "lucide-react";
+import { Check, LogOut, CreditCard, Plus, Trash2, Pencil } from "lucide-react";
 import { useIsMobile } from "@/components/ui";
 import { Card } from "@/components/ui-kit/card";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Button } from "@/components/ui-kit/button";
 import { Spinner } from "@/components/ui-kit/misc";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth, useLang, useTheme, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
+import type { ShopCard } from "@/lib/types";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { loadShopProfile, saveShopProfile } from "@/lib/shop";
@@ -97,6 +99,11 @@ export default function SettingsPage() {
         )}
       </Card>
 
+      {/* payment cards — real backend (invoice service) */}
+      <div style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
+        <PaymentCardsCard />
+      </div>
+
       {/* UI language */}
       <Card className="p-5">
         <SecTitle>{t("ui_language")}</SecTitle>
@@ -145,5 +152,107 @@ export default function SettingsPage() {
         <Button variant="destructive" onClick={signOut}><LogOut /> {t("sign_out")}</Button>
       </Card>
     </div>
+  );
+}
+
+/* ── Payment cards: the shop's own receiving cards used for card payments ── */
+function PaymentCardsCard() {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [cards, setCards] = useState<ShopCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<ShopCard | "new" | null>(null);
+
+  const load = () => api.listShopCards().then(setCards).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const remove = async (c: ShopCard) => {
+    try { await api.deleteShopCard(c.id); toast(t("save"), { icon: "check" }); load(); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+  };
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <SecTitle>{t("payment_cards")}</SecTitle>
+        <Button size="sm" onClick={() => setEditing("new")}><Plus /> {t("add_card")}</Button>
+      </div>
+      <div className="mb-3 text-[12px] text-muted-foreground">{t("payment_cards_hint")}</div>
+      {loading ? (
+        <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
+      ) : cards.length === 0 ? (
+        <div className="rounded-[9px] border border-dashed border-border py-6 text-center text-[13px] text-muted-foreground">{t("no_cards")}</div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {cards.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 rounded-[9px] border border-border bg-card px-3 py-2.5">
+              <CreditCard className="size-4 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                {c.label && <div className="truncate text-[13.5px] font-semibold">{c.label}</div>}
+                <div className="truncate font-mono text-[13px] text-muted-foreground">{c.cardNumber}{c.holder ? " · " + c.holder : ""}</div>
+              </div>
+              <button className="text-muted-foreground hover:text-foreground" onClick={() => setEditing(c)}><Pencil className="size-4" /></button>
+              <button className="text-muted-foreground hover:text-destructive" onClick={() => remove(c)}><Trash2 className="size-4" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <CardModal open={editing !== null} card={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+    </Card>
+  );
+}
+
+function CardModal({ open, card, onClose, onSaved }: { open: boolean; card: ShopCard | null; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [label, setLabel] = useState("");
+  const [number, setNumber] = useState("");
+  const [holder, setHolder] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLabel(card?.label ?? "");
+    setNumber(card?.cardNumber ?? "");
+    setHolder(card?.holder ?? "");
+  }, [open, card]);
+
+  const save = async () => {
+    if (busy) return;
+    if (!number.trim()) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
+    setBusy(true);
+    try {
+      if (card) await api.updateShopCard(card.id, { label: label.trim(), cardNumber: number.trim(), holder: holder.trim(), active: card.active ?? true });
+      else await api.createShopCard({ label: label.trim(), cardNumber: number.trim(), holder: holder.trim() });
+      toast(t("save"), { icon: "check" });
+      onSaved();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[420px]">
+        <DialogHeader><DialogTitle>{card ? t("edit") : t("add_card")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3 py-1">
+          <Field label={t("card_label")}>
+            <Input value={label} placeholder={t("card_label_ph")} onChange={(e) => setLabel(e.target.value)} />
+          </Field>
+          <Field label={t("card_number")}>
+            <Input value={number} inputMode="numeric" placeholder="8600 0000 0000 0000" onChange={(e) => setNumber(e.target.value)} className="font-mono" />
+          </Field>
+          <Field label={t("card_holder")}>
+            <Input value={holder} onChange={(e) => setHolder(e.target.value)} />
+          </Field>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

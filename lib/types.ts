@@ -410,6 +410,18 @@ export interface Invoice {
   fiscalReceiptId?: string;
   paid?: boolean;
   paymentMethod?: string;
+  cardId?: string;
+  cardNumber?: string;
+  createdAt?: string;
+}
+
+export interface ShopCard {
+  id: string;
+  shopId?: string;
+  label?: string;
+  cardNumber: string;
+  holder?: string;
+  active?: boolean;
   createdAt?: string;
 }
 

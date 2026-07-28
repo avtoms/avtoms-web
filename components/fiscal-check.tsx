@@ -8,7 +8,7 @@
 // An owner-only panel (.inv-noprint) shows cost + income (doxod); it never prints.
 import React from "react";
 import { money, num, orderLabel } from "@/lib/format";
-import { paymentFromProto, fiscalFromProto } from "@/lib/enums";
+import { paymentFromProto, paymentLabelKey, fiscalFromProto } from "@/lib/enums";
 import { useLang, useAuth } from "@/components/providers";
 import { PlatePreview } from "@/components/plate";
 import { QR } from "@/components/ui";
@@ -170,7 +170,8 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
             <span className="inv-paid" style={{ background: invoice.paid ? "#dcfce7" : "#fef3c7", color: invoice.paid ? "#166534" : "#92400e" }}>
               {invoice.paid ? t("paid") : t("unpaid")}
             </span>
-            <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>{t("payment_method")}: {t(payment === "cash" ? "pay_cash" : "pay_other")}</div>
+            <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>{t("payment_method")}: {t(paymentLabelKey(payment))}</div>
+            {payment === "card" && invoice.cardNumber && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 4 }}>{t("received_on")}: {invoice.cardNumber}</div>}
             {invoice.fiscalReceiptId && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 6 }}>OFD: {invoice.fiscalReceiptId}</div>}
             {fiscal === "pending" && <div style={{ fontSize: 11.5, color: "#a1a1aa", marginTop: 6 }}>{t("fiscalizing")}</div>}
             {shop.hours && <div style={{ fontSize: 12, color: "#71717a", marginTop: 8 }}>{shop.hours}</div>}

@@ -5,7 +5,7 @@ import type { Lang } from "./i18n";
 export type WoState = "draft" | "estimated" | "approved" | "in_progress" | "ready" | "invoiced" | "closed" | "canceled";
 export type Role = "owner" | "mechanic" | "admin";
 export type FiscalStatus = "pending" | "fiscalized" | "failed" | "voided";
-export type PaymentMethod = "cash" | "other";
+export type PaymentMethod = "cash" | "card" | "other";
 // "service" and "material" are the current kinds; "labor"/"part" are legacy aliases
 // still returned for older line items.
 export type LineItemKind = "service" | "material" | "labor" | "part";
@@ -59,8 +59,13 @@ export const fiscalFromProto = (s?: string): FiscalStatus => {
   }
 };
 
-export const paymentToProto = (m: PaymentMethod): string => (m === "cash" ? "PAYMENT_METHOD_CASH" : "PAYMENT_METHOD_OTHER");
-export const paymentFromProto = (s?: string): PaymentMethod => (s === "PAYMENT_METHOD_OTHER" ? "other" : "cash");
+export const paymentToProto = (m: PaymentMethod): string =>
+  m === "card" ? "PAYMENT_METHOD_CARD" : m === "other" ? "PAYMENT_METHOD_OTHER" : "PAYMENT_METHOD_CASH";
+export const paymentFromProto = (s?: string): PaymentMethod =>
+  s === "PAYMENT_METHOD_CARD" ? "card" : s === "PAYMENT_METHOD_OTHER" ? "other" : "cash";
+// i18n key for a payment method's label.
+export const paymentLabelKey = (m: PaymentMethod): string =>
+  m === "card" ? "pay_card" : m === "other" ? "pay_other" : "pay_cash";
 
 export const kindToProto = (k: LineItemKind): string => {
   switch (k) {

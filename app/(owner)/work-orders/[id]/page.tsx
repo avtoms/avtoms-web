@@ -4,7 +4,7 @@
 // every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet } from "lucide-react";
 import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
 import { Card, CardContent } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -731,9 +731,13 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
   const { toast } = useToast();
   const [inv, setInv] = useState<import("@/lib/types").Invoice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cards, setCards] = useState<import("@/lib/types").ShopCard[]>([]);
+  const [cardMode, setCardMode] = useState(false);   // card sub-panel is open
+  const [pickedCard, setPickedCard] = useState("");  // chosen saved-card id
+  const [adhoc, setAdhoc] = useState("");            // typed one-off number
 
   useEffect(() => {
-    if (!open) { setInv(null); return; }
+    if (!open) { setInv(null); setCardMode(false); setPickedCard(""); setAdhoc(""); return; }
     let cancelled = false;
     (async () => {
       setBusy(true);
@@ -754,15 +758,24 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
         if (!cancelled) setBusy(false);
       }
     })();
+    // load the shop's receiving cards for the card-payment picker (best effort)
+    api.listShopCards().then((c) => { if (!cancelled) setCards(c.filter((x) => x.active !== false)); }).catch(() => {});
     return () => { cancelled = true; };
   }, [open, wo.id, shopId, total, onChange, t, toast]);
 
-  const pay = async (method: PaymentMethod) => {
+  const pay = async (method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
     if (!inv || busy) return;
     setBusy(true);
-    try { const updated = await api.markPaid(inv.id, method); setInv(updated); toast(t("paid"), { icon: "money" }); onChange(); }
+    try { const updated = await api.markPaid(inv.id, method, card); setInv(updated); toast(t("paid"), { icon: "money" }); onChange(); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
+  };
+
+  const payCard = () => {
+    const chosen = cards.find((c) => c.id === pickedCard);
+    const number = chosen ? chosen.cardNumber : adhoc.trim();
+    if (!number) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
+    pay("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number });
   };
 
   return (
@@ -775,13 +788,53 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
           ) : (
             <div className="flex flex-col gap-4 pb-1">
               <FiscalCheck invoice={inv} wo={wo} shop={loadShopProfile()} />
-              {!inv.paid && (
+              {inv.paid && inv.cardNumber && (
+                <div className="flex items-center gap-2 rounded-[9px] border border-border bg-secondary px-3 py-2 text-[13px]">
+                  <CreditCard className="size-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">{t("received_on")}</span>
+                  <span className="ml-auto font-mono font-semibold">{inv.cardNumber}</span>
+                </div>
+              )}
+              {!inv.paid && !cardMode && (
                 <div>
                   <div className="mb-2 text-[12.5px] font-semibold text-muted-foreground">{t("mark_paid")} · {t("payment_method")}</div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <Button variant="soft" disabled={busy} onClick={() => pay("cash")}>{t("pay_cash")}</Button>
-                    <Button variant="soft" disabled={busy} onClick={() => pay("other")}>{t("pay_other")}</Button>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <Button variant="soft" disabled={busy} onClick={() => pay("cash")}><Banknote /> {t("pay_cash")}</Button>
+                    <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard /> {t("pay_card")}</Button>
+                    <Button variant="soft" disabled={busy} onClick={() => pay("other")}><Wallet /> {t("pay_other")}</Button>
                   </div>
+                </div>
+              )}
+              {!inv.paid && cardMode && (
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[12.5px] font-semibold text-muted-foreground">{t("pay_card")} · {t("select_card")}</div>
+                    <button className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => { setCardMode(false); setPickedCard(""); setAdhoc(""); }}>← {t("back")}</button>
+                  </div>
+                  {cards.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      {cards.map((c) => (
+                        <button key={c.id} disabled={busy}
+                          onClick={() => { setPickedCard(c.id); setAdhoc(""); }}
+                          className={cn("flex items-center gap-3 rounded-[9px] border px-3 py-2.5 text-left transition-colors", pickedCard === c.id ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary")}>
+                          <CreditCard className="size-4 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            {c.label && <div className="truncate text-[13.5px] font-semibold">{c.label}</div>}
+                            <div className="truncate font-mono text-[13px] text-muted-foreground">{c.cardNumber}</div>
+                          </div>
+                          {pickedCard === c.id && <Check className="size-[17px] text-primary-emphasis" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <Field label={cards.length > 0 ? t("new_card") : t("card_number")}>
+                    <Input value={adhoc} inputMode="numeric" placeholder="8600 0000 0000 0000"
+                      onChange={(e) => { setAdhoc(e.target.value); if (e.target.value) setPickedCard(""); }}
+                      className="font-mono" />
+                  </Field>
+                  <Button disabled={busy || (!pickedCard && !adhoc.trim())} onClick={payCard}>
+                    {busy ? <Spinner /> : <>{t("mark_paid")}</>}
+                  </Button>
                 </div>
               )}
               <div className="flex gap-2.5">
