@@ -405,6 +405,11 @@ export const STR: Record<string, Triple> = {
   status_always_on: ["Doimiy holatlar", "Доимий ҳолатлар", "Всегда включены"],
   // ── income breakdown ──
   income_breakdown: ["Daromad taqsimoti", "Даромад тақсимоти", "Разбивка дохода"],
+  rep_top_products: ["Ko'p sotilgan mahsulotlar", "Кўп сотилган маҳсулотлар", "Самые продаваемые товары"],
+  product: ["Mahsulot", "Маҳсулот", "Товар"],
+  sku: ["Artikul", "Артикул", "Артикул"],
+  sold_qty: ["Sotilgan", "Сотилган", "Продано"],
+  sold_times: ["Marta", "Марта", "Раз"],
   income_by_method: ["To'lov usuli bo'yicha daromad", "Тўлов усули бўйича даромад", "Доход по способу оплаты"],
   total_income: ["Jami daromad", "Жами даромад", "Общий доход"],
   no_income: ["Bu davr uchun daromad yo'q", "Бу давр учун даромад йўқ", "Нет дохода за период"],

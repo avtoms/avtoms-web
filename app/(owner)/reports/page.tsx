@@ -21,8 +21,17 @@ const REPORT_KEYS = Object.keys(REPORT_KINDS);
 const TITLE_KEY: Record<string, string> = {
   daily_revenue: "rep_daily_revenue", weekly_wo: "rep_weekly_wo", mechanic: "rep_mechanic",
   menu: "rep_menu", fiscal: "rep_fiscal", retention: "rep_retention",
+  payment_methods: "income_by_method", top_products: "rep_top_products",
 };
 const MONEY_RE = /revenue|price|vat|total|amount|profit|margin|cost|net/i;
+// Column keys the backend sends, mapped to a translated header where one exists; anything
+// else falls back to the raw key with underscores opened up.
+const COL_KEY: Record<string, string> = {
+  product: "product", sku: "sku", sold: "sold_qty", revenue: "revenue", cost: "cost_of_goods",
+  margin: "gross_margin", times: "sold_times", service: "service", discount: "discount",
+  method: "payment_method", card_label: "card_label", card_number: "card_number",
+  amount: "amount", count: "payments_n",
+};
 const NUM_RE = /revenue|price|vat|total|amount|profit|margin|cost|net|count|hours|rate|orders|qty|quantity|compliance/i;
 
 export default function ReportsPage() {
@@ -50,13 +59,13 @@ export default function ReportsPage() {
       id: c,
       accessorFn: (r) => r.cells[c] ?? "",
       sortingFn: NUM_RE.test(c) ? (a, b) => num(a.original.cells[c]) - num(b.original.cells[c]) : "alphanumeric",
-      header: ({ column }) => <SortHeader column={column}>{c.replace(/_/g, " ")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{COL_KEY[c] ? t(COL_KEY[c]) : c.replace(/_/g, " ")}</SortHeader>,
       cell: ({ row }) => {
         const v = row.original.cells[c] ?? "";
         return <span className={idx === 0 ? "font-semibold text-foreground" : NUM_RE.test(c) ? "font-mono text-ink-2" : "text-ink-2"}>{MONEY_RE.test(c) ? money(v || "0") : v}</span>;
       },
     }));
-  }, [rep]);
+  }, [rep, t]);
 
   // Chart the first meaningful numeric column against the first (label) column.
   const chart = useMemo<{ data: BarDatum[]; isMoney: boolean } | null>(() => {

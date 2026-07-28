@@ -214,4 +214,5 @@ export const REPORT_KINDS: Record<string, string> = {
   fiscal: "REPORT_KIND_FISCAL_COMPLIANCE",
   retention: "REPORT_KIND_CUSTOMER_RETENTION",
   payment_methods: "REPORT_KIND_PAYMENT_METHODS",
+  top_products: "REPORT_KIND_TOP_PRODUCTS",
 };
