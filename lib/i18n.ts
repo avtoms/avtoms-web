@@ -62,6 +62,7 @@ export const STR: Record<string, Triple> = {
   nav_finances: ["Moliya", "Молия", "Финансы"],
   profit_loss: ["Foyda va zarar", "Фойда ва зарар", "Прибыль и убытки"],
   revenue: ["Tushum", "Тушум", "Выручка"],
+  today_money: ["Bugungi moliya", "Бугунги молия", "Финансы за сегодня"],
   cost_of_goods: ["Tovar tannarxi", "Товар таннархи", "Себестоимость"],
   gross_margin: ["Yalpi foyda", "Ялпи фойда", "Валовая прибыль"],
   overhead: ["Qo'shimcha xarajatlar", "Қўшимча харажатлар", "Накладные расходы"],

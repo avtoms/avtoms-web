@@ -15,7 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
 import { woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
-import type { Dashboard, WorkOrder } from "@/lib/types";
+import type { Dashboard, ProfitAndLoss, Sale, WorkOrder } from "@/lib/types";
 import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
 import { SecTitle, StatCard, WORow } from "../_shared";
 
@@ -30,6 +30,8 @@ export default function DashboardPage() {
 
   const [data, setData] = useState<Dashboard | null>(null);
   const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [pl, setPl] = useState<ProfitAndLoss | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(false);
   const [ago, setAgo] = useState(0);
@@ -38,9 +40,20 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [d, wos] = await Promise.all([api.dashboard(shopId), api.listWorkOrders(shopId)]);
+      // The money on this page comes from two different questions, and they are not the same
+      // number: `dashboard` is what was actually RECEIVED today (paid invoices, counter sales
+      // included), while `profit-loss` is what was EARNED and what it cost. Both are shown,
+      // labelled, rather than picking one and hiding the other.
+      const [d, wos, sl, p] = await Promise.all([
+        api.dashboard(shopId),
+        api.listWorkOrders(shopId),
+        api.listSales(shopId).catch(() => [] as Sale[]),
+        api.getProfitLoss(shopId, today, today).catch(() => null),
+      ]);
       setData(d);
       setOrders(wos);
+      setSales(sl);
+      setPl(p);
       setErr(false);
     } catch (e) {
       setErr(true);
@@ -48,7 +61,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [shopId, t, toast]);
+  }, [shopId, today, t, toast]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -66,20 +79,24 @@ export default function DashboardPage() {
     return STATE_ORDER.map((s) => ({ label: t(STATE_LABEL[s]), value: counts.get(s) || 0 })).filter((b) => b.value > 0);
   }, [orders, t]);
 
-  // Last 7 days revenue (from work-order totals by created day).
+  // Last 7 days of takings by day. Counter sales count here exactly as work orders do —
+  // money the shop took is money the shop took, and a chart that quietly omitted a whole
+  // channel would be worse than no chart.
   const revenueBars = useMemo<BarDatum[]>(() => {
     const byDay = new Map<string, number>();
     const now = Date.now();
-    for (const w of orders) {
-      if (!w.createdAt) continue;
-      const d = new Date(w.createdAt);
-      const ageDays = (now - d.getTime()) / 86400000;
-      if (ageDays > 7) continue;
+    const addDay = (iso: string | undefined, amount: number) => {
+      if (!iso) return;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return;
+      if ((now - d.getTime()) / 86400000 > 7) return;
       const key = d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
-      byDay.set(key, (byDay.get(key) || 0) + num(w.total));
-    }
+      byDay.set(key, (byDay.get(key) || 0) + amount);
+    };
+    for (const w of orders) addDay(w.createdAt, num(w.total));
+    for (const s of sales) if (!s.voided) addDay(s.createdAt, num(s.total));
     return [...byDay.entries()].map(([label, value]) => ({ label, value }));
-  }, [orders]);
+  }, [orders, sales]);
 
   const recent = orders.slice(0, 6);
 
@@ -95,6 +112,8 @@ export default function DashboardPage() {
   const health = d.fiscalHealth || "green";
   const healthTone = health === "green" ? "ok" : health === "yellow" ? "warn" : "danger";
   const healthKey = health === "green" ? "fiscal_ok" : health === "yellow" ? "fiscal_warn" : "fiscal_bad";
+  // Everything the day cost: the stock that left the shelf plus the shop's overhead.
+  const outcome = num(pl?.costOfGoods) + num(pl?.overhead);
 
   return (
     <div className="flex flex-col gap-5">
@@ -119,6 +138,20 @@ export default function DashboardPage() {
           {revenueBars.length ? <HBarChart data={revenueBars} color="var(--chart-1)" unit="so'm" formatter={(v) => money(v)} /> : <div className="grid h-[160px] place-items-center text-[13px] text-muted-foreground">{t("empty")}</div>}
         </ChartCard>
       </div>
+
+      {/* Today's money in one place: what was earned, what it cost, what is left. Both work
+          orders and counter sales feed every figure here. */}
+      <Card className="p-5">
+        <SecTitle right={
+          <Link href="/finances" className="text-[13px] font-semibold text-primary-emphasis hover:underline">{t("nav_finances")} →</Link>
+        }>{t("today_money")}</SecTitle>
+        <div className="mt-1 grid gap-3.5 sm:grid-cols-3">
+          <MoneyTile label={t("revenue")} value={num(pl?.revenue)} tone="ok" />
+          <MoneyTile label={t("expenses")} value={outcome} tone="danger"
+            hint={`${t("cost_of_goods")} ${money(num(pl?.costOfGoods))} · ${t("overhead")} ${money(num(pl?.overhead))}`} />
+          <MoneyTile label={t("net_profit")} value={num(pl?.netProfit)} tone={num(pl?.netProfit) < 0 ? "danger" : "accent"} />
+        </div>
+      </Card>
 
       {/* Today's income by payment method (cash / card — which card / other) */}
       <Card className="p-5">
@@ -156,6 +189,21 @@ export default function DashboardPage() {
       </div>
 
       <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={today} to={today} title={t("todays_revenue")} />
+    </div>
+  );
+}
+
+// MoneyTile is one figure in the day's money row. Deliberately flatter than StatCard: these
+// three are read together as a single sentence (earned, cost, left), not as separate KPIs.
+function MoneyTile({ label, value, tone, hint }: {
+  label: string; value: number; tone: "ok" | "danger" | "accent"; hint?: string;
+}) {
+  const color = tone === "ok" ? "text-success" : tone === "danger" ? "text-destructive" : "text-primary-emphasis";
+  return (
+    <div className="flex flex-col gap-1 rounded-[12px] bg-secondary/60 px-4 py-3">
+      <span className="text-[12.5px] font-semibold text-muted-foreground">{label}</span>
+      <span className={`min-w-0 truncate font-mono text-[19px] font-extrabold tracking-[-0.02em] ${color}`}>{money(value)}</span>
+      {hint && <span className="truncate font-mono text-[11px] text-muted-foreground">{hint}</span>}
     </div>
   );
 }
