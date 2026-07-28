@@ -43,7 +43,7 @@ const GROUPS: NavGroup[] = [
     { key: "sales", route: "/sales", icon: ShoppingCart, labelKey: "nav_sales" },
     { key: "invoices", route: "/invoices", icon: Receipt, labelKey: "nav_invoices" },
     { key: "finances", route: "/finances", icon: Wallet, labelKey: "nav_finances" },
-    { key: "reports", route: "/reports", icon: BarChart3, labelKey: "nav_reports" },
+    { key: "statistics", route: "/statistics", icon: BarChart3, labelKey: "statistics" },
   ]},
   { titleKey: "nav_grp_manage", items: [
     { key: "menu", route: "/menu", icon: Tags, labelKey: "nav_menu" },

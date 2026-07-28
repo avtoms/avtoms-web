@@ -5,7 +5,8 @@
 // axes/grid, thin marks, 4px rounded data-ends, per-mark hover tooltip.
 import * as React from "react";
 import {
-  Bar, BarChart, Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, LabelList, Line, Pie, PieChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle } from "@/components/ui-kit/card";
@@ -112,5 +113,101 @@ export function HBarChart({
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+export type TrendSeries = { key: string; label: string; color: string };
+export type TrendPoint = { label: string } & Record<string, number | string>;
+
+// TrendTip is the crosshair tooltip: every series at the hovered point, so two lines can be
+// compared where the reader is looking rather than by eye across the plot.
+function TrendTip({ active, payload, label, series, formatter }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="admin-portal min-w-[150px] rounded-[9px] border border-border bg-card px-3 py-2 shadow-[var(--shadow-lg)]">
+      <div className="mb-1 text-[12px] font-semibold text-muted-foreground">{label}</div>
+      {series.map((sr: TrendSeries) => {
+        const p = payload.find((x: any) => x.dataKey === sr.key);
+        if (!p) return null;
+        return (
+          <div key={sr.key} className="flex items-center gap-2 py-[1px]">
+            <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: sr.color }} />
+            <span className="flex-1 text-[12.5px] text-ink-2">{sr.label}</span>
+            <span className="font-mono text-[12.5px] font-bold text-foreground">{formatter ? formatter(p.value) : p.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Trend over time: one or two series on ONE axis. Two are only ever plotted together when
+// they share a unit (money against money) — a second scale would invent a relationship the
+// data does not have. A single series gets a soft area fill; two are drawn as lines, which
+// stay readable across a month of days where sixty grouped bars would not. The legend above
+// carries identity, so colour is never the only cue, and the crosshair reads every series at
+// the hovered day rather than making the eye travel. ──
+export function TrendChart({
+  data, series, formatter, height = 220,
+}: { data: TrendPoint[]; series: TrendSeries[]; formatter?: (v: number) => string; height?: number }) {
+  if (!data.length) return <EmptyChart />;
+  const single = series.length === 1;
+  return (
+    <div className="flex flex-col gap-3">
+      {!single && (
+        <div className="flex flex-wrap items-center gap-4">
+          {series.map((sr) => (
+            <span key={sr.key} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-2">
+              <span className="size-2.5 rounded-[3px]" style={{ background: sr.color }} />{sr.label}
+            </span>
+          ))}
+        </div>
+      )}
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={series[0].color} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={series[0].color} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--chart-track)" />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18}
+            tick={{ fill: "var(--ink-3)", fontSize: 11.5 }} />
+          <YAxis tickLine={false} axisLine={false} width={54} tick={{ fill: "var(--ink-3)", fontSize: 11 }}
+            tickFormatter={(v: number) => (v >= 1000000 ? `${Math.round(v / 100000) / 10}M` : v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} />
+          <Tooltip cursor={{ stroke: "var(--ink-3)", strokeWidth: 1, strokeDasharray: "3 3" }}
+            content={<TrendTip series={series} formatter={formatter} />} />
+          {single ? (
+            <Area type="monotone" dataKey={series[0].key} stroke={series[0].color} strokeWidth={2}
+              fill="url(#trendFill)" dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)" }} />
+          ) : series.map((sr) => (
+            <Line key={sr.key} type="monotone" dataKey={sr.key} stroke={sr.color} strokeWidth={2}
+              dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)" }} />
+          ))}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── RankRow: a table row that is also its own bar. For "top N" lists, where the reader wants
+// the name and the number first and the shape second — a chart beside a table would say the
+// same thing twice. ──
+export function RankRow({
+  name, sub, value, share, right, color = "var(--chart-1)",
+}: { name: string; sub?: string; value: string; share: number; right?: React.ReactNode; color?: string }) {
+  return (
+    <div className="flex flex-col gap-1.5 py-2">
+      <div className="flex items-baseline gap-3">
+        <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-foreground">{name}</span>
+        {sub && <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground">{sub}</span>}
+        <span className="shrink-0 font-mono text-[13.5px] font-bold text-foreground">{value}</span>
+        {right}
+      </div>
+      <div className="h-[5px] overflow-hidden rounded-full" style={{ background: "var(--chart-track)" }}>
+        <div className="h-full rounded-full" style={{ width: `${Math.max(2, Math.round(share * 100))}%`, background: color }} />
+      </div>
+    </div>
   );
 }

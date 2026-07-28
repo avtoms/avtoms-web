@@ -431,6 +431,39 @@ export interface Sale {
   createdAt?: string;
 }
 
+// The analytics payload: everything the Statistics screen shows, for one period. Computed
+// live from the work-order service's tables, so it covers the shop's whole history.
+export interface DayPoint { day: string; revenue: string; cost: string; orders?: number; sales?: number }
+export interface StateBucket { state: string; count?: number; value: string }
+export interface MechanicStat { mechanicId: string; name?: string; jobs?: number; linesDone?: number; hours?: number; revenue: string }
+export interface ItemStat { key: string; name: string; sku?: string; quantity?: number; revenue: string; cost: string; margin: string; times?: number }
+export interface VehicleStat {
+  vehicleId: string; orders?: number; revenue: string; firstAt?: string; lastAt?: string;
+  plate?: string; make?: string; model?: string; customerName?: string;
+}
+export interface PaymentBucket { method: string; cardId?: string; cardNumber?: string; amount: string; count?: number }
+
+export interface Statistics {
+  shopId: string; from?: string; to?: string;
+  revenue: string; orderRevenue: string; salesRevenue: string;
+  costOfGoods: string; grossMargin: string; overhead: string; netProfit: string;
+  discountsGiven: string; avgTicket: string;
+  orderCount?: number; saleCount?: number;
+  byDay?: DayPoint[];
+  byCategory?: ExpenseBucket[];
+  funnel?: StateBucket[];
+  mechanics?: MechanicStat[];
+  workedHours?: number;
+  avgLeadTimeHours?: number;
+  topServices?: ItemStat[];
+  topProducts?: ItemStat[];
+  stockValue: string;      // current on-hand value; not windowed
+  lowStockCount?: number;
+  topVehicles?: VehicleStat[];
+  newCustomers?: number; returningCustomers?: number;
+  payments?: PaymentBucket[];
+}
+
 export interface ShopSettings {
   shopId: string;
   maxDiscountPercent: number; // 0-100; 100 = no cap

@@ -15,6 +15,7 @@ import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
+import { PeriodPicker, usePeriod, monthRange, lastNMonths } from "../_period";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
@@ -30,30 +31,8 @@ function catLabel(c: string, t: (k: string) => string): string {
   return PREDEFINED.has(c) ? t("cat_" + c) : c;
 }
 
-const isoFrom = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 0, 0, 0)).toISOString();
-const isoTo = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 23, 59, 59)).toISOString();
-
-function monthRange(ym: string): { from: string; to: string } {
-  const [y, m] = ym.split("-").map((n) => parseInt(n, 10));
-  return { from: isoFrom(y, m - 1, 1), to: isoTo(y, m, 0) };
-}
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-function lastNMonths(n: number): { ym: string; label: string }[] {
-  const out: { ym: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - i, 1));
-    out.push({ ym: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`, label: d.toLocaleDateString(undefined, { month: "short" }) });
-  }
-  return out;
-}
 const dateStr = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
-
-type Gran = "month" | "quarter" | "year" | "custom";
 
 export default function FinancesPage() {
   const { session } = useAuth();
@@ -61,12 +40,10 @@ export default function FinancesPage() {
   const { t } = useLang();
   const { toast } = useToast();
 
-  const [gran, setGran] = useState<Gran>("month");
-  const [month, setMonth] = useState(currentMonth());
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [quarter, setQuarter] = useState(Math.floor(new Date().getMonth() / 3) + 1);
-  const [cFrom, setCFrom] = useState(`${new Date().getFullYear()}-01-01`);
-  const [cTo, setCTo] = useState(currentMonth() + "-28");
+  // The period control is shared with Statistics: the two pages show overlapping figures, and
+  // two implementations of "this month" would eventually disagree.
+  const period = usePeriod();
+  const range = period.range;
 
   const [pl, setPl] = useState<ProfitAndLoss | null>(null);
   const [expenses, setExpenses] = useState<ShopExpense[]>([]);
@@ -77,13 +54,6 @@ export default function FinancesPage() {
   const [detail, setDetail] = useState<ShopExpense | null>(null);
   const [tab, setTab] = useState<"stats" | "expenses">("stats");
   const [showIncome, setShowIncome] = useState(false);
-
-  const range = useMemo(() => {
-    if (gran === "month") return monthRange(month);
-    if (gran === "quarter") return { from: isoFrom(year, (quarter - 1) * 3, 1), to: isoTo(year, quarter * 3, 0) };
-    if (gran === "year") return { from: isoFrom(year, 0, 1), to: isoTo(year, 11, 31) };
-    return { from: new Date(cFrom + "T00:00:00Z").toISOString(), to: new Date(cTo + "T23:59:59Z").toISOString() };
-  }, [gran, month, year, quarter, cFrom, cTo]);
 
   const staffName = useCallback((id?: string) => (id ? staff.find((s) => s.id === id)?.name ?? "" : ""), [staff]);
   const knownCats = useMemo(() => {
@@ -126,7 +96,6 @@ export default function FinancesPage() {
   const revenue = num(pl?.revenue), cogs = num(pl?.costOfGoods), gross = num(pl?.grossMargin);
   const overhead = num(pl?.overhead), net = num(pl?.netProfit), orders = pl?.workOrderCount ?? 0;
   const avgTicket = orders > 0 ? Math.round(revenue / orders) : 0;
-  const yearOpts = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,30 +110,7 @@ export default function FinancesPage() {
         {tab === "expenses" && <Button onClick={() => setAdding(true)}><Plus /> {t("add_expense")}</Button>}
       </div>
 
-      {/* period controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Tabs value={gran} onValueChange={(v) => setGran(v as Gran)}>
-          <TabsList>
-            <TabsTrigger value="month">{t("per_month")}</TabsTrigger>
-            <TabsTrigger value="quarter">{t("per_quarter")}</TabsTrigger>
-            <TabsTrigger value="year">{t("per_year")}</TabsTrigger>
-            <TabsTrigger value="custom">{t("per_custom")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {gran === "month" && <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[160px] font-mono" />}
-        {gran === "quarter" && <>
-          <Tabs value={String(quarter)} onValueChange={(v) => setQuarter(parseInt(v, 10))}>
-            <TabsList>{[1, 2, 3, 4].map((q) => <TabsTrigger key={q} value={String(q)}>Q{q}</TabsTrigger>)}</TabsList>
-          </Tabs>
-          <YearSelect year={year} setYear={setYear} opts={yearOpts} />
-        </>}
-        {gran === "year" && <YearSelect year={year} setYear={setYear} opts={yearOpts} />}
-        {gran === "custom" && <>
-          <Input type="date" value={cFrom} onChange={(e) => setCFrom(e.target.value)} className="max-w-[150px]" />
-          <span className="text-muted-foreground">—</span>
-          <Input type="date" value={cTo} onChange={(e) => setCTo(e.target.value)} className="max-w-[150px]" />
-        </>}
-      </div>
+      <PeriodPicker p={period} />
 
       {loading ? <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
         : tab === "stats" ? <>
@@ -240,15 +186,6 @@ export default function FinancesPage() {
       <ExpenseDetailModal expense={detail} receiver={staffName(detail?.staffId) || detail?.payee || ""} paidByName={staffName(detail?.paidBy)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
       <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={range.from} to={range.to} title={t("income_by_method")} />
     </div>
-  );
-}
-
-function YearSelect({ year, setYear, opts }: { year: number; setYear: (y: number) => void; opts: number[] }) {
-  return (
-    <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v, 10))}>
-      <SelectTrigger className="max-w-[120px]"><SelectValue /></SelectTrigger>
-      <SelectContent>{opts.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-    </Select>
   );
 }
 

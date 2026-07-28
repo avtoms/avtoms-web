@@ -206,13 +206,13 @@ const LANG_PROTO: Record<Lang, string> = { uz: "LANGUAGE_UZ_LATN", uzc: "LANGUAG
 export const langToProto = (l: Lang): string => LANG_PROTO[l] || "LANGUAGE_UZ_LATN";
 export const langFromProto = (s?: string): Lang => (s === "LANGUAGE_UZ_CYRL" ? "uzc" : s === "LANGUAGE_RU" ? "ru" : "uz");
 
+// Only the kinds the reporting service actually answers. The four that were listed here and
+// never returned a row (weekly orders, mechanic activity, fiscal compliance, customer
+// retention) are served properly by the Statistics screen now, computed from the source of
+// truth rather than from a projection that starts empty.
 export const REPORT_KINDS: Record<string, string> = {
   daily_revenue: "REPORT_KIND_DAILY_REVENUE",
-  weekly_wo: "REPORT_KIND_WEEKLY_WORK_ORDERS",
-  mechanic: "REPORT_KIND_MECHANIC_ACTIVITY",
   menu: "REPORT_KIND_SERVICE_MENU_PERFORMANCE",
-  fiscal: "REPORT_KIND_FISCAL_COMPLIANCE",
-  retention: "REPORT_KIND_CUSTOMER_RETENTION",
   payment_methods: "REPORT_KIND_PAYMENT_METHODS",
   top_products: "REPORT_KIND_TOP_PRODUCTS",
 };

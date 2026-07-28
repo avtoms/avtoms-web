@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -518,6 +518,9 @@ export const api = {
   deleteExpense: (id: string) => call<{ deleted?: boolean }>("DELETE", `/v1/expenses/${id}`),
   getProfitLoss: (shopId: string, from?: string, to?: string) =>
     call<ProfitAndLoss>("GET", "/v1/profit-loss" + qs({ shopId, from, to })),
+  // The whole analytics screen in one call — one period, one set of figures that agree.
+  getStatistics: (shopId: string, from?: string, to?: string) =>
+    call<Statistics>("GET", "/v1/statistics" + qs({ shopId, from, to })),
 
   // ── warehouse products (with properties + variants) ──
   listProducts: (shopId: string) =>
