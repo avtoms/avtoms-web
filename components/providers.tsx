@@ -5,6 +5,7 @@ import { clearStaleBundleGuard, isStaleBundleError, reloadOnceForStaleBundle } f
 import { applyTheme, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { getSession, setSession as persist, clearSession, type Session } from "@/lib/session";
 import { sessionFromTokenPair } from "@/lib/session";
+import { setSessionClearedHandler } from "@/lib/api";
 import type { TokenPair } from "@/lib/types";
 
 /* ── i18n ── */
@@ -94,6 +95,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return s;
   }, []);
   const logout = useCallback(() => { clearSession(); setSessionState(null); }, []);
+
+  // The API layer discards the session when the server refuses the refresh token. Mirror that
+  // into React state, or the console keeps rendering and firing requests against a session
+  // that no longer exists — each one re-triggering the redirect.
+  useEffect(() => {
+    setSessionClearedHandler(() => setSessionState(null));
+    return () => setSessionClearedHandler(null);
+  }, []);
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const toast = useCallback((msg: string, opts?: { icon?: string; tone?: Toast["tone"] }) => {

@@ -28,16 +28,22 @@ export function useAutoRefresh(refresh: () => void | Promise<unknown>, opts?: { 
       void Promise.resolve(fn.current()).finally(() => { running = false; });
     };
     const onVisible = () => { if (document.visibilityState === "visible") run(); };
+    // "online" fires the moment navigator.onLine flips, which is routinely before traffic
+    // actually flows again (captive portal, VPN reconnect, laptop wake). Give the connection
+    // a moment rather than firing a burst of requests into a half-open network.
+    let onlineTimer: ReturnType<typeof setTimeout> | undefined;
+    const onOnline = () => { clearTimeout(onlineTimer); onlineTimer = setTimeout(run, 1500); };
 
     window.addEventListener("focus", run);
-    window.addEventListener("online", run);
+    window.addEventListener("online", onOnline);
     document.addEventListener("visibilitychange", onVisible);
     const timer = intervalMs > 0 ? setInterval(run, intervalMs) : undefined;
 
     return () => {
       window.removeEventListener("focus", run);
-      window.removeEventListener("online", run);
+      window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisible);
+      clearTimeout(onlineTimer);
       if (timer) clearInterval(timer);
     };
   }, [intervalMs, enabled]);

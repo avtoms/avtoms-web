@@ -11,14 +11,38 @@ export interface Session {
   refreshToken: string;
   role: Role;
   staff: { id: string; shopId: string; phone: string; name: string };
+  // When the access token stops being accepted, as epoch ms. Knowing this lets the API layer
+  // refresh *before* a request fails instead of discovering expiry by 401-ing a whole page of
+  // requests at once. Undefined on sessions stored before this field existed — treated as
+  // "unknown", which falls back to the reactive 401 path.
+  expiresAt?: number;
+}
+
+// jwtExp reads the `exp` claim (seconds) from a JWT payload without verifying it — the server
+// is the only authority on validity; this is purely to know when to refresh. Returns undefined
+// for anything unparseable rather than throwing.
+function jwtExp(token: string): number | undefined {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return undefined;
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const exp = (JSON.parse(json) as { exp?: number }).exp;
+    return typeof exp === "number" ? exp * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function sessionFromTokenPair(tp: TokenPair): Session {
+  // Prefer the server's expires_in (seconds); fall back to the token's own exp claim.
+  const ttlMs = tp.expiresIn ? Number(tp.expiresIn) * 1000 : NaN;
+  const expiresAt = Number.isFinite(ttlMs) && ttlMs > 0 ? Date.now() + ttlMs : jwtExp(tp.accessToken);
   return {
     token: tp.accessToken,
     refreshToken: tp.refreshToken,
     role: roleFromProto(tp.staff.role),
     staff: { id: tp.staff.id, shopId: tp.staff.shopId, phone: tp.staff.phone, name: tp.staff.name },
+    expiresAt,
   };
 }
 

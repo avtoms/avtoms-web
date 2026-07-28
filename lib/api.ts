@@ -39,31 +39,99 @@ export function optional<T>(p: Promise<T>, fallback: T): Promise<T> {
   });
 }
 
-// Single in-flight refresh shared by all concurrent 401s, so the rotating refresh token
-// is only spent once. Resolves true when a fresh access token was stored.
-let refreshInFlight: Promise<boolean> | null = null;
+/* ── access-token lifecycle ───────────────────────────────────────────────────────────────
+   The access token is short-lived (15 min). Waking a backgrounded tab fires a burst of
+   requests at once, so discovering expiry by letting them all 401 is both wasteful and
+   fragile — it is what produced "data doesn't load but I'm still logged in". Instead every
+   authed request passes through ensureFreshToken() first: if the token is spent, ONE shared
+   refresh runs and the whole burst then goes out with a valid token.
 
-async function refreshSession(): Promise<boolean> {
+   The other half of the fix is telling apart "the refresh token was rejected" (the session
+   really is over → sign out) from "the server was briefly unreachable" (→ keep the session
+   and let the caller retry). Conflating them meant a few seconds of backend downtime, or one
+   flaky request, permanently logged the user out. */
+
+type RefreshResult =
+  | "ok"          // a fresh access token was stored
+  | "rejected"    // the server refused the refresh token — the session is over
+  | "unavailable" // network/5xx/garbled reply — the session may well still be fine
+  | "none";       // nothing to refresh with (no stored refresh token)
+
+// Notified when the session is discarded, so React can stop rendering the console instead of
+// re-firing requests into a dead session. Registered by the auth provider.
+let onSessionCleared: (() => void) | null = null;
+export function setSessionClearedHandler(fn: (() => void) | null) { onSessionCleared = fn; }
+
+// Refresh a token at most once at a time. Concurrent callers await the same promise, so a
+// burst of requests spends the refresh token once rather than N times.
+let refreshInFlight: Promise<RefreshResult> | null = null;
+
+async function doRefresh(): Promise<RefreshResult> {
   const s = getSession();
-  if (!s?.refreshToken) return false;
+  if (!s?.refreshToken) return "none";
+  let res: Response;
   try {
-    const res = await fetch(API_BASE + "/v1/auth/token/refresh", {
+    res = await fetch(API_BASE + "/v1/auth/token/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken: s.refreshToken }),
       cache: "no-store",
     });
-    if (!res.ok) return false;
-    const tp = JSON.parse(await res.text()) as TokenPair;
-    if (!tp?.accessToken) return false;
-    setSession(sessionFromTokenPair(tp));
-    return true;
   } catch {
-    return false;
+    return "unavailable"; // offline, DNS, CORS — nothing says the session is invalid
+  }
+  // Only the server explicitly refusing the token ends the session. A 5xx (including the
+  // gateway's 503 while auth restarts) is transient.
+  if (res.status === 401 || res.status === 403) return "rejected";
+  if (!res.ok) return "unavailable";
+  try {
+    const tp = JSON.parse(await res.text()) as TokenPair;
+    if (!tp?.accessToken || !tp?.staff) return "unavailable";
+    setSession(sessionFromTokenPair(tp));
+    return "ok";
+  } catch {
+    return "unavailable"; // a proxy's HTML error page with a 200, say
   }
 }
 
+function refreshOnce(): Promise<RefreshResult> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
+
+// endSession discards the session and bounces to login. Only for a genuine "rejected".
+function endSession() {
+  clearSession();
+  onSessionCleared?.();
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+}
+
+// Refresh ahead of expiry so requests don't have to fail to discover it. The skew window
+// covers clock drift between browser and server (the auth service validates exp with no
+// leeway). A session stored before expiresAt existed reports undefined — then we simply keep
+// the old reactive behaviour and let the 401 path handle it.
+const EXPIRY_SKEW_MS = 60_000;
+
+async function ensureFreshToken(): Promise<void> {
+  const s = getSession();
+  if (!s?.expiresAt || !s.refreshToken) return;
+  if (Date.now() < s.expiresAt - EXPIRY_SKEW_MS) return;
+  const r = await refreshOnce();
+  if (r === "rejected") {
+    endSession();
+    throw new ApiError(401, "Session expired");
+  }
+  // "unavailable" falls through: the request goes out with the old token and either works
+  // (the token had not really expired) or 401s, where the reactive path retries.
+}
+
 async function call<T>(method: string, path: string, body?: unknown, auth = true, retried = false): Promise<T> {
+  // Refresh ahead of expiry so a woken tab's whole burst of requests carries a valid token.
+  if (auth) await ensureFreshToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth) {
     const s = getSession();
@@ -75,18 +143,22 @@ async function call<T>(method: string, path: string, body?: unknown, auth = true
     body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
-  // Access token expired → transparently refresh once and retry, so sessions don't expire
-  // while the refresh token is still valid.
+  // Backstop for the cases ensureFreshToken cannot predict: a session with no stored expiry,
+  // a token revoked server-side, or clock skew beyond the skew window.
   if (res.status === 401 && auth && !retried) {
-    if (!refreshInFlight) refreshInFlight = refreshSession().finally(() => { refreshInFlight = null; });
-    if (await refreshInFlight) {
+    const r = await refreshOnce();
+    if (r === "ok") {
       return call<T>(method, path, body, auth, true);
     }
-    // Refresh failed → the session is truly dead; clear it and bounce to login.
-    clearSession();
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
+    if (r === "rejected" || r === "none") {
+      // The session really is over. End it and stop here — the old code fell through and
+      // threw on top of the redirect, spraying an error toast per in-flight request.
+      endSession();
+      throw new ApiError(401, "Session expired");
     }
+    // "unavailable" — the backend is briefly down. Keep the session and report a retryable
+    // error; a 401 here must not cost the user their login.
+    throw new ApiError(503, "Service temporarily unavailable, please retry");
   }
   const text = await res.text();
   // A body is not guaranteed to be JSON: a proxy error page, a gateway timeout or an
@@ -196,6 +268,7 @@ export const api = {
   // Generic uploader for any accepted file (images → avatars, PDFs → receipts). The gateway
   // routes to a storage prefix by content type.
   uploadFile: async (file: File | Blob, retried = false): Promise<string> => {
+    await ensureFreshToken();
     const form = new FormData();
     form.append("file", file);
     const s = getSession();
@@ -205,8 +278,13 @@ export const api = {
       body: form,
     });
     if (res.status === 401 && !retried) {
-      if (!refreshInFlight) refreshInFlight = refreshSession().finally(() => { refreshInFlight = null; });
-      if (await refreshInFlight) return api.uploadFile(file, true);
+      const r = await refreshOnce();
+      if (r === "ok") return api.uploadFile(file, true);
+      if (r === "rejected" || r === "none") {
+        endSession();
+        throw new ApiError(401, "Session expired");
+      }
+      throw new ApiError(503, "Service temporarily unavailable, please retry");
     }
     const text = await res.text();
     // Same defensive parse as call(): an upload can be rejected by a proxy with an HTML
