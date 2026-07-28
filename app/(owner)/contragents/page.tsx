@@ -4,7 +4,7 @@
 // dialog. The list drives the supplier dropdown on the product form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, Phone, MapPin, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, MapPin, Tag, Wallet } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -18,12 +18,22 @@ import {
 } from "@/components/ui-kit/dialog";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import type { Contragent, CatalogTerm } from "@/lib/types";
+import type { Contragent, CatalogTerm, ContragentBalance } from "@/lib/types";
+import { useAuth } from "@/components/providers";
+import { money, num } from "@/lib/format";
+import { BalanceLine, ContragentAccount } from "./_account";
 
 export default function ContragentsPage() {
   const { t } = useLang();
   const { toast } = useToast();
+  const { session } = useAuth();
+  const shopId = session!.staff.shopId;
   const [list, setList] = useState<Contragent[]>([]);
+  // Balances are a separate, owner-only call; a shop whose gateway has not caught up yet
+  // simply sees the list without the money column rather than an error.
+  const [balances, setBalances] = useState<Record<string, ContragentBalance>>({});
+  const [totals, setTotals] = useState({ payable: 0, receivable: 0 });
+  const [account, setAccount] = useState<Contragent | null>(null);
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; item: Contragent | null } | null>(null);
@@ -35,7 +45,18 @@ export default function ContragentsPage() {
     finally { setLoading(false); }
   }, [t, toast]);
 
+  const loadBalances = useCallback(async () => {
+    try {
+      const r = await api.contragentBalances(shopId);
+      const m: Record<string, ContragentBalance> = {};
+      for (const b of r.balances ?? []) m[b.contragentId] = b;
+      setBalances(m);
+      setTotals({ payable: num(r.totalPayable), receivable: num(r.totalReceivable) });
+    } catch { /* the list is still useful without it */ }
+  }, [shopId]);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadBalances(); }, [loadBalances]);
   useEffect(() => { api.listCatalogTerms("brand").then(setBrands).catch(() => {}); }, []);
 
   // Brand name -> logo URL, so a supplier's brand shows its mark next to the name.
@@ -92,17 +113,28 @@ export default function ContragentsPage() {
       },
     },
     {
+      id: "balance",
+      accessorFn: (c) => num(balances[c.id]?.balance),
+      header: ({ column }) => <SortHeader column={column}>{t("cg_balance")}</SortHeader>,
+      cell: ({ row }) => {
+        const b = balances[row.original.id];
+        if (!b) return <span className="text-[13px] text-muted-foreground">—</span>;
+        return <BalanceLine balance={num(b.balance)} />;
+      },
+    },
+    {
       id: "actions",
       enableHiding: false,
       header: () => <span className="sr-only">{t("edit")}</span>,
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setAccount(row.original); }}><Wallet /> {t("cg_account")}</Button>
           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", item: row.original }); }}><Pencil /> {t("edit")}</Button>
           <Button variant="ghost" size="icon-sm" className="text-destructive" aria-label={t("delete")} onClick={(e) => { e.stopPropagation(); del(row.original); }}><Trash2 /></Button>
         </div>
       ),
     },
-  ], [t, del, brandLogos]);
+  ], [t, del, brandLogos, balances]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -110,20 +142,38 @@ export default function ContragentsPage() {
         <h1 className="text-[18px] font-bold tracking-[-0.01em] text-foreground">{t("contragents_title")}</h1>
         <p className="text-[12.5px] text-muted-foreground">{t("contragents_hint")}</p>
       </div>
+
+      {(totals.payable > 0 || totals.receivable > 0) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Card className="gap-0.5 px-4 py-3">
+            <span className="text-[12px] font-semibold text-muted-foreground">{t("cg_total_payable")}</span>
+            <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-destructive">{money(totals.payable)}</span>
+          </Card>
+          <Card className="gap-0.5 px-4 py-3">
+            <span className="text-[12px] font-semibold text-muted-foreground">{t("cg_total_receivable")}</span>
+            <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-success">{money(totals.receivable)}</span>
+          </Card>
+        </div>
+      )}
       {loading && list.length === 0 ? (
         <Card className="gap-2.5 p-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
       ) : (
         <DataTable
           columns={columns}
           data={list}
-          onRowClick={(c) => setEditing({ mode: "edit", item: c })}
+          onRowClick={(c) => setAccount(c)}
           searchPlaceholder={t("search") + "…"}
           emptyText={t("no_contragents")}
           toolbar={<Button onClick={() => setEditing({ mode: "new", item: null })}><Plus /> {t("add_contragent")}</Button>}
-          columnLabels={{ name: t("contragent_name"), brand: t("brand") }}
+          columnLabels={{ name: t("contragent_name"), brand: t("brand"), balance: t("cg_balance") }}
           pageSize={12}
         />
       )}
+      <ContragentAccount
+        contragent={account}
+        onClose={() => setAccount(null)}
+        onChanged={loadBalances}
+      />
       <ContragentModal
         state={editing}
         brands={brands}

@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -530,11 +530,14 @@ export const api = {
     call<Product>("POST", "/v1/products", { shopId, ...productBody(p) }),
   updateProduct: (id: string, p: ProductInput & { active?: boolean }) =>
     call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
-  adjustVariantStock: (variantId: string, delta: number, reason: string, opts?: { contragentId?: string; unitCost?: number }) =>
+  // paidAmount settles part of a delivery on the spot; the rest becomes debt on the
+  // supplier's account. Omitted means the whole delivery is taken on credit.
+  adjustVariantStock: (variantId: string, delta: number, reason: string, opts?: { contragentId?: string; unitCost?: number; paidAmount?: number }) =>
     call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, {
       delta, reason,
       contragentId: opts?.contragentId ?? "",
       unitCost: String(opts?.unitCost ?? 0),
+      paidAmount: String(opts?.paidAmount ?? 0),
     }),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
@@ -560,6 +563,26 @@ export const api = {
     call<Contragent>("POST", `/v1/contragents/${id}`, { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true, brand: c.brand ?? "" }),
   deleteContragent: (id: string) =>
     call<{ ok?: boolean }>("POST", `/v1/contragents/${id}/delete`, {}),
+
+  // ── contragent accounts (debt and cash; never profit) ──
+  contragentBalances: (shopId: string, from?: string, to?: string) =>
+    call<{ balances?: ContragentBalance[]; totalPayable?: string; totalReceivable?: string }>(
+      "GET", "/v1/contragents/balances" + qs({ shopId, from, to })),
+  contragentLedger: (id: string, from?: string, to?: string) =>
+    call<{ entries?: ContragentLedgerEntry[]; summary?: ContragentBalance }>(
+      "GET", `/v1/contragents/${id}/ledger` + qs({ from, to })),
+  // A purchase is not accepted here — goods arrive by receiving stock, which writes it.
+  recordContragentEntry: (id: string, e: {
+    kind: Exclude<ContragentEntryKind, "CONTRAGENT_ENTRY_KIND_PURCHASE">;
+    amount: number; method?: PaymentMethod; note?: string; description?: string; occurredAt?: string;
+  }) =>
+    call<ContragentLedgerEntry>("POST", `/v1/contragents/${id}/entries`, {
+      kind: e.kind, amount: String(e.amount),
+      method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
+      note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
+    }),
+  deleteContragentEntry: (entryId: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/contragents/entries/${entryId}/delete`, {}),
 
   // ── predefined property catalog ──
   // Open read (active only) — used by the product form to offer predefined properties.

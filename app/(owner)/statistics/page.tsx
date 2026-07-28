@@ -247,6 +247,12 @@ export default function StatisticsPage() {
                 })}
               </div>
             </ChartCard>
+            <ChartCard title={t("cg_debts")} subtitle={t("cg_all_time")}>
+              <div className="flex flex-col gap-3 py-1">
+                <MoneyTile label={t("cg_total_payable")} value={num(st.payable)} tone="danger" hint={t("cg_not_expense_short")} />
+                <MoneyTile label={t("cg_total_receivable")} value={num(st.receivable)} tone="ok" />
+              </div>
+            </ChartCard>
             <ChartCard title={t("discount")} subtitle={t("given_in_period")}>
               <div className="flex flex-col gap-2 py-2">
                 <div className="font-mono text-[30px] font-extrabold tracking-[-0.03em] text-foreground">{money(st.discountsGiven)}</div>

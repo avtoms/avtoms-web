@@ -311,6 +311,9 @@ function AdjustPanel({
   const [reason, setReason] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [unitCost, setUnitCost] = useState("");
+  // How much of the delivery was handed over now. Empty is the honest default: the shop
+  // took the goods and owes for them until it says otherwise.
+  const [paidNow, setPaidNow] = useState("");
   const [busy, setBusy] = useState(false);
 
   // Narrow suppliers to the product's brand (keeping brand-agnostic ones), so receiving
@@ -324,6 +327,10 @@ function AdjustPanel({
   const receiving = mode === "receive";
   const qty = parseFloat(amount) || 0;
   const cost = parseInt(unitCost, 10) || 0;
+  const total = Math.round(qty * cost);
+  // Never let the form claim more was paid than the delivery was worth.
+  const paid = Math.min(parseInt(paidNow, 10) || 0, total);
+  const owed = Math.max(0, total - paid);
 
   const save = async () => {
     if (qty <= 0 || busy || !variant.id) return;
@@ -333,7 +340,7 @@ function AdjustPanel({
         variant.id,
         receiving ? qty : -qty,
         reason.trim() || mode,
-        receiving ? { contragentId: supplierId, unitCost: cost } : undefined,
+        receiving ? { contragentId: supplierId, unitCost: cost, paidAmount: paid } : undefined,
       );
       toast(t("save"), { icon: "check" });
       onClose();
@@ -371,9 +378,20 @@ function AdjustPanel({
           </Field>
         </div>
       )}
+      {/* Settling on the spot is optional, and only means anything once a supplier is named —
+          without one there is no account for the rest to become a debt on. */}
+      {receiving && supplierId && (
+        <Field label={t("paid_now")}>
+          <MoneyInput value={paidNow} onChange={setPaidNow} placeholder="0" hideHint />
+        </Field>
+      )}
       {receiving && qty > 0 && cost > 0 && (
-        <div className="flex justify-end text-[12px] text-muted-foreground">
-          {t("total")}: <span className="ml-1 font-mono font-semibold text-foreground">{money(qty * cost)}</span>
+        <div className="flex flex-wrap justify-end gap-x-4 text-[12px] text-muted-foreground">
+          <span>{t("total")}: <span className="ml-1 font-mono font-semibold text-foreground">{money(total)}</span></span>
+          {/* Say what the delivery will do to the supplier's account before it is saved. */}
+          {supplierId && owed > 0 && (
+            <span>{t("cg_will_owe")}: <span className="ml-1 font-mono font-semibold text-destructive">{money(owed)}</span></span>
+          )}
         </div>
       )}
       <div className="flex justify-end">

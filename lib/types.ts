@@ -462,6 +462,43 @@ export interface Statistics {
   topVehicles?: VehicleStat[];
   newCustomers?: number; returningCustomers?: number;
   payments?: PaymentBucket[];
+  payable?: string;    // all-time debt to counterparties; not part of netProfit
+  receivable?: string;
+}
+
+// A contragent's running account. Amounts are always positive; the direction is in `kind`.
+// The balance is signed and POSITIVE MEANS THE SHOP OWES THEM. This is debt and cash — none
+// of it reaches profit and loss, because a part's cost is counted when it is used or sold.
+export type ContragentEntryKind =
+  | "CONTRAGENT_ENTRY_KIND_PURCHASE"     // goods received from them   → +
+  | "CONTRAGENT_ENTRY_KIND_PAYMENT_OUT"  // we paid them               → −
+  | "CONTRAGENT_ENTRY_KIND_CHARGE"       // goods/services given       → −
+  | "CONTRAGENT_ENTRY_KIND_PAYMENT_IN";  // they paid us               → +
+
+export interface ContragentLedgerEntry {
+  id: string;
+  contragentId: string;
+  kind: ContragentEntryKind | string;
+  amount: string;
+  description?: string;
+  movementId?: string;   // set when it came from a stock receipt; those cannot be deleted
+  method?: string;
+  staffId?: string;
+  note?: string;
+  occurredAt?: string;
+  createdAt?: string;
+}
+
+export interface ContragentBalance {
+  contragentId: string;
+  name: string;
+  purchased: string;
+  paid: string;
+  charged: string;
+  received: string;
+  balance: string;   // signed, all-time
+  lastAt?: string;
+  entries?: number;
 }
 
 export interface ShopSettings {
