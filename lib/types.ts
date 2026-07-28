@@ -401,6 +401,36 @@ export interface StockMovement {
   unitCost?: string;      // purchase price per unit for this receipt, tiyin
 }
 
+// A counter sale: warehouse stock sold with no work order, vehicle or customer.
+// description, sku and unitCost are snapshots taken when the sale was recorded.
+export interface SaleItem {
+  id?: string;
+  variantId: string;
+  description?: string;
+  sku?: string;
+  quantity: number;   // may be fractional (3.5 l)
+  unitPrice: string;  // agreed sell price per unit (tiyin)
+  unitCost?: string;
+}
+
+export interface Sale {
+  id: string;
+  shopId: string;
+  saleNo?: string | number; // per-shop sequence, shown as "S-0001"
+  staffId?: string;
+  items?: SaleItem[];
+  total: string;
+  totalCost?: string;
+  paymentMethod?: string; // PAYMENT_METHOD_CASH | _CARD | _OTHER
+  cardId?: string;
+  cardNumber?: string;
+  invoiceId?: string;     // the receipt generated for this sale
+  note?: string;
+  voided?: boolean;
+  voidedAt?: string;
+  createdAt?: string;
+}
+
 export interface ShopSettings {
   shopId: string;
   maxDiscountPercent: number; // 0-100; 100 = no cap

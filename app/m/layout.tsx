@@ -10,6 +10,7 @@ import { LANGS, type Lang } from "@/lib/i18n";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui-kit/dropdown-menu";
+import { Spinner } from "@/components/ui-kit/misc";
 import { cn } from "@/lib/utils";
 
 function LangMenu({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
@@ -36,12 +37,19 @@ function LangMenu({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void })
 }
 
 export default function MechanicLayout({ children }: { children: React.ReactNode }) {
-  const { session, logout } = useAuth();
+  const { session, logout, ready } = useAuth();
   const { lang, setLang, t } = useLang();
   const router = useRouter();
 
-  const name = session?.staff.name || "";
-  const phone = session?.staff.phone || "";
+  // Hold the screen until the session is read from the cookie, the way the owner console
+  // does. Screens below here read the signed-in worker's shop straight off the session, and
+  // rendering them with nothing in hand only produces a flash of an empty board.
+  if (!ready || !session) {
+    return <div className="app-scope grid min-h-[100dvh] place-items-center bg-background"><Spinner className="size-7" /></div>;
+  }
+
+  const name = session.staff.name || "";
+  const phone = session.staff.phone || "";
 
   const signOut = () => {
     logout();

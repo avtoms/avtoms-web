@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -418,6 +418,26 @@ export const api = {
     call<TimeEntryResp>("POST", `/v1/work-orders/${woId}/timer/start`, { mechanicId }),
   stopTimer: (woId: string, mechanicId: string) =>
     call<TimeEntryResp>("POST", `/v1/work-orders/${woId}/timer/stop`, { mechanicId }),
+
+  // ── counter sales ──
+  // Selling takes the stock off the shelf, issues a receipt and marks it paid in one call;
+  // the gateway reverses the whole thing if any step fails. Only variantId, quantity and
+  // unitPrice are read from a line — the rest is snapshotted from the warehouse.
+  listSales: (shopId: string, from?: string, to?: string) =>
+    call<{ sales?: Sale[] }>("GET", "/v1/sales" + qs({ shopId, from, to })).then((r) => r.sales ?? []),
+  getSale: (id: string) => call<Sale>("GET", `/v1/sales/${id}`),
+  createSale: (s: {
+    items: { variantId: string; quantity: number; unitPrice: number }[];
+    method: PaymentMethod; cardId?: string; cardNumber?: string; note?: string;
+  }) =>
+    call<Sale>("POST", "/v1/sales", {
+      items: s.items.map((it) => ({ variantId: it.variantId, quantity: it.quantity, unitPrice: String(it.unitPrice) })),
+      paymentMethod: paymentToProto(s.method),
+      cardId: s.cardId ?? "",
+      cardNumber: s.cardNumber ?? "",
+      note: s.note ?? "",
+    }),
+  voidSale: (id: string) => call<Sale>("POST", `/v1/sales/${id}/void`),
 
   // ── pricing menu ──
   listMenuItems: (shopId: string) =>

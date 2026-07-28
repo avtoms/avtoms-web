@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ClipboardList, CalendarClock, Users, Car, Receipt, BarChart3, Wallet,
-  Tags, Package, Truck, Bell, UsersRound, Settings, Menu as MenuIcon, Plus, Wrench, LogOut, Globe,
+  Tags, Package, Truck, Bell, UsersRound, Settings, Menu as MenuIcon, Plus, Wrench, LogOut, Globe, ShoppingCart,
   Check, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
@@ -40,6 +40,7 @@ const GROUPS: NavGroup[] = [
     { key: "vehicles", route: "/vehicles", icon: Car, labelKey: "nav_vehicles" },
   ]},
   { titleKey: "nav_grp_finance", items: [
+    { key: "sales", route: "/sales", icon: ShoppingCart, labelKey: "nav_sales" },
     { key: "invoices", route: "/invoices", icon: Receipt, labelKey: "nav_invoices" },
     { key: "finances", route: "/finances", icon: Wallet, labelKey: "nav_finances" },
     { key: "reports", route: "/reports", icon: BarChart3, labelKey: "nav_reports" },

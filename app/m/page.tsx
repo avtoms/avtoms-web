@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, ShoppingCart } from "lucide-react";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -176,6 +176,9 @@ export default function MechanicBoardPage() {
               className="h-9 w-[190px] pl-9 text-[13px]"
             />
           </div>
+          {/* The counter is the same permission as creating an order — a worker trusted with
+              one is trusted with the other. */}
+          {canCreate && <Button variant="secondary" onClick={() => router.push("/m/sales")}><ShoppingCart />{t("nav_sales")}</Button>}
           {canCreate && <Button onClick={() => setCreateOpen(true)}><Plus />{t("new_wo")}</Button>}
         </div>
       </div>
