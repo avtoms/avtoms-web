@@ -57,6 +57,18 @@ export default function ContragentsPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadBalances(); }, [loadBalances]);
+
+  // ?open=<id> opens one account straight away. The stock receipt form links here, so a debt
+  // it just created can be settled without hunting for the supplier in the list. Read from
+  // the URL directly rather than through useSearchParams, which would force this page behind
+  // a Suspense boundary at build time for nothing.
+  const [pendingOpen, setPendingOpen] = useState<string | null>(null);
+  useEffect(() => { setPendingOpen(new URLSearchParams(window.location.search).get("open")); }, []);
+  useEffect(() => {
+    if (!pendingOpen) return;
+    const c = list.find((x) => x.id === pendingOpen);
+    if (c) { setAccount(c); setPendingOpen(null); }
+  }, [pendingOpen, list]);
   useEffect(() => { api.listCatalogTerms("brand").then(setBrands).catch(() => {}); }, []);
 
   // Brand name -> logo URL, so a supplier's brand shows its mark next to the name.

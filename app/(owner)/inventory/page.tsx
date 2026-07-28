@@ -4,6 +4,7 @@
 // dialog to view/adjust each variant's stock, and hosts the create/edit form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { Plus } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
@@ -27,6 +28,7 @@ import { money, num } from "@/lib/format";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
+import { BalanceLine } from "../contragents/_account";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
@@ -55,6 +57,9 @@ export default function InventoryPage() {
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [categories, setCategories] = useState<CatalogTerm[]>([]);
   const [contragents, setContragents] = useState<Contragent[]>([]);
+  // What each supplier is owed right now, so receiving stock can show the debt it is about
+  // to add to an account that already has one.
+  const [balances, setBalances] = useState<Record<string, number>>({});
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
@@ -73,7 +78,13 @@ export default function InventoryPage() {
   // The predefined property catalog + brand/category lists power the product form.
   const loadContragents = useCallback(() => {
     api.listContragents().then(setContragents).catch(() => {});
-  }, []);
+    // Owner-only; a worker managing stock simply sees the form without the running debt.
+    api.contragentBalances(shopId).then((r) => {
+      const m: Record<string, number> = {};
+      for (const b of r.balances ?? []) m[b.contragentId] = num(b.balance);
+      setBalances(m);
+    }).catch(() => {});
+  }, [shopId]);
   useEffect(() => {
     api.listPropertyDefinitions().then(setDefinitions).catch(() => {});
     api.listCatalogTerms("brand").then(setBrands).catch(() => {});
@@ -194,11 +205,14 @@ export default function InventoryPage() {
         product={managing}
         definitions={definitions}
         contragents={contragents}
+        balances={balances}
         staff={staff}
         brandLogos={brandLogos}
         onClose={() => setManaging(null)}
         onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
-        onDone={load}
+        // A receipt moves stock and the supplier's balance together, so refresh both —
+        // otherwise the next delivery in the same sitting quotes a stale debt.
+        onDone={() => { load(); loadContragents(); }}
       />
     </div>
   );
@@ -207,11 +221,12 @@ export default function InventoryPage() {
 // ManageModal lists a product's variants with their stock and a per-variant
 // receive/consume stock adjustment.
 function ManageModal({
-  product, definitions, contragents, staff, brandLogos, onClose, onEdit, onDone,
+  product, definitions, contragents, balances, staff, brandLogos, onClose, onEdit, onDone,
 }: {
   product: Product | null;
   definitions: PropertyDefinition[];
   contragents: Contragent[];
+  balances: Record<string, number>;
   staff: Staff[];
   brandLogos: Record<string, string>;
   onClose: () => void;
@@ -276,7 +291,7 @@ function ManageModal({
                     <Button variant="soft" size="sm" onClick={() => setAdjust(isAdjusting ? null : v)}>{t("adjust_stock")}</Button>
                   </div>
                 </div>
-                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} brand={product.brand} contragents={contragents} onClose={() => setAdjust(null)} onDone={onDone} />}
+                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} brand={product.brand} contragents={contragents} balances={balances} onClose={() => setAdjust(null)} onDone={onDone} />}
                 {history === v.id && v.id && <HistoryPanel variantId={v.id} unit={product.unit} contragents={contragents} staff={staff} />}
               </div>
             );
@@ -294,13 +309,19 @@ function ManageModal({
 // AdjustPanel is an inline receive/consume control for one variant. On receive it
 // also records which supplier delivered the stock and the purchase price per unit,
 // so the history shows a full procurement picture.
+//
+// A receipt is also a purchase on credit: whatever is not handed over now becomes a debt on
+// the supplier's account, and it is repaid there rather than here. The panel says that in
+// full — running balance, what this delivery adds, and a way through to the account — because
+// stock arriving is the moment the debt is created and the only moment the shop is looking.
 function AdjustPanel({
-  variant, unit, brand, contragents, onClose, onDone,
+  variant, unit, brand, contragents, balances, onClose, onDone,
 }: {
   variant: ProductVariant;
   unit?: string;
   brand?: string;
   contragents: Contragent[];
+  balances: Record<string, number>;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -385,18 +406,46 @@ function AdjustPanel({
           <MoneyInput value={paidNow} onChange={setPaidNow} placeholder="0" hideHint />
         </Field>
       )}
-      {receiving && qty > 0 && cost > 0 && (
-        <div className="flex flex-wrap justify-end gap-x-4 text-[12px] text-muted-foreground">
-          <span>{t("total")}: <span className="ml-1 font-mono font-semibold text-foreground">{money(total)}</span></span>
-          {/* Say what the delivery will do to the supplier's account before it is saved. */}
-          {supplierId && owed > 0 && (
-            <span>{t("cg_will_owe")}: <span className="ml-1 font-mono font-semibold text-destructive">{money(owed)}</span></span>
-          )}
+      {/* Nothing was bought from anyone, so nothing can be owed to anyone. Said plainly,
+          because a receipt with a price but no supplier looks like it recorded a purchase. */}
+      {receiving && total > 0 && !supplierId && (
+        <p className="text-[11.5px] leading-relaxed text-muted-foreground">{t("cg_no_supplier_note")}</p>
+      )}
+      {/* What this delivery does to the supplier's account, before it is saved. */}
+      {receiving && supplierId && total > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-[10px] bg-secondary/60 px-3 py-2.5 text-[12px]">
+          <Line label={t("total")} value={money(total)} />
+          {paid > 0 && <Line label={t("paid_now")} value={"−" + money(paid)} tone="ok" />}
+          <Line label={t("cg_will_owe")} value={money(owed)} tone={owed > 0 ? "debt" : undefined} strong />
+          <div className="mt-0.5 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5">
+            <span className="text-[11.5px] text-muted-foreground">{t("cg_balance_after")}</span>
+            <div className="flex items-center gap-2">
+              <BalanceLine balance={(balances[supplierId] ?? 0) + owed} />
+              <Link href={`/contragents?open=${supplierId}`} className="shrink-0 text-[11.5px] font-semibold text-primary hover:underline">
+                {t("cg_open_account")}
+              </Link>
+            </div>
+          </div>
+          {owed > 0 && <p className="text-[11px] leading-relaxed text-muted-foreground">{t("cg_credit_note")}</p>}
         </div>
       )}
       <div className="flex justify-end">
         <Button disabled={busy} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
       </div>
+    </div>
+  );
+}
+
+// One label/amount row of the delivery summary.
+function Line({ label, value, tone, strong }: { label: string; value: string; tone?: "ok" | "debt"; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11.5px] text-muted-foreground">{label}</span>
+      <span className={cn(
+        "font-mono tabular-nums",
+        strong ? "text-[13px] font-extrabold" : "text-[12.5px] font-semibold",
+        tone === "ok" ? "text-success" : tone === "debt" ? "text-destructive" : "text-foreground",
+      )}>{value}</span>
     </div>
   );
 }
