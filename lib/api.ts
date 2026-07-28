@@ -7,7 +7,8 @@ import type {
   MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage,
 } from "./types";
 import {
-  langToProto, kindToProto, woStateToProto, paymentToProto, roleToProto, REPORT_KINDS,
+  langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
+  type DiscountKind,
 } from "./enums";
 import type { Lang } from "./i18n";
 import type { WoState, PaymentMethod, LineItemKind, Role } from "./enums";
@@ -283,6 +284,10 @@ export const api = {
     call<WorkOrder>("DELETE", `/v1/work-orders/${woId}/line-items/${lineItemId}`),
   transition: (woId: string, target: WoState) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/transition`, { target: woStateToProto(target) }),
+  // Set or clear the whole-order discount. value is fixed tiyin, or basis points for percent
+  // (100 = 1%); pass kind "none" (value 0) to clear.
+  setOrderDiscount: (woId: string, kind: DiscountKind, value: number) =>
+    call<WorkOrder>("POST", `/v1/work-orders/${woId}/discount`, { discountKind: discountToProto(kind), discountValue: String(kind === "none" ? 0 : value) }),
   assignMechanic: (woId: string, mechanicId: string) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/assign`, { mechanicId }),
   assignLineItem: (woId: string, lineItemId: string, mechanicId: string) =>

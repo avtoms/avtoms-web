@@ -157,6 +157,9 @@ export interface WorkOrder {
   totalCost?: string; // shop's total expense on this order (tiyin)
   totalMargin?: string; // gross margin before VAT: subtotal - totalCost (tiyin)
   orderNo?: string | number; // per-shop sequence shown to users as "Z-0001"
+  discountKind?: string;   // DISCOUNT_KIND_UNSPECIFIED | _FIXED | _PERCENT
+  discountValue?: string;  // fixed tiyin, or basis points for percent (100 = 1%)
+  discountAmount?: string;  // the applied order discount in tiyin
   notes?: string;
   createdAt?: string;
   activeTimerStartedAt?: string; // set when a timer is currently running

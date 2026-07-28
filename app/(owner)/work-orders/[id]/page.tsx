@@ -23,8 +23,8 @@ import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
 import {
-  woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto,
-  TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod,
+  woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
+  TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod, type DiscountKind,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, Contragent, LineItem } from "@/lib/types";
 
@@ -87,6 +87,7 @@ export default function WorkOrderDetailPage() {
   const [editItem, setEditItem] = useState<LineItem | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [invoice, setInvoice] = useState(false);
+  const [discount, setDiscount] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [approval, setApproval] = useState<{ deepLink: string; botUsername: string } | null>(null);
 
@@ -157,9 +158,12 @@ export default function WorkOrderDetailPage() {
   const items = wo.lineItems ?? [];
   const computed = vatBreakdown(items);
   const subtotal = wo.subtotal != null ? num(wo.subtotal) : computed.subtotal;
-  const total = subtotal; // VAT (QQS/НДС) disabled: total equals subtotal
+  const orderDiscount = num(wo.discountAmount); // whole-order discount, on top of per-line
+  const total = wo.total != null ? num(wo.total) : subtotal - orderDiscount; // VAT disabled
   const totalCost = num(wo.totalCost);
-  const totalMargin = wo.totalMargin != null ? num(wo.totalMargin) : subtotal - totalCost;
+  const totalMargin = wo.totalMargin != null ? num(wo.totalMargin) : subtotal - orderDiscount - totalCost;
+  const orderDiscKind = discountFromProto(wo.discountKind);
+  const orderDiscLabel = orderDiscKind === "percent" ? ` · ${num(wo.discountValue) / 100}%` : "";
   const grossSubtotal = items.reduce((s, it) => {
     const qty = it.quantity || 0;
     const actualUnit = num(it.unitPrice);
@@ -263,7 +267,19 @@ export default function WorkOrderDetailPage() {
                   <Separator className="my-1.5" />
                 </>
               )}
+              {orderDiscount > 0 && (
+                <>
+                  <Row label={t("subtotal")} value={money(subtotal)} mono />
+                  <Row label={`${t("order_discount")}${orderDiscLabel}`} value={<span className="text-success">−{money(orderDiscount)}</span>} mono />
+                  <Separator className="my-1.5" />
+                </>
+              )}
               <Row label={t("total")} value={money(total) + " " + t("soum")} mono strong />
+              {editable && (
+                <button onClick={() => setDiscount(true)} className="mt-2 text-[12.5px] font-semibold text-primary-emphasis hover:underline">
+                  {orderDiscount > 0 ? t("edit_discount") : `+ ${t("add_discount")}`}
+                </button>
+              )}
               {totalCost > 0 && (
                 <>
                   <Separator className="my-1.5" />
@@ -319,6 +335,7 @@ export default function WorkOrderDetailPage() {
       <EditLineItemModal item={editItem} onClose={() => setEditItem(null)} onSave={doUpdateItem} busy={busy} />
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
+      <OrderDiscountModal open={discount} onClose={() => setDiscount(false)} wo={wo} onSaved={() => { setDiscount(false); load(); }} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
       <Dialog open={confirmCancel} onOpenChange={(o) => !o && setConfirmCancel(false)}>
         <DialogContent className="max-w-[400px]">
@@ -338,6 +355,7 @@ export default function WorkOrderDetailPage() {
 const AUDIT_LABEL: Record<string, string> = {
   state: "audit_state", line_added: "audit_line_added",
   line_removed: "audit_line_removed", mechanic_assigned: "audit_mechanic_assigned",
+  order_discount: "order_discount",
 };
 
 function AuditCard({ woId, refresh, mechanics }: { woId: string; refresh: string; mechanics: Staff[] }) {
@@ -452,6 +470,76 @@ function EditLineItemModal({ item, onClose, onSave, busy }: {
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
           <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// OrderDiscountModal sets or clears the whole-order discount (fixed so'm or percent).
+function OrderDiscountModal({ open, onClose, wo, onSaved }: {
+  open: boolean; onClose: () => void; wo: WorkOrder; onSaved: () => void;
+}) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [kind, setKind] = useState<Exclude<DiscountKind, "none">>("percent");
+  const [value, setValue] = useState(""); // fixed: so'm; percent: percent number (may be decimal)
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const k = discountFromProto(wo.discountKind);
+    if (k === "percent") { setKind("percent"); setValue(String(num(wo.discountValue) / 100)); }
+    else if (k === "fixed") { setKind("fixed"); setValue(String(num(wo.discountValue))); }
+    else { setKind("percent"); setValue(""); }
+  }, [open, wo]);
+
+  const existing = discountFromProto(wo.discountKind) !== "none";
+
+  const submit = async (clear: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (clear) {
+        await api.setOrderDiscount(wo.id, "none", 0);
+      } else {
+        // percent → basis points (100 = 1%); fixed → so'm as entered.
+        const v = kind === "percent" ? Math.round((parseFloat(value) || 0) * 100) : (parseInt(value, 10) || 0);
+        await api.setOrderDiscount(wo.id, kind, v);
+      }
+      toast(t("save"), { icon: "check" });
+      onSaved();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[420px]">
+        <DialogHeader><DialogTitle>{t("order_discount")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3.5 py-1">
+          <Tabs value={kind} onValueChange={(v) => setKind(v as Exclude<DiscountKind, "none">)}>
+            <TabsList className="w-full">
+              <TabsTrigger value="percent" className="flex-1">{t("discount_percent")}</TabsTrigger>
+              <TabsTrigger value="fixed" className="flex-1">{t("discount_fixed")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Field label={t("discount_value")}>
+            {kind === "percent" ? (
+              <Input value={value} inputMode="decimal" placeholder="10"
+                onChange={(e) => setValue(e.target.value.replace(/[^\d.]/g, ""))} className="text-center font-mono" />
+            ) : (
+              <MoneyInput value={value} onChange={setValue} />
+            )}
+          </Field>
+        </DialogBody>
+        <DialogFooter>
+          {existing && <Button variant="ghost" className="text-destructive hover:bg-destructive-soft mr-auto" disabled={busy} onClick={() => submit(true)}>{t("remove_discount")}</Button>}
+          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={busy} onClick={() => submit(false)}>{busy ? <Spinner /> : t("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

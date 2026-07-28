@@ -6,6 +6,7 @@ export type WoState = "draft" | "estimated" | "approved" | "in_progress" | "read
 export type Role = "owner" | "mechanic" | "admin";
 export type FiscalStatus = "pending" | "fiscalized" | "failed" | "voided";
 export type PaymentMethod = "cash" | "card" | "other";
+export type DiscountKind = "none" | "fixed" | "percent";
 // "service" and "material" are the current kinds; "labor"/"part" are legacy aliases
 // still returned for older line items.
 export type LineItemKind = "service" | "material" | "labor" | "part";
@@ -66,6 +67,11 @@ export const paymentFromProto = (s?: string): PaymentMethod =>
 // i18n key for a payment method's label.
 export const paymentLabelKey = (m: PaymentMethod): string =>
   m === "card" ? "pay_card" : m === "other" ? "pay_other" : "pay_cash";
+
+export const discountToProto = (k: DiscountKind): string =>
+  k === "fixed" ? "DISCOUNT_KIND_FIXED" : k === "percent" ? "DISCOUNT_KIND_PERCENT" : "DISCOUNT_KIND_UNSPECIFIED";
+export const discountFromProto = (s?: string): DiscountKind =>
+  s === "DISCOUNT_KIND_FIXED" ? "fixed" : s === "DISCOUNT_KIND_PERCENT" ? "percent" : "none";
 
 export const kindToProto = (k: LineItemKind): string => {
   switch (k) {

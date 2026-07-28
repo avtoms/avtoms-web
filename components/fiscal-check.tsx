@@ -72,9 +72,10 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
   const grossSubtotal = rows.reduce((s, r) => s + r.listUnit * r.qty, 0);
   const totalDiscount = rows.reduce((s, r) => s + r.disc, 0);
   const netSubtotal = wo?.subtotal != null ? num(wo.subtotal) : rows.reduce((s, r) => s + r.lineSum, 0);
-  const total = netSubtotal; // VAT (QQS/НДС) disabled: total equals the net subtotal
+  const orderDiscount = num(wo?.discountAmount); // whole-order discount, on top of per-line
+  const total = wo?.total != null ? num(wo.total) : netSubtotal - orderDiscount; // VAT disabled
   const totalCost = wo?.totalCost != null ? num(wo.totalCost) : rows.reduce((s, r) => s + num(r.it.cost) * r.qty, 0);
-  const doxod = wo?.totalMargin != null ? num(wo.totalMargin) : netSubtotal - totalCost;
+  const doxod = wo?.totalMargin != null ? num(wo.totalMargin) : netSubtotal - orderDiscount - totalCost;
 
   const payment = paymentFromProto(invoice.paymentMethod);
   const fiscal = fiscalFromProto(invoice.fiscalStatus);
@@ -145,6 +146,8 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
         <div className="inv-tot">
           {totalDiscount > 0 && <div className="row muted"><span>{t("before_discount")}</span><span className="inv-mono">{money(grossSubtotal)}</span></div>}
           {totalDiscount > 0 && <div className="row inv-disc"><span>{t("discount")}</span><span className="inv-mono">−{money(totalDiscount)}</span></div>}
+          {orderDiscount > 0 && <div className="row muted"><span>{t("subtotal")}</span><span className="inv-mono">{money(netSubtotal)}</span></div>}
+          {orderDiscount > 0 && <div className="row inv-disc"><span>{t("order_discount")}</span><span className="inv-mono">−{money(orderDiscount)}</span></div>}
           <div className="row grand"><span>{t("total")}</span><span className="inv-mono">{money(total)} {t("soum")}</span></div>
         </div>
 

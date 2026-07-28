@@ -366,6 +366,14 @@ export const STR: Record<string, Triple> = {
   no_cards: ["Karta yo'q", "Карта йўқ", "Нет карт"],
   received_on: ["Qabul qilingan karta", "Қабул қилинган карта", "Получено на карту"],
   card_required: ["Karta raqamini kiriting", "Карта рақамини киритинг", "Введите номер карты"],
+  // ── order discount ──
+  order_discount: ["Buyurtma chegirmasi", "Буюртма чегирмаси", "Скидка на заказ"],
+  discount_fixed: ["Belgilangan (so'm)", "Белгиланган (сўм)", "Фикс. (сум)"],
+  discount_percent: ["Foiz (%)", "Фоиз (%)", "Процент (%)"],
+  add_discount: ["Chegirma qo'shish", "Чегирма қўшиш", "Добавить скидку"],
+  edit_discount: ["Chegirmani tahrirlash", "Чегирмани таҳрирлаш", "Изменить скидку"],
+  remove_discount: ["Chegirmani olib tashlash", "Чегирмани олиб ташлаш", "Убрать скидку"],
+  discount_value: ["Chegirma qiymati", "Чегирма қиймати", "Значение скидки"],
   // ── income breakdown ──
   income_breakdown: ["Daromad taqsimoti", "Даромад тақсимоти", "Разбивка дохода"],
   income_by_method: ["To'lov usuli bo'yicha daromad", "Тўлов усули бўйича даромад", "Доход по способу оплаты"],
