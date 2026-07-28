@@ -209,8 +209,17 @@ export const api = {
       if (await refreshInFlight) return api.uploadFile(file, true);
     }
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new ApiError(res.status, data.message || data.error || `HTTP ${res.status}`);
+    // Same defensive parse as call(): an upload can be rejected by a proxy with an HTML
+    // body (size limits, gateway errors), which must not surface as a SyntaxError.
+    let data: Record<string, unknown> = {};
+    if (text) {
+      try {
+        data = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        throw new ApiError(res.status, res.ok ? "Invalid response from server" : text.slice(0, 200));
+      }
+    }
+    if (!res.ok) throw new ApiError(res.status, (data.message as string) || (data.error as string) || `HTTP ${res.status}`);
     return data.url as string;
   },
   uploadImage: (file: File): Promise<string> => api.uploadFile(file),

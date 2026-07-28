@@ -195,6 +195,7 @@ export default function InventoryPage() {
         definitions={definitions}
         contragents={contragents}
         staff={staff}
+        brandLogos={brandLogos}
         onClose={() => setManaging(null)}
         onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
         onDone={load}
@@ -206,12 +207,13 @@ export default function InventoryPage() {
 // ManageModal lists a product's variants with their stock and a per-variant
 // receive/consume stock adjustment.
 function ManageModal({
-  product, definitions, contragents, staff, onClose, onEdit, onDone,
+  product, definitions, contragents, staff, brandLogos, onClose, onEdit, onDone,
 }: {
   product: Product | null;
   definitions: PropertyDefinition[];
   contragents: Contragent[];
   staff: Staff[];
+  brandLogos: Record<string, string>;
   onClose: () => void;
   onEdit: (p: Product) => void;
   onDone: () => void;
@@ -224,7 +226,15 @@ function ManageModal({
   return (
     <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[520px]">
-        <DialogHeader><DialogTitle>{product ? `${product.brand ? product.brand + " · " : ""}${product.name}` : ""}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex min-w-0 items-center gap-2">
+            {product?.brand && brandLogos[product.brand] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brandLogos[product.brand]} alt="" aria-hidden className="size-6 shrink-0 rounded-[5px] object-contain" />
+            )}
+            <span className="truncate">{product ? `${product.brand ? product.brand + " · " : ""}${product.name}` : ""}</span>
+          </DialogTitle>
+        </DialogHeader>
         <DialogBody className="flex max-h-[65vh] flex-col gap-2 overflow-y-auto py-1">
           {product && (product.variants ?? []).length === 0 && (
             <p className="text-[13px] text-muted-foreground">{t("no_variants")}</p>

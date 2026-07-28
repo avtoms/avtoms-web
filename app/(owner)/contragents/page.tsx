@@ -38,6 +38,13 @@ export default function ContragentsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.listCatalogTerms("brand").then(setBrands).catch(() => {}); }, []);
 
+  // Brand name -> logo URL, so a supplier's brand shows its mark next to the name.
+  const brandLogos = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
+    return m;
+  }, [brands]);
+
   const del = useCallback(async (c: Contragent) => {
     if (!confirm(t("delete_contragent_confirm"))) return;
     try { await api.deleteContragent(c.id); toast(t("save"), { icon: "check" }); load(); }
@@ -69,9 +76,20 @@ export default function ContragentsPage() {
       id: "brand",
       accessorFn: (c) => c.brand ?? "",
       header: ({ column }) => <SortHeader column={column}>{t("brand")}</SortHeader>,
-      cell: ({ row }) => row.original.brand
-        ? <Badge tone="neutral"><Tag className="mr-1 size-3" />{row.original.brand}</Badge>
-        : <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => {
+        const b = row.original.brand;
+        if (!b) return <span className="text-muted-foreground">—</span>;
+        const logo = brandLogos[b];
+        return (
+          <Badge tone="neutral">
+            {logo
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={logo} alt="" aria-hidden className="mr-1 size-4 rounded-[3px] object-contain" />
+              : <Tag className="mr-1 size-3" />}
+            {b}
+          </Badge>
+        );
+      },
     },
     {
       id: "actions",
@@ -84,7 +102,7 @@ export default function ContragentsPage() {
         </div>
       ),
     },
-  ], [t, del]);
+  ], [t, del, brandLogos]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,7 +169,7 @@ function ContragentModal({
   const brandOptions = useMemo(() => {
     const names = brands.map((b) => b.name);
     const legacy = brand && !names.includes(brand) ? [{ value: brand, label: brand }] : [];
-    return [...legacy, ...brands.map((b) => ({ value: b.name, label: b.name }))];
+    return [...legacy, ...brands.map((b) => ({ value: b.name, label: b.name, icon: b.logoUrl || undefined }))];
   }, [brands, brand]);
 
   const save = async () => {

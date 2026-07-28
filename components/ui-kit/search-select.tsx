@@ -7,7 +7,18 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui-kit/command";
 
-export type SearchOption = { value: string; label: string };
+// icon is an optional image URL shown before the label (e.g. a brand logo), in both the
+// closed trigger and the open list, so a brand is recognisable at a glance rather than by
+// name alone.
+export type SearchOption = { value: string; label: string; icon?: string };
+
+function OptionIcon({ src }: { src?: string }) {
+  if (!src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" aria-hidden className="size-5 shrink-0 rounded-[4px] object-contain" />
+  );
+}
 
 export function SearchSelect({
   value, options, placeholder, onChange,
@@ -45,7 +56,10 @@ export function SearchSelect({
         onClick={() => setOpen((x) => !x)}
         className="flex h-9 w-full items-center justify-between gap-2 rounded-[9px] border border-input bg-card px-3 text-left text-[14px] text-foreground outline-none"
       >
-        <span className={cn("truncate", !shown && "text-muted-foreground")}>{shown || placeholder}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <OptionIcon src={selected?.icon} />
+          <span className={cn("truncate", !shown && "text-muted-foreground")}>{shown || placeholder}</span>
+        </span>
         <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
       </button>
       {open && (
@@ -65,6 +79,7 @@ export function SearchSelect({
               )}
               {options.map((o) => (
                 <CommandItem key={o.value} value={o.label} onSelect={() => pick(o.value)}>
+                  <OptionIcon src={o.icon} />
                   <span className="flex-1 truncate">{o.label}</span>
                   {o.value === value && <Check className="size-3.5 shrink-0" />}
                 </CommandItem>

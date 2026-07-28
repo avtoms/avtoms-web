@@ -27,7 +27,9 @@ import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm,
 function TermSelect({ value, terms, placeholder, onChange }: { value: string; terms: CatalogTerm[]; placeholder: string; onChange: (v: string) => void }) {
   const names = terms.map((t) => t.name);
   const legacy = value && !names.includes(value) ? [{ value, label: value }] : [];
-  const options = [...legacy, ...terms.map((t) => ({ value: t.name, label: t.name }))];
+  // Brands carry an admin-uploaded logo; showing it makes the list scannable by mark, not
+  // just by name. Categories simply have none, so they render unchanged.
+  const options = [...legacy, ...terms.map((t) => ({ value: t.name, label: t.name, icon: t.logoUrl || undefined }))];
   return <SearchSelect value={value} options={options} placeholder={placeholder} onChange={onChange} />;
 }
 
