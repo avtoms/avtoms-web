@@ -92,9 +92,9 @@ function StatusMenu({ currentCol, targets, onMove, disabled }: {
 }
 
 // ── work-order card ──
-function WOCard({ wo, col, targets, busy, dragging, t, lang, onOpen, onMove, onDragStart, onDragEnd }: {
+function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragStart, onDragEnd }: {
   wo: WorkOrder; col: ColDef; targets: MoveTarget[]; busy: boolean; dragging: boolean;
-  t: (k: string) => string; lang: string;
+  t: (k: string) => string;
   onOpen: () => void; onMove: (s: WoState) => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
@@ -171,7 +171,7 @@ function WOCard({ wo, col, targets, busy, dragging, t, lang, onOpen, onMove, onD
         ) : (
           <span className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] font-semibold text-muted-foreground">
             <CalendarDays className="size-3.5 shrink-0" />
-            <span className="truncate">{shortDateTime(wo.createdAt, lang)}</span>
+            <span className="truncate">{shortDateTime(wo.createdAt)}</span>
           </span>
         )}
         <button
@@ -202,7 +202,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   // off-board Closed/Canceled) for the owner board.
   moveTargets?: (current: WoState) => WoState[];
 }) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const isMobile = useIsMobile();
   const [col, setCol] = useState<WoState>(cols[0]?.key);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -224,7 +224,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   const dropOn = (target: WoState) => { const id = dragIdRef.current; setOverCol(null); if (id) onMove(id, target); };
 
   const cardProps = (w: WorkOrder, c: ColDef) => ({
-    wo: w, col: c, targets: targetsFor(c.key), busy: busyId === w.id, t, lang,
+    wo: w, col: c, targets: targetsFor(c.key), busy: busyId === w.id, t,
     onOpen: () => onOpen(w.id), onMove: (s: WoState) => onMove(w.id, s),
   });
 
@@ -270,9 +270,9 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   return (
     <div className="flex flex-col gap-4">
       <div className="overflow-x-auto pb-1">
-        {/* Cap column width (max 300px) so cards don't balloon on wide screens; the 230px
-            floor lets the row scroll horizontally only when the viewport is genuinely narrow. */}
-        <div className="grid items-start justify-start gap-4" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(230px, 300px))` }}>
+        {/* A few columns (the mechanic's three) share the full width; many columns (the owner's
+            eight) hold the 260px floor and let the row scroll instead of squeezing the cards. */}
+        <div className="grid items-start gap-4" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(260px, 1fr))` }}>
           {cols.map((c) => {
             const items = byState(c.key);
             const isOver = overCol === c.key;

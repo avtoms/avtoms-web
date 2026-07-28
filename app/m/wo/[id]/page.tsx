@@ -210,7 +210,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
 }
 
 /* ── order history ── */
-function Timeline({ entries, lang, t, limit }: { entries: AuditEntry[]; lang: string; t: (k: string) => string; limit?: number }) {
+function Timeline({ entries, t, limit }: { entries: AuditEntry[]; t: (k: string) => string; limit?: number }) {
   const shown = limit ? entries.slice(0, limit) : entries;
   if (shown.length === 0) return <div className="py-4 text-center text-[13px] text-muted-foreground">{t("no_history")}</div>;
   return (
@@ -224,7 +224,7 @@ function Timeline({ entries, lang, t, limit }: { entries: AuditEntry[]; lang: st
               {t(AUDIT_LABEL[e.action] ?? "history")}
               {e.detail && <span className="font-medium text-ink-2"> · {e.detail}</span>}
             </div>
-            <div className="font-mono text-[11px] text-muted-foreground">{shortDateTime(e.createdAt, lang)}</div>
+            <div className="font-mono text-[11px] text-muted-foreground">{shortDateTime(e.createdAt)}</div>
           </div>
         </div>
       ))}
@@ -236,7 +236,7 @@ export default function MechanicWoDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { session } = useAuth();
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -421,7 +421,7 @@ export default function MechanicWoDetailPage() {
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
-                  <CalendarDays className="size-3.5" />{shortDate(wo.createdAt, lang)}
+                  <CalendarDays className="size-3.5" />{shortDate(wo.createdAt)}
                 </span>
               </div>
             </div>
@@ -545,7 +545,7 @@ export default function MechanicWoDetailPage() {
 
           <Card className="gap-3 px-5 py-4">
             <PanelTitle>{t("audit_log")}</PanelTitle>
-            <Timeline entries={entries} lang={lang} t={t} limit={4} />
+            <Timeline entries={entries} t={t} limit={4} />
           </Card>
         </div>
       </div>
@@ -573,7 +573,7 @@ export default function MechanicWoDetailPage() {
         </TabsList>
         <TabsContent value="overview">{overview}</TabsContent>
         <TabsContent value="history">
-          <Card className="px-5 py-4"><Timeline entries={entries} lang={lang} t={t} /></Card>
+          <Card className="px-5 py-4"><Timeline entries={entries} t={t} /></Card>
         </TabsContent>
       </Tabs>
 

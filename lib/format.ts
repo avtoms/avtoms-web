@@ -83,24 +83,26 @@ export function qrMatrix(str: string, size = 25): boolean[][] {
 }
 
 // ── dates ──
-// Uzbek Cyrillic has no widely-shipped CLDR data, so it borrows the Latin locale; Intl falls
-// back to the runtime default if either tag is unavailable, which is fine for these short forms.
-export function localeTag(lang: string): string {
-  return lang === "ru" ? "ru-RU" : "uz-UZ";
+// Written out by hand rather than through Intl: a named month depends on the browser shipping
+// CLDR data for the tag we ask for, and when it doesn't the fallback renders the month as the
+// literal "M07". dd.MM.yyyy is how a date is written in both Uzbek and Russian, so one fixed
+// format is also one less thing that can differ between two people looking at the same order.
+function parts(iso: string | undefined): { d: string; m: string; y: string; hh: string; mm: string } | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return { d: p2(d.getDate()), m: p2(d.getMonth() + 1), y: String(d.getFullYear()), hh: p2(d.getHours()), mm: p2(d.getMinutes()) };
 }
 
-export function shortDate(iso: string | undefined, lang: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(localeTag(lang), { day: "numeric", month: "short", year: "numeric" });
+// 28.07.2026
+export function shortDate(iso: string | undefined): string {
+  const p = parts(iso);
+  return p ? `${p.d}.${p.m}.${p.y}` : "—";
 }
 
-// Day + time, dropping the year — board cards and timelines are about recent activity, and
-// the year is noise there.
-export function shortDateTime(iso: string | undefined, lang: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(localeTag(lang), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+// 28.07.2026 16:05
+export function shortDateTime(iso: string | undefined): string {
+  const p = parts(iso);
+  return p ? `${p.d}.${p.m}.${p.y} ${p.hh}:${p.mm}` : "—";
 }
