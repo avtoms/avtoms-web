@@ -15,6 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
 import type { Dashboard, WorkOrder } from "@/lib/types";
+import { IncomeBreakdownModal } from "@/components/income-breakdown";
 import { SecTitle, StatCard, WORow } from "../_shared";
 
 const STATE_ORDER: WoState[] = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed", "canceled"];
@@ -31,6 +32,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(false);
   const [ago, setAgo] = useState(0);
+  const [showIncome, setShowIncome] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   const load = useCallback(async () => {
     try {
@@ -98,7 +101,7 @@ export default function DashboardPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-        <StatCard label={t("todays_revenue")} value={money(d.todaysRevenue ?? 0)} sub={t("soum")} icon="money" tone="accent" big />
+        <StatCard label={t("todays_revenue")} value={money(d.todaysRevenue ?? 0)} sub={t("soum")} icon="money" tone="accent" big onClick={() => setShowIncome(true)} />
         <StatCard label={t("jobs_in_progress")} value={d.jobsInProgress ?? 0} icon="wrench" tone="warn" />
         <StatCard label={t("ready_for_pickup")} value={d.readyForPickup ?? 0} icon="check" tone="ok" />
         <StatCard label={t("awaiting_approval")} value={d.awaitingApproval ?? 0} icon="clock" tone="info" />
@@ -142,6 +145,8 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={today} to={today} title={t("todays_revenue")} />
     </div>
   );
 }

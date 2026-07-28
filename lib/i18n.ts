@@ -366,6 +366,13 @@ export const STR: Record<string, Triple> = {
   no_cards: ["Karta yo'q", "Карта йўқ", "Нет карт"],
   received_on: ["Qabul qilingan karta", "Қабул қилинган карта", "Получено на карту"],
   card_required: ["Karta raqamini kiriting", "Карта рақамини киритинг", "Введите номер карты"],
+  // ── income breakdown ──
+  income_breakdown: ["Daromad taqsimoti", "Даромад тақсимоти", "Разбивка дохода"],
+  income_by_method: ["To'lov usuli bo'yicha daromad", "Тўлов усули бўйича даромад", "Доход по способу оплаты"],
+  total_income: ["Jami daromad", "Жами даромад", "Общий доход"],
+  no_income: ["Bu davr uchun daromad yo'q", "Бу давр учун даромад йўқ", "Нет дохода за период"],
+  other_card: ["Boshqa karta", "Бошқа карта", "Другая карта"],
+  payments_n: ["ta to'lov", "та тўлов", "платежей"],
   resend_receipt: ["Chekni qayta yuborish", "Чекни қайта юбориш", "Отправить чек снова"],
   void_receipt: ["Chekni bekor qilish", "Чекни бекор қилиш", "Аннулировать чек"],
   print: ["Chop etish", "Чоп этиш", "Печать"],

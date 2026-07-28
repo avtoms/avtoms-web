@@ -511,6 +511,18 @@ export const api = {
   dashboard: (shopId: string) => call<Dashboard>("GET", "/v1/dashboard" + qs({ shopId })),
   report: (shopId: string, kindKey: string) =>
     call<Report>("GET", "/v1/reports" + qs({ shopId, kind: REPORT_KINDS[kindKey] || kindKey })),
+  // Income broken down by payment method + receiving card over an optional date window.
+  // Dates are YYYY-MM-DD; pass an ISO string and it is truncated.
+  paymentBreakdown: (shopId: string, from?: string, to?: string) =>
+    call<Report>("GET", "/v1/reports" + qs({ shopId, kind: "REPORT_KIND_PAYMENT_METHODS", from: from?.slice(0, 10), to: to?.slice(0, 10) }))
+      .then((r) => (r.rows ?? []).map((row) => ({
+        method: row.cells.method || "other",
+        cardId: row.cells.card_id || "",
+        cardLabel: row.cells.card_label || "",
+        cardNumber: row.cells.card_number || "",
+        amount: Number(row.cells.amount || 0),
+        count: Number(row.cells.count || 0),
+      }))),
 
   // ── super-admin platform analytics ──
   // Top-selling services aggregated across every shop. shop_id is intentionally not sent:

@@ -19,6 +19,7 @@ import { api, ApiError } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
+import { IncomeBreakdownModal } from "@/components/income-breakdown";
 import { Row, StatCard } from "../_shared";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
@@ -74,6 +75,7 @@ export default function FinancesPage() {
   const [adding, setAdding] = useState(false);
   const [detail, setDetail] = useState<ShopExpense | null>(null);
   const [tab, setTab] = useState<"stats" | "expenses">("stats");
+  const [showIncome, setShowIncome] = useState(false);
 
   const range = useMemo(() => {
     if (gran === "month") return monthRange(month);
@@ -165,7 +167,7 @@ export default function FinancesPage() {
         : tab === "stats" ? <>
           {/* KPI cards */}
           <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
-            <StatCard label={t("revenue")} value={money(revenue)} sub={t("soum")} icon="money" tone="accent" big />
+            <StatCard label={t("revenue")} value={money(revenue)} sub={t("soum")} icon="money" tone="accent" big onClick={() => setShowIncome(true)} />
             <StatCard label={t("gross_margin")} value={money(gross)} sub={pct(gross, revenue) + "% " + t("margin")} icon="chart" tone="info" />
             <StatCard label={t("overhead")} value={money(overhead)} sub={pct(overhead, revenue) + "% " + t("of_revenue")} icon="receipt" tone="warn" />
             <StatCard label={t("net_profit")} value={money(net)} sub={pct(net, revenue) + "% " + t("margin")} icon="money" tone={net >= 0 ? "ok" : "danger"} />
@@ -177,7 +179,7 @@ export default function FinancesPage() {
           <Card className="overflow-hidden">
             <div className="border-b border-border px-5 py-3.5 text-[15px] font-bold text-foreground">{t("income_statement")}</div>
             <div className="px-5 py-2">
-              <PLRow label={t("revenue")} value={revenue} pct={100} />
+              <PLRow label={t("revenue")} value={revenue} pct={100} onClick={() => setShowIncome(true)} />
               <PLRow label={t("cost_of_goods")} value={-cogs} pct={-pct(cogs, revenue)} />
               <Separator className="my-1.5" />
               <PLRow label={t("gross_margin")} value={gross} pct={pct(gross, revenue)} strong />
@@ -227,6 +229,7 @@ export default function FinancesPage() {
         </>}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} onCreated={reload} />
       <ExpenseDetailModal expense={detail} receiver={staffName(detail?.staffId) || detail?.payee || ""} paidByName={staffName(detail?.paidBy)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
+      <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={range.from} to={range.to} title={t("income_by_method")} />
     </div>
   );
 }
@@ -339,10 +342,10 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
   );
 }
 
-function PLRow({ label, value, pct, strong, tone, muted }: { label: string; value: number; pct?: number; strong?: boolean; tone?: "ok" | "danger"; muted?: boolean }) {
+function PLRow({ label, value, pct, strong, tone, muted, onClick }: { label: string; value: number; pct?: number; strong?: boolean; tone?: "ok" | "danger"; muted?: boolean; onClick?: () => void }) {
   const color = tone === "ok" ? "text-success" : tone === "danger" ? "text-destructive" : muted ? "text-ink-2" : "text-foreground";
   return (
-    <div className={cn("flex items-center justify-between", muted ? "py-[3px] pl-3.5" : "py-[5px]")}>
+    <div onClick={onClick} className={cn("flex items-center justify-between", muted ? "py-[3px] pl-3.5" : "py-[5px]", onClick && "-mx-2 cursor-pointer rounded-md px-2 transition-colors hover:bg-secondary/60")}>
       <span className={cn(muted ? "text-[12.5px] text-muted-foreground" : strong ? "text-[13.5px] font-bold text-foreground" : "text-[13.5px] font-medium text-ink-2")}>{label}</span>
       <span className="inline-flex items-baseline gap-2">
         {pct !== undefined && <span className="w-11 text-right font-mono text-[11.5px] text-muted-foreground">{pct.toFixed(1)}%</span>}
