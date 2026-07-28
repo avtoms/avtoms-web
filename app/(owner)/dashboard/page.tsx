@@ -17,7 +17,7 @@ import { money, num } from "@/lib/format";
 import { woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
 import type { Dashboard, ProfitAndLoss, Sale, WorkOrder } from "@/lib/types";
 import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
-import { SecTitle, StatCard, WORow } from "../_shared";
+import { MoneyTile, SecTitle, StatCard, WORow } from "../_shared";
 
 const STATE_ORDER: WoState[] = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed", "canceled"];
 
@@ -189,21 +189,6 @@ export default function DashboardPage() {
       </div>
 
       <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={today} to={today} title={t("todays_revenue")} />
-    </div>
-  );
-}
-
-// MoneyTile is one figure in the day's money row. Deliberately flatter than StatCard: these
-// three are read together as a single sentence (earned, cost, left), not as separate KPIs.
-function MoneyTile({ label, value, tone, hint }: {
-  label: string; value: number; tone: "ok" | "danger" | "accent"; hint?: string;
-}) {
-  const color = tone === "ok" ? "text-success" : tone === "danger" ? "text-destructive" : "text-primary-emphasis";
-  return (
-    <div className="flex flex-col gap-1 rounded-[12px] bg-secondary/60 px-4 py-3">
-      <span className="text-[12.5px] font-semibold text-muted-foreground">{label}</span>
-      <span className={`min-w-0 truncate font-mono text-[19px] font-extrabold tracking-[-0.02em] ${color}`}>{money(value)}</span>
-      {hint && <span className="truncate font-mono text-[11px] text-muted-foreground">{hint}</span>}
     </div>
   );
 }

@@ -129,3 +129,20 @@ export function PaidBadge({ paid }: { paid?: boolean }) {
   const t = useT();
   return <KitBadge tone={paid ? "ok" : "neutral"} dot>{paid ? t("paid") : t("unpaid")}</KitBadge>;
 }
+
+// MoneyTile is one figure in the day's money row. Deliberately flatter than StatCard: these
+// three are read together as a single sentence (earned, cost, left), not as separate KPIs.
+export function MoneyTile({ label, value, tone, hint, raw }: {
+  label: string; value: number; tone: "ok" | "danger" | "accent"; hint?: string;
+  // `raw` prints the number as-is instead of as money — for a count sitting in the same row.
+  raw?: boolean;
+}) {
+  const color = tone === "ok" ? "text-success" : tone === "danger" ? "text-destructive" : "text-primary-emphasis";
+  return (
+    <div className="flex flex-col gap-1 rounded-[12px] bg-secondary/60 px-4 py-3">
+      <span className="text-[12.5px] font-semibold text-muted-foreground">{label}</span>
+      <span className={`min-w-0 truncate font-mono text-[19px] font-extrabold tracking-[-0.02em] ${color}`}>{raw ? value : money(value)}</span>
+      {hint && <span className="truncate font-mono text-[11px] text-muted-foreground">{hint}</span>}
+    </div>
+  );
+}

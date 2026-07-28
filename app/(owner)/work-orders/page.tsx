@@ -20,6 +20,7 @@ import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
+import { MoneyTile, SecTitle } from "../_shared";
 import { CarImage } from "@/components/car-image";
 
 // The owner board shows the full lifecycle, left to right — every status is a column,
@@ -148,6 +149,27 @@ export default function WorkOrdersPage() {
     },
   ], [t]);
 
+  // What the orders on screen are worth. Derived from the loaded list rather than fetched,
+  // so the strip always describes exactly what is below it — including when the List view is
+  // filtered to one status. Money that has been earned is separated from money still in the
+  // shop: an order becomes income when it is invoiced, and before that it is a promise.
+  const totals = useMemo(() => {
+    const ws = list ?? [];
+    let openValue = 0, income = 0, outcome = 0, open = 0;
+    for (const w of ws) {
+      const st = woStateFromProto(w.state);
+      if (st === "canceled") continue;
+      if (st === "invoiced" || st === "closed") {
+        income += num(w.total);
+        outcome += num(w.totalCost);
+      } else {
+        openValue += num(w.total);
+        open += 1;
+      }
+    }
+    return { count: ws.length, open, openValue, income, outcome, profit: income - outcome };
+  }, [list]);
+
   const columnLabels = useMemo(
     () => ({ order: t("work_order"), vehicle: t("vehicle"), total: t("total"), status: t("status") }),
     [t],
@@ -161,6 +183,21 @@ export default function WorkOrdersPage() {
           <TabsTrigger value="list">{t("view_list")}</TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {list !== null && (
+        <Card className="p-5">
+          <SecTitle>{t("orders_summary")}</SecTitle>
+          <div className="mt-1 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
+            <MoneyTile label={t("orders")} value={totals.count} raw
+              hint={`${totals.open} ${t("st_in_progress").toLowerCase()}`} tone="accent" />
+            <MoneyTile label={t("open_value")} value={totals.openValue} tone="accent"
+              hint={t("open_value_hint")} />
+            <MoneyTile label={t("revenue")} value={totals.income} tone="ok" hint={t("income_when_invoiced")} />
+            <MoneyTile label={t("expenses")} value={totals.outcome} tone="danger" hint={t("cost_of_goods")} />
+            <MoneyTile label={t("net_profit")} value={totals.profit} tone={totals.profit < 0 ? "danger" : "accent"} />
+          </div>
+        </Card>
+      )}
 
       {list === null ? (
         <Card className="overflow-hidden"><SkeletonRows rows={7} avatar={false} /></Card>
