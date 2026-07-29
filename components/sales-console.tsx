@@ -12,7 +12,7 @@
 // that permission; this component assumes the caller already has it.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Banknote, Check, CreditCard, Minus, Package, Plus, Printer, Search, Trash2, Undo2, Wallet,
+  Banknote, Check, CreditCard, Minus, Plus, Printer, Trash2, Undo2, Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -22,6 +22,7 @@ import { Field } from "@/components/ui-kit/label";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
 import { SkeletonRows } from "@/components/ui";
+import { ProductPicker, variantLabel } from "@/components/product-picker";
 import { MoneyInput } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { useAutoRefresh } from "@/lib/use-refresh";
@@ -35,9 +36,6 @@ const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.mess
 
 const saleLabel = (s: Sale) => "S-" + String(num(s.saleNo) || 0).padStart(4, "0");
 
-// What a variant is called on screen: its property values ("5W-30 · 4 l"), falling back to
-// the SKU for a product that has no properties.
-const variantLabel = (v: ProductVariant) => (v.attributes ?? []).map((a) => a.value).join(" · ") || (v.sku ?? "");
 
 // One sellable thing: a variant flattened together with the product it belongs to. `id` is
 // pulled out because a variant only exists on the shelf once it has been saved, and an
@@ -64,7 +62,6 @@ export function SalesConsole() {
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [cards, setCards] = useState<ShopCard[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
-  const [query, setQuery] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [selling, setSelling] = useState(false);
   const [detail, setDetail] = useState<Sale | null>(null);
@@ -83,30 +80,10 @@ export function SalesConsole() {
   // Stock moves under this page whenever a mechanic consumes a material, so keep it current.
   useAutoRefresh(load);
 
-  // Everything sellable: active variants of active products that still have stock. A variant
-  // at zero is deliberately still listed but not addable — "we're out" is more useful than
-  // the row vanishing.
-  const sellables = useMemo<Sellable[]>(() => {
-    const out: Sellable[] = [];
-    for (const p of products ?? []) {
-      if (p.active === false) continue;
-      for (const v of p.variants ?? []) {
-        if (v.active === false || !v.id) continue;
-        out.push({ id: v.id, product: p, variant: v });
-      }
-    }
-    return out;
-  }, [products]);
 
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sellables;
-    return sellables.filter(({ product, variant }) =>
-      [product.name, product.brand, product.category, variant.sku, variantLabel(variant)]
-        .filter(Boolean).join(" ").toLowerCase().includes(q));
-  }, [sellables, query]);
 
   const inBasket = (variantId: string) => lines.find((l) => l.item.id === variantId);
+  const pickedIds = useMemo(() => new Set(lines.map((l) => l.item.id)), [lines]);
 
   const add = (item: Sellable) => {
     const existing = inBasket(item.id);
@@ -177,51 +154,19 @@ export function SalesConsole() {
       <div className="grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">
         {/* ── what's on the shelf ── */}
         <Card className="gap-3 px-5 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("nav_inventory")}</h2>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("search")} className="h-9 w-[190px] pl-9 text-[13px]" />
-            </div>
-          </div>
+          <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("nav_inventory")}</h2>
 
           {products === null ? (
             <SkeletonRows rows={5} avatar={false} />
-          ) : shown.length === 0 ? (
-            <div className="py-10 text-center text-[13.5px] text-muted-foreground">{t("empty")}</div>
           ) : (
-            <div className="flex max-h-[560px] flex-col gap-1.5 overflow-y-auto">
-              {shown.map(({ id, product, variant }) => {
-                const left = num(variant.quantityOnHand);
-                const out = left <= 0;
-                const picked = !!inBasket(id);
-                return (
-                  <button
-                    key={id}
-                    disabled={out}
-                    onClick={() => add({ id, product, variant })}
-                    className={cn(
-                      "flex items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors",
-                      out ? "cursor-not-allowed border-border bg-secondary/40 opacity-60"
-                        : picked ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
-                    )}
-                  >
-                    <Package className="size-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-bold text-foreground">{product.name}</div>
-                      <div className="truncate text-[11.5px] text-muted-foreground">
-                        {variantLabel(variant) && <span>{variantLabel(variant)} · </span>}
-                        <span className={out ? "font-semibold text-destructive" : ""}>
-                          {left} {product.unit || t("pcs")}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="shrink-0 font-mono text-[13px] font-bold text-foreground">{money(num(variant.unitPrice))}</span>
-                    {picked ? <Check className="size-4 shrink-0 text-primary-emphasis" /> : <Plus className="size-4 shrink-0 text-muted-foreground" />}
-                  </button>
-                );
-              })}
-            </div>
+            <ProductPicker
+              products={products}
+              onPick={(product, variant) => add({ id: variant.id!, product, variant })}
+              pickedIds={pickedIds}
+              blockOutOfStock
+              maxHeight={520}
+              emptyText={t("empty")}
+            />
           )}
         </Card>
 

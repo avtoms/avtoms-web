@@ -646,6 +646,8 @@ export const STR: Record<string, Triple> = {
   km: ["km", "км", "км"],
   created: ["Yaratilgan", "Яратилган", "Создан"],
   search: ["Qidirish", "Қидириш", "Поиск"],
+  show_all: ["Hammasini ko'rsatish", "Ҳаммасини кўрсатиш", "Показать все"],
+  clear: ["Tozalash", "Тозалаш", "Очистить"],
   view_all: ["Hammasini ko'rish", "Ҳаммасини кўриш", "Показать все"],
   empty: ["Ma'lumot yo'q", "Маълумот йўқ", "Нет данных"],
   loading: ["Yuklanmoqda…", "Юкланмоқда…", "Загрузка…"],

@@ -5,7 +5,7 @@
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Wand2 } from "lucide-react";
+import { Plus, Search, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
@@ -471,31 +471,15 @@ export function ProductForm({
                 </div>
 
                 {/* Values by kind */}
-                {p.kind === "color" && p.defId ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {(definitions.find((d) => d.id === p.defId)?.values ?? []).map((v) => {
-                      const on = p.chosen.includes(v.value);
-                      return (
-                        <button key={v.value} type="button" onClick={() => toggleChosen(p.key, v.value)}
-                          className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
-                          <span className="size-3.5 rounded-full border border-black/10" style={{ background: v.colorHex || "#888" }} />
-                          {valLabel(v)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : p.kind === "select" && p.defId ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {(definitions.find((d) => d.id === p.defId)?.values ?? []).map((v) => {
-                      const on = p.chosen.includes(v.value);
-                      return (
-                        <button key={v.value} type="button" onClick={() => toggleChosen(p.key, v.value)}
-                          className={`rounded-full border px-2.5 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
-                          {valLabel(v)}
-                        </button>
-                      );
-                    })}
-                  </div>
+                {hasPredefinedValues(p.kind) && p.defId ? (
+                  <ValuePicker
+                    values={definitions.find((d) => d.id === p.defId)?.values ?? []}
+                    chosen={p.chosen}
+                    color={p.kind === "color"}
+                    label={valLabel}
+                    onToggle={(value) => toggleChosen(p.key, value)}
+                    onClear={() => setProp(p.key, { chosen: [] })}
+                  />
                 ) : (
                   <Input value={p.valuesText} placeholder={p.kind === "number" ? "38, 39, 40" : t("property_values")}
                     onChange={(e) => setProp(p.key, { valuesText: e.target.value })} />
@@ -590,5 +574,89 @@ export function ProductForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ValuePicker chooses which of a property's predefined values this product actually uses.
+//
+// A catalogue property can be large — a "Car" property with 222 models is an ordinary thing to
+// have — and rendering all of them as chips buries the form and gives no way to find one. So
+// past a threshold this searches, and shows only a first screenful until asked for the rest.
+// What is already chosen always stays visible: it is the answer to "what did I pick", and it
+// must not disappear behind a search term.
+const VALUE_SEARCH_FROM = 12;   // below this a plain wrap of chips is easier than a search box
+const VALUE_PREVIEW = 24;       // unsearched, unexpanded: enough to browse, not enough to bury
+
+function ValuePicker({ values, chosen, color, label, onToggle, onClear }: {
+  values: PropertyDefinitionValue[];
+  chosen: string[];
+  color: boolean;
+  label: (v: PropertyDefinitionValue) => string;
+  onToggle: (value: string) => void;
+  onClear: () => void;
+}) {
+  const { t } = useLang();
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const searchable = values.length >= VALUE_SEARCH_FROM;
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return values;
+    return values.filter((v) => (label(v) + " " + v.value).toLowerCase().includes(q));
+  }, [values, query, label]);
+
+  // Chosen values first, so a pick never scrolls out of sight, then the rest.
+  const on = useMemo(() => matches.filter((v) => chosen.includes(v.value)), [matches, chosen]);
+  const off = useMemo(() => matches.filter((v) => !chosen.includes(v.value)), [matches, chosen]);
+
+  // The cap trims the unchosen tail only. Everything picked stays on screen however many there
+  // are — hiding a choice behind "show all" is how you lose track of what you selected.
+  const capped = searchable && !expanded && !query.trim();
+  const shown = capped ? [...on, ...off.slice(0, Math.max(0, VALUE_PREVIEW - on.length))] : [...on, ...off];
+  const hidden = matches.length - shown.length;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {searchable && (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder={`${t("search")}… (${values.length})`} className="h-8 pl-8 text-[12.5px]" />
+          </div>
+          {chosen.length > 0 && (
+            <button type="button" onClick={onClear}
+              className="shrink-0 text-[11.5px] font-semibold text-muted-foreground hover:text-destructive">
+              {chosen.length} ✓ · {t("clear")}
+            </button>
+          )}
+        </div>
+      )}
+
+      {shown.length === 0 ? (
+        <span className="py-1 text-[12px] text-muted-foreground">{t("empty")}</span>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {shown.map((v) => {
+            const on = chosen.includes(v.value);
+            return (
+              <button key={v.value} type="button" onClick={() => onToggle(v.value)}
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
+                {color && <span className="size-3.5 rounded-full border border-black/10" style={{ background: v.colorHex || "#888" }} />}
+                {label(v)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {hidden > 0 && (
+        <button type="button" onClick={() => setExpanded(true)}
+          className="self-start text-[11.5px] font-semibold text-primary hover:underline">
+          {t("show_all")} (+{hidden})
+        </button>
+      )}
+    </div>
   );
 }

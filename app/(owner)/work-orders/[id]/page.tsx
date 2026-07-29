@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
+import { ProductPicker, variantLabel } from "@/components/product-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
@@ -565,6 +566,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [fromVariant, setFromVariant] = useState(""); // warehouse variant to consume, if picked from stock
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [parts, setParts] = useState<PickVariant[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
   type Extra = { name: string; qty: string; unit: string; cost: string; price: string; variantId: string };
   const [extras, setExtras] = useState<Extra[]>([]);
@@ -581,7 +583,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
 
   const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
 
-  const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => setParts(flattenVariants(ps))).catch(() => {}); }, [shopId]);
+  const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => { setProducts(ps); setParts(flattenVariants(ps)); }).catch(() => {}); }, [shopId]);
   const loadContragents = useCallback(() => { api.listContragents().then(setContragents).catch(() => {}); }, []);
 
   useEffect(() => {
@@ -671,28 +673,33 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
               <Tabs value={catalog} onValueChange={(v) => setCatalog(v as "services" | "materials")}>
                 <TabsList className="w-full"><TabsTrigger value="services" className="flex-1">{t("services")}</TabsTrigger><TabsTrigger value="materials" className="flex-1">{t("materials")}</TabsTrigger></TabsList>
               </Tabs>
-              <div className="flex max-h-[340px] flex-col gap-1.5 overflow-y-auto">
-                {catalog === "services" ? (
-                  menu.length === 0 ? <Empty icon="list" text={t("empty")} /> :
+              {catalog === "services" ? (
+                <div className="flex max-h-[340px] flex-col gap-1.5 overflow-y-auto">
+                  {menu.length === 0 ? <Empty icon="list" text={t("empty")} /> :
                   menu.map((m) => (
                     <button key={m.id} disabled={busy} onClick={() => pickMenu(m)} className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3.5 py-3 text-left transition-colors hover:bg-secondary">
                       <span className="text-[14.5px] font-semibold text-foreground">{menuName(m, lang)}</span>
                       <span className="font-mono text-[14px] font-bold text-ink-2">{money(m.defaultPrice)}</span>
                     </button>
-                  ))
-                ) : (
-                  parts.length === 0 ? <Empty icon="wrench" text={t("empty")} /> :
-                  parts.map((p) => (
-                    <button key={p.id} disabled={busy} onClick={() => pickPart(p)} className="flex items-center justify-between gap-2.5 rounded-[9px] border border-border bg-card px-3.5 py-3 text-left transition-colors hover:bg-secondary">
-                      <span className="min-w-0">
-                        <span className="block truncate text-[14.5px] font-semibold text-foreground">{p.name}</span>
-                        <span className="font-mono text-[11.5px] text-muted-foreground">{t("in_stock")}: {p.quantityOnHand}{p.unit ? " " + p.unit : ""}</span>
-                      </span>
-                      <span className="shrink-0 font-mono text-[14px] font-bold text-ink-2">{money(num(p.unitPrice))}</span>
-                    </button>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                  /* Products first, variants on tap: a flat list of every variant of every
+                     product is hundreds of rows to scroll to reach one filter. */
+                  <ProductPicker
+                    products={products}
+                    onPick={(prod, v) => pickPart({
+                      id: v.id!,
+                      name: variantLabel(v) ? `${prod.name} · ${variantLabel(v)}` : prod.name,
+                      unit: prod.unit,
+                      unitPrice: v.unitPrice,
+                      unitCost: v.unitCost,
+                      quantityOnHand: num(v.quantityOnHand),
+                    })}
+                    maxHeight={300}
+                    emptyText={t("empty")}
+                  />
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-3.5">
