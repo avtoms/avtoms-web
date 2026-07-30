@@ -261,7 +261,10 @@ export const STR: Record<string, Triple> = {
   open_jobs_today: ["Bugun ochilgan", "Бугун очилган", "Открыто сегодня"],
   hours_today: ["Bugungi soatlar", "Бугунги соатлар", "Часов сегодня"],
   st_draft: ["Qoralama", "Қоралама", "Черновик"],
-  st_estimated: ["Hisob-kitob", "Ҳисоб-китоб", "Смета"],
+  // "Smeta", not "Hisob-kitob": the customer already approves a *Smeta* over Telegram, and
+  // "Hisob-kitob" reads as settlement — a step away from "Hisob-faktura" in the same UI,
+  // which made the move out of a draft look like it was jumping straight to invoicing.
+  st_estimated: ["Smeta", "Смета", "Смета"],
   st_approved: ["Tasdiqlangan", "Тасдиқланган", "Подтверждён"],
   st_in_progress: ["Bajarilmoqda", "Бажарилмоқда", "В работе"],
   st_ready: ["Tayyor", "Тайёр", "Готов"],
@@ -493,7 +496,7 @@ export const STR: Record<string, Triple> = {
   send_via: ["Yuborish kanali", "Юбориш канали", "Канал отправки"],
   sent: ["Yuborildi", "Юборилди", "Отправлено"],
   customer_view: ["Mijoz ko'rinishi", "Мижоз кўриниши", "Вид клиента"],
-  estimate_msg: ["Hisob-kitob tayyor", "Ҳисоб-китоб тайёр", "Смета готова"],
+  estimate_msg: ["Smeta tayyor", "Смета тайёр", "Смета готова"],
   ready_msg: ["Avtomobilingiz tayyor", "Автомобилингиз тайёр", "Ваш автомобиль готов"],
   receipt_msg: ["Chekingiz", "Чекингиз", "Ваш чек"],
   reports: ["Hisobotlar", "Ҳисоботлар", "Отчёты"],

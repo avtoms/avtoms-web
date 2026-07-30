@@ -15,7 +15,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { WO_STATES, STATE_LABEL, visibleStates, transitionsFor, woStateFromProto, type WoState } from "@/lib/enums";
+import { WO_STATES, STATE_LABEL, visibleStates, woStateFromProto, type WoState } from "@/lib/enums";
+import { useShopFlow } from "@/lib/shop";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { WorkOrder } from "@/lib/types";
@@ -50,9 +51,8 @@ export default function WorkOrdersPage() {
   const [list, setList] = useState<WorkOrder[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   // The shop's configured status flow; undefined until loaded, meaning "every status".
-  const [enabled, setEnabled] = useState<string[] | undefined>(undefined);
+  const { enabled, transitions: flowTransitions } = useShopFlow();
 
-  useEffect(() => { api.getShopSettings().then((s) => setEnabled(s.enabledStates)).catch(() => {}); }, []);
 
   // On the board we load the whole shop and bucket client-side; on the list we let the
   // server filter by the selected state.
@@ -96,9 +96,6 @@ export default function WorkOrdersPage() {
     return visibleStates(enabled, present);
   }, [enabled, list]);
   const cols = PIPELINE.filter((c) => shown.has(c.key)).map((c) => ({ ...c, label: t(c.label) }));
-  // Moves must match the shop's flow, not the full lifecycle, or the board would offer a hop
-  // the server rejects.
-  const flowTransitions = useMemo(() => transitionsFor(enabled), [enabled]);
 
   const columns = useMemo<ColumnDef<WorkOrder>[]>(() => [
     {

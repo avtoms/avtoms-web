@@ -5,8 +5,9 @@
 // and, more importantly, could not be read by anything rendering a receipt on the server.
 // It now lives on the shop's settings record. The local copy is kept read-only, as a
 // fallback for shops that filled it in before the move and have not re-saved since.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
+import { transitionsFor, type WoState } from "./enums";
 
 export interface ShopProfile {
   name: string;
@@ -49,6 +50,28 @@ export function mergeShopProfile(server: Partial<ShopProfile> | null | undefined
  * request fails the local copy still shows, because a check with a missing header is worth
  * more to whoever is standing at the counter than an error.
  */
+/**
+ * useShopFlow returns the shop's configured status flow and the moves it permits.
+ *
+ * Every screen offering a state change must go through this. A shop picks which statuses
+ * its orders move through, and the server derives the legal moves from that set — so a
+ * screen using the full lifecycle instead offers hops the server rejects, and names a next
+ * step the shop does not use. Until `enabled` arrives it is undefined, which reads as
+ * "every status": the same default the server applies to an unconfigured shop.
+ */
+export function useShopFlow(): { enabled: string[] | undefined; transitions: Record<WoState, WoState[]> } {
+  const [enabled, setEnabled] = useState<string[] | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    api.getShopSettings()
+      .then((s) => { if (alive) setEnabled(s.enabledStates); })
+      .catch(() => { /* fall back to the full flow, as the server does */ });
+    return () => { alive = false; };
+  }, []);
+  const transitions = useMemo(() => transitionsFor(enabled), [enabled]);
+  return { enabled, transitions };
+}
+
 export function useShopProfile(): ShopProfile {
   const [profile, setProfile] = useState<ShopProfile>(EMPTY);
   useEffect(() => {

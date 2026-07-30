@@ -26,7 +26,7 @@ import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
-  TRANSITIONS, STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod, type DiscountKind,
+  STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod, type DiscountKind,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, Contragent, LineItem } from "@/lib/types";
 
@@ -57,7 +57,7 @@ import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { FiscalCheck } from "@/components/fiscal-check";
-import { useShopProfile } from "@/lib/shop";
+import { useShopFlow, useShopProfile } from "@/lib/shop";
 import { SecTitle, Row } from "../../_shared";
 
 const NONE = "__none"; // Radix Select forbids empty item values; sentinel for "unassigned".
@@ -81,6 +81,7 @@ export default function WorkOrderDetailPage() {
   const isMobile = useIsMobile();
 
   const [wo, setWo] = useState<WorkOrder | null>(null);
+  const { transitions: flowTransitions } = useShopFlow();
   const [loading, setLoading] = useState(true);
   const [mechanics, setMechanics] = useState<Staff[]>([]);
   const [busy, setBusy] = useState(false);
@@ -179,7 +180,10 @@ export default function WorkOrderDetailPage() {
   const editable = ["draft", "estimated", "approved", "in_progress", "ready"].includes(state);
   const mech = mechanics.find((m) => m.id === wo.assignedMechanicId);
 
-  const allowed = TRANSITIONS[state] || [];
+  // The shop's own flow, not the full lifecycle: a shop that switched off a status must
+  // not be offered it here, because the server derives its legal moves from the same set
+  // and rejects the hop. The board has always done this; the detail page had not.
+  const allowed = flowTransitions[state] || [];
   const canCancel = allowed.includes("canceled");
   const forwardTargets = allowed.filter((x) => x !== "canceled");
   const hasBar = forwardTargets.length > 0 || canCancel || state === "ready" || state === "invoiced";
