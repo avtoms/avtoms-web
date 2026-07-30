@@ -42,6 +42,9 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
   const cash = (rows ?? []).filter((r) => r.method === "cash");
   const card = (rows ?? []).filter((r) => r.method === "card");
   const other = (rows ?? []).filter((r) => r.method === "other");
+  // Nasiya has its own bucket in the projection. Without a block for it the money would be
+  // in the total and in no line, and the percentages would stop adding up.
+  const credit = (rows ?? []).filter((r) => r.method === "credit");
   const sum = (rs: Row[]) => rs.reduce((s, r) => s + r.amount, 0);
   const cnt = (rs: Row[]) => rs.reduce((s, r) => s + r.count, 0);
   const grand = sum(rows ?? []);
@@ -87,6 +90,13 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
 
       {other.length > 0 && (
         <MethodBlock icon={<Wallet className="size-4" />} label={t("pay_other")} amount={sum(other)} count={cnt(other)} share={grand} tCount={t("payments_n")} />
+      )}
+
+      {/* Billed, not banked. Shown in the same list because it is part of what was charged,
+          and labelled so nobody reads it as cash in the drawer. */}
+      {credit.length > 0 && (
+        <MethodBlock icon={<HandCoins className="size-4" />} label={`${t("pay_credit")} · ${t("not_collected_yet")}`}
+          amount={sum(credit)} count={cnt(credit)} share={grand} tCount={t("payments_n")} />
       )}
     </div>
   );
