@@ -4,7 +4,7 @@ import { Icon } from "./icons";
 import { useT } from "./providers";
 import { STATE_LABEL, type WoState, type FiscalStatus } from "@/lib/enums";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { qrMatrix } from "@/lib/format";
+import { QRCodeSVG } from "qrcode.react";
 
 // SSR-safe media query. useSyncExternalStore reads the real match on the FIRST client
 // render (not after an effect), so narrow screens don't flash the desktop layout.
@@ -182,13 +182,16 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 520, 
   );
 }
 
+// A real, scannable QR. This used to draw qrMatrix(), a decorative pattern that looked
+// entirely convincing and encoded nothing — so every QR the product printed (the fiscal
+// check, the invoice modal, the Telegram approval deep link) scanned to nothing at all.
 export function QR({ data, size = 132, color }: { data: string; size?: number; color?: string }) {
-  const m = qrMatrix(data || "ofd", 25);
-  const n = m.length, cell = size / n;
+  // Nothing to encode is better shown as blank than as a code that leads nowhere.
+  if (!data) return <div style={{ width: size, height: size, background: "#fff", borderRadius: 8 }} />;
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: "block", background: "#fff", borderRadius: 8, padding: 8, boxSizing: "content-box" }}>
-      {m.flatMap((row, y) => row.map((on, x) => (on ? <rect key={x + "-" + y} x={x * cell} y={y * cell} width={cell + 0.4} height={cell + 0.4} fill={color || "#111"} /> : null)))}
-    </svg>
+    <div style={{ display: "block", background: "#fff", borderRadius: 8, padding: 8, width: size, height: size, boxSizing: "content-box" }}>
+      <QRCodeSVG value={data} size={size} level="M" fgColor={color || "#111"} bgColor="#fff" />
+    </div>
   );
 }
 

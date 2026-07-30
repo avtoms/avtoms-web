@@ -679,6 +679,41 @@ export const STR: Record<string, Triple> = {
   ai_sug_platform: ["Platforma bo'yicha eng ko'p sotilgan xizmatlar", "Платформа бўйича энг кўп сотилган хизматлар", "Самые продаваемые услуги по платформе"],
   ai_sug_leads: ["Lidlar holati qanday?", "Лидлар ҳолати қандай?", "Какая ситуация по лидам?"],
   ai_sug_shops: ["Qaysi servislar ro'yxatda?", "Қайси сервислар рўйхатда?", "Какие сервисы есть в системе?"],
+
+  // ── the customer's own check (public page, no session) ──
+  check: ["Chek", "Чек", "Чек"],
+  item: ["Nomi", "Номи", "Наименование"],
+  sum: ["Summa", "Сумма", "Сумма"],
+  payment: ["To'lov turi", "Тўлов тури", "Способ оплаты"],
+  fiscal_receipt: ["Fiskal chek", "Фискал чек", "Фискальный чек"],
+  thanks_for_purchase: ["Xaridingiz uchun rahmat!", "Харидингиз учун раҳмат!", "Спасибо за покупку!"],
+  check_qr_cap: ["Chekni telefonda ochish", "Чекни телефонда очиш", "Открыть чек на телефоне"],
+  check_not_found: ["Chek topilmadi", "Чек топилмади", "Чек не найден"],
+  check_not_found_sub: [
+    "Havola eskirgan yoki noto'g'ri bo'lishi mumkin. Avtoservisga murojaat qiling.",
+    "Ҳавола эскирган ёки нотўғри бўлиши мумкин. Автосервисга мурожаат қилинг.",
+    "Ссылка могла устареть или быть неверной. Обратитесь в автосервис.",
+  ],
+
+  // ── shop profile (Settings) + receipt delivery feedback ──
+  shop_profile_hint: [
+    "Chekda ko'rinadi — mijozga yuborilgan chekda ham.",
+    "Чекда кўринади — мижозга юборилган чекда ҳам.",
+    "Отображается в чеке, в том числе в чеке, отправленном клиенту.",
+  ],
+  receipt_sent: ["Chek mijozga Telegramda yuborildi", "Чек мижозга Телеграмда юборилди", "Чек отправлен клиенту в Telegram"],
+  receipt_not_linked: [
+    "Mijozning Telegrami ulanmagan — chek yuborilmadi",
+    "Мижознинг Телеграми уланмаган — чек юборилмади",
+    "Telegram клиента не подключён — чек не отправлен",
+  ],
+  send_check_to: ["Chekni kimga yuborish", "Чекни кимга юбориш", "Кому отправить чек"],
+  send_check_to_hint: [
+    "Ixtiyoriy. Tanlansa, chek mijozga Telegramda yuboriladi.",
+    "Ихтиёрий. Танланса, чек мижозга Телеграмда юборилади.",
+    "Необязательно. Если выбрать, чек уйдёт клиенту в Telegram.",
+  ],
+  walk_in_customer: ["Oddiy xaridor", "Оддий харидор", "Обычный покупатель"],
 };
 
 export function translate(lang: Lang, key: string): string {

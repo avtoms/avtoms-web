@@ -10,6 +10,11 @@ export function middleware(req: NextRequest) {
   const home = role === "mechanic" ? "/m" : role === "admin" ? "/admin" : "/dashboard";
   const redirect = (to: string) => NextResponse.redirect(new URL(to, req.url));
 
+  // A customer's own check, opened by scanning the QR on their receipt. It belongs to
+  // nobody signed in, so it is let through before any role routing below — otherwise
+  // staff scanning a check would be bounced to their own home and never see it.
+  if (pathname.startsWith("/c/")) return NextResponse.next();
+
   // Match areas by exact segment so "/menu" isn't caught by the "/m" prefix.
   const inMechanicArea = pathname === "/m" || pathname.startsWith("/m/");
   const inAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");

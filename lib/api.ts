@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, PublicReceipt,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -440,6 +440,8 @@ export const api = {
     items: { variantId: string; quantity: number; unitPrice: number }[];
     method: PaymentMethod; cardId?: string; cardNumber?: string; note?: string;
     discountKind?: "fixed" | "percent"; discountValue?: number;
+    // Optional: who bought it, so the receipt has somewhere to go. A walk-in omits it.
+    customerId?: string;
   }) =>
     call<Sale>("POST", "/v1/sales", {
       items: s.items.map((it) => ({ variantId: it.variantId, quantity: it.quantity, unitPrice: String(it.unitPrice) })),
@@ -450,6 +452,7 @@ export const api = {
       discountKind: s.discountKind === "fixed" ? "DISCOUNT_KIND_FIXED"
         : s.discountKind === "percent" ? "DISCOUNT_KIND_PERCENT" : "DISCOUNT_KIND_UNSPECIFIED",
       discountValue: String(s.discountValue ?? 0),
+      customerId: s.customerId ?? "",
     }),
   voidSale: (id: string) => call<Sale>("POST", `/v1/sales/${id}/void`),
 
@@ -616,11 +619,25 @@ export const api = {
   // shopId is taken from the auth context by the gateway, so it is not sent. Both fields
   // travel together, so a caller changing one must pass the other's current value.
   getShopSettings: () => call<ShopSettings>("GET", "/v1/shop/settings"),
-  updateShopSettings: (s: { maxDiscountPercent: number; enabledStates?: string[] }) =>
+  updateShopSettings: (s: {
+    maxDiscountPercent: number; enabledStates?: string[];
+    name?: string; address?: string; tin?: string; phone?: string; hours?: string;
+  }) =>
     call<ShopSettings>("POST", "/v1/shop/settings", {
       maxDiscountPercent: s.maxDiscountPercent,
       enabledStates: s.enabledStates ?? [],
+      name: s.name ?? "",
+      address: s.address ?? "",
+      tin: s.tin ?? "",
+      phone: s.phone ?? "",
+      hours: s.hours ?? "",
     }),
+
+  // ── the customer's own check ──
+  // Fetched with auth explicitly off: this is opened from a phone by scanning the QR on a
+  // receipt, where there is no session to send.
+  getPublicReceipt: (token: string) =>
+    call<PublicReceipt>("GET", `/v1/public/receipts/${encodeURIComponent(token)}`, undefined, false),
 
   // ── invoices ──
   listInvoices: (shopId: string) =>

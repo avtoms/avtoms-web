@@ -57,7 +57,7 @@ import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { FiscalCheck } from "@/components/fiscal-check";
-import { loadShopProfile } from "@/lib/shop";
+import { useShopProfile } from "@/lib/shop";
 import { SecTitle, Row } from "../../_shared";
 
 const NONE = "__none"; // Radix Select forbids empty item values; sentinel for "unassigned".
@@ -826,6 +826,7 @@ function AssignModal({ open, onClose, mechanics, current, onPick }: { open: bool
 
 /* ── invoice / fiscalize / pay ── */
 function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: boolean; onClose: () => void; wo: WorkOrder; shopId: string; total: number; onChange: () => void }) {
+  const shopProfile = useShopProfile();
   const { t } = useLang();
   const { toast } = useToast();
   const [inv, setInv] = useState<import("@/lib/types").Invoice | null>(null);
@@ -886,7 +887,7 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
             <div className="flex justify-center py-8"><Spinner className="size-6" /></div>
           ) : (
             <div className="flex flex-col gap-4 pb-1">
-              <FiscalCheck invoice={inv} wo={wo} shop={loadShopProfile()} />
+              <FiscalCheck invoice={inv} wo={wo} shop={shopProfile} />
               {inv.paid && inv.cardNumber && (
                 <div className="flex items-center gap-2 rounded-[9px] border border-border bg-secondary px-3 py-2 text-[13px]">
                   <CreditCard className="size-4 text-muted-foreground" />

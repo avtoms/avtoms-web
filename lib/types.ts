@@ -512,6 +512,32 @@ export interface ShopSettings {
   // Proto state names, in flow order, for the statuses this shop uses. The server always
   // returns the resolved set (always-on states included); empty means every status.
   enabledStates?: string[];
+  // Shop identity as printed on a receipt. Lives on the server (not the browser) because
+  // a receipt rendered for a customer has to say who issued it.
+  name?: string;
+  address?: string;
+  tin?: string;
+  phone?: string;
+  hours?: string;
+}
+
+// PublicReceipt is a customer's check as served by the gateway to the public page. It
+// carries no identifiers of any kind — it is fetched with nothing but a token.
+export interface PublicReceipt {
+  shop: { name: string; address: string; tin: string; phone: string; hours: string };
+  number: string;
+  issuedAt: string;
+  cashier: string;
+  isSale: boolean;
+  customerName: string;
+  vehicle: string;
+  lines: { description: string; quantity: number; unitPrice: number; total: number }[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  paymentMethod: string;
+  fiscalReceipt: string;
+  checkUrl: string;
 }
 
 export interface Integration {

@@ -12,7 +12,7 @@
 // that permission; this component assumes the caller already has it.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Banknote, Check, CreditCard, Minus, Plus, Printer, Trash2, Undo2, Wallet,
+  Banknote, Check, CreditCard, Minus, Plus, Printer, Send, Trash2, Undo2, Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -31,7 +31,7 @@ import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, Sale, ShopCard } from "@/lib/types";
+import type { Customer, Product, ProductVariant, Sale, ShopCard } from "@/lib/types";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : fallback);
 
@@ -123,7 +123,9 @@ export function SalesConsole() {
   const overStock = lines.filter((l) => parseQty(l.qty) > num(l.item.variant.quantityOnHand));
   const sellable = lines.length > 0 && lines.every((l) => parseQty(l.qty) > 0) && overStock.length === 0;
 
-  const sell = async (method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  const sell = async (method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }, customerId?: string) => {
     if (!sellable || selling) return;
     setSelling(true);
     try {
@@ -134,6 +136,8 @@ export function SalesConsole() {
           unitPrice: parseInt(l.price, 10) || 0,
         })),
         method, cardId: card?.cardId, cardNumber: card?.cardNumber,
+        // Optional: naming a buyer is what lets the receipt be sent to them.
+        customerId,
         // Percent goes over the wire as basis points, the unit the contract uses.
         discountKind: discount > 0 ? discountKind : undefined,
         discountValue: discountPct ? discountRaw * 100 : discountRaw,
@@ -142,6 +146,12 @@ export function SalesConsole() {
       setDiscountValue("");
       setPayOpen(false);
       toast(`${saleLabel(sale)} · ${money(sale.total)} ${t("soum")}`, { icon: "money" });
+      // Delivery is best-effort and happens after the sale is committed, so tell the
+      // cashier which way it went rather than leaving them to wonder.
+      if (customerId) {
+        const sent = customers.find((c) => c.id === customerId)?.telegramChatId;
+        toast(t(sent ? "receipt_sent" : "receipt_not_linked"), { icon: sent ? "check" : "alert", tone: sent ? "ok" : "accent" });
+      }
       setDetail(sale);
       await load();
     } catch (e) {
@@ -333,8 +343,10 @@ export function SalesConsole() {
         total={total}
         cards={cards}
         busy={selling}
+        shopId={shopId}
         onClose={() => setPayOpen(false)}
         onPay={sell}
+        onCustomers={setCustomers}
       />
       <SaleDetailDialog sale={detail} onClose={() => setDetail(null)} onVoid={voidSale} />
     </div>
@@ -342,22 +354,43 @@ export function SalesConsole() {
 }
 
 /* ── taking the money ── */
-function PayDialog({ open, total, cards, busy, onClose, onPay }: {
-  open: boolean; total: number; cards: ShopCard[]; busy: boolean;
-  onClose: () => void; onPay: (m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => void;
+function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustomers }: {
+  open: boolean; total: number; cards: ShopCard[]; busy: boolean; shopId: string;
+  onClose: () => void;
+  onPay: (m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }, customerId?: string) => void;
+  onCustomers: (list: Customer[]) => void;
 }) {
   const { t } = useLang();
   const { toast } = useToast();
   const [cardMode, setCardMode] = useState(false);
   const [pickedCard, setPickedCard] = useState("");
   const [adhoc, setAdhoc] = useState("");
-  useEffect(() => { if (!open) { setCardMode(false); setPickedCard(""); setAdhoc(""); } }, [open]);
+  // Who to send the check to. Optional throughout: a walk-in leaves it alone and the sale
+  // behaves exactly as it did before this existed.
+  const [buyerQuery, setBuyerQuery] = useState("");
+  const [buyer, setBuyer] = useState<Customer | null>(null);
+  const [matches, setMatches] = useState<Customer[]>([]);
+  useEffect(() => {
+    if (!open) { setCardMode(false); setPickedCard(""); setAdhoc(""); setBuyer(null); setBuyerQuery(""); setMatches([]); }
+  }, [open]);
+  // Search only once the cashier has typed enough to mean something, and never while a
+  // buyer is already chosen.
+  useEffect(() => {
+    if (!open || buyer || buyerQuery.trim().length < 2) { setMatches([]); return; }
+    let alive = true;
+    const id = setTimeout(() => {
+      api.listCustomers(shopId, buyerQuery.trim())
+        .then((list) => { if (alive) { setMatches(list.slice(0, 5)); onCustomers(list); } })
+        .catch(() => { if (alive) setMatches([]); });
+    }, 250);
+    return () => { alive = false; clearTimeout(id); };
+  }, [open, buyer, buyerQuery, shopId, onCustomers]);
 
   const payCard = () => {
     const chosen = cards.find((c) => c.id === pickedCard);
     const number = chosen ? chosen.cardNumber : adhoc.trim();
     if (!number) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
-    onPay("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number });
+    onPay("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number }, buyer?.id);
   };
 
   return (
@@ -370,11 +403,45 @@ function PayDialog({ open, total, cards, busy, onClose, onPay }: {
             <span className="font-mono text-[20px] font-extrabold text-foreground">{money(total)} {t("soum")}</span>
           </div>
 
+          {/* Optional recipient. Left blank the sale is anonymous, exactly as before. */}
+          <Field label={t("send_check_to")} hint={t("send_check_to_hint")}>
+            {buyer ? (
+              <div className="flex items-center gap-2 rounded-[9px] border border-primary bg-primary-soft px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13.5px] font-semibold">{buyer.name || t("walk_in_customer")}</div>
+                  <div className="truncate font-mono text-[12.5px] text-muted-foreground">
+                    {buyer.phone}{!buyer.telegramChatId && ` · ${t("receipt_not_linked")}`}
+                  </div>
+                </div>
+                <button className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"
+                  onClick={() => { setBuyer(null); setBuyerQuery(""); }}>✕</button>
+              </div>
+            ) : (
+              <>
+                <Input value={buyerQuery} placeholder={t("search")} onChange={(e) => setBuyerQuery(e.target.value)} />
+                {matches.length > 0 && (
+                  <div className="mt-1.5 flex flex-col gap-1">
+                    {matches.map((c) => (
+                      <button key={c.id} onClick={() => { setBuyer(c); setMatches([]); }}
+                        className="flex items-center gap-2 rounded-[9px] border border-border bg-card px-3 py-2 text-left hover:bg-secondary">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13.5px] font-semibold">{c.name || t("walk_in_customer")}</div>
+                          <div className="truncate font-mono text-[12.5px] text-muted-foreground">{c.phone}</div>
+                        </div>
+                        {c.telegramChatId && <Send className="size-4 text-muted-foreground" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </Field>
+
           {!cardMode ? (
             <div className="grid grid-cols-3 gap-2.5">
-              <Button variant="soft" disabled={busy} onClick={() => onPay("cash")}><Banknote />{t("pay_cash")}</Button>
+              <Button variant="soft" disabled={busy} onClick={() => onPay("cash", undefined, buyer?.id)}><Banknote />{t("pay_cash")}</Button>
               <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard />{t("pay_card")}</Button>
-              <Button variant="soft" disabled={busy} onClick={() => onPay("other")}><Wallet />{t("pay_other")}</Button>
+              <Button variant="soft" disabled={busy} onClick={() => onPay("other", undefined, buyer?.id)}><Wallet />{t("pay_other")}</Button>
             </div>
           ) : (
             <div className="flex flex-col gap-2.5">

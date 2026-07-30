@@ -7,7 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { orderLabel } from "@/lib/format";
-import { loadShopProfile, type ShopProfile } from "@/lib/shop";
+import { useShopProfile } from "@/lib/shop";
 import { FiscalCheck } from "@/components/fiscal-check";
 import type { Invoice, WorkOrder } from "@/lib/types";
 
@@ -18,7 +18,7 @@ export default function PrintInvoicePage() {
   const { t } = useLang();
   const { toast } = useToast();
 
-  const [shop, setShop] = useState<ShopProfile | null>(null);
+  const shop = useShopProfile();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [error, setError] = useState(false);
@@ -26,7 +26,6 @@ export default function PrintInvoicePage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const paperRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setShop(loadShopProfile()); }, []);
   useEffect(() => {
     // Wait for the auth provider to hydrate the session from the cookie before deciding.
     // Otherwise the very first render (session still null) bounces to /login → home.
@@ -44,7 +43,7 @@ export default function PrintInvoicePage() {
   }, [id, session, ready, router]);
 
   if (error) return <Center>{t("error")}</Center>;
-  if (!invoice || !shop) return <Center>…</Center>;
+  if (!invoice) return <Center>…</Center>;
 
   const orderNo = wo ? orderLabel(wo) : "";
 

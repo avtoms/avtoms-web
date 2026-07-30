@@ -21,7 +21,7 @@ import {
 import type { ShopCard } from "@/lib/types";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
-import { loadShopProfile, saveShopProfile } from "@/lib/shop";
+import { loadShopProfile, mergeShopProfile } from "@/lib/shop";
 import { SecTitle } from "../_shared";
 
 export default function SettingsPage() {
@@ -32,11 +32,12 @@ export default function SettingsPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  // shop profile is local-only for now (no shop endpoint); persisted in localStorage and
-  // used for the printable-invoice header. Loaded once on mount.
-  const [shop, setShop] = useState({ name: "", address: "", tin: "", hours: "" });
-  useEffect(() => { setShop(loadShopProfile()); }, []);
-  const saveShop = () => { saveShopProfile(shop); toast(t("save"), { icon: "check" }); };
+  // Shop identity now lives on the server (shop_settings), because a receipt rendered for
+  // a customer has to say who issued it and cannot read one browser's localStorage. The old
+  // local copy is still read once, to pre-fill the form for shops that filled it in before
+  // this moved — they press Save and it is on the server for good.
+  const [shop, setShop] = useState({ name: "", address: "", tin: "", phone: "", hours: "" });
+  const [savingShop, setSavingShop] = useState(false);
 
   // Shop policy (real backend): the max discount %, and which statuses the order flow uses.
   // Both live on the same record, so each save sends the current value of the other.
@@ -48,10 +49,34 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.getShopSettings()
-      .then((s) => { setMaxDiscount(String(s.maxDiscountPercent)); setFlow(enabledSet(s.enabledStates)); })
-      .catch(() => {})
+      .then((s) => {
+        setMaxDiscount(String(s.maxDiscountPercent));
+        setFlow(enabledSet(s.enabledStates));
+        // Seed from the browser's old copy only where the server has nothing, so a shop
+        // that never re-saved still sees its details instead of blank boxes.
+        setShop(mergeShopProfile(s));
+      })
+      .catch(() => setShop(loadShopProfile()))
       .finally(() => setPolicyLoading(false));
   }, []);
+
+  // Profile and policy share one record, so every save carries the current value of both.
+  const saveShop = async () => {
+    if (savingShop) return;
+    setSavingShop(true);
+    try {
+      const s = await api.updateShopSettings({
+        maxDiscountPercent: currentPct(), enabledStates: flowList(flow),
+        name: shop.name, address: shop.address, tin: shop.tin, phone: shop.phone, hours: shop.hours,
+      });
+      setShop({ name: s.name ?? "", address: s.address ?? "", tin: s.tin ?? "", phone: s.phone ?? "", hours: s.hours ?? "" });
+      toast(t("save"), { icon: "check" });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setSavingShop(false);
+    }
+  };
 
   const currentPct = () => Math.max(0, Math.min(100, parseInt(maxDiscount, 10) || 0));
   const flowList = (f: Set<WoState>) => WO_STATES.filter((s) => f.has(s)).map(woStateToProto);
@@ -60,7 +85,7 @@ export default function SettingsPage() {
     if (savingPolicy) return;
     setSavingPolicy(true);
     try {
-      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(flow) });
+      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(flow), ...shop });
       setMaxDiscount(String(s.maxDiscountPercent));
       toast(t("save"), { icon: "check" });
     } catch (e) {
@@ -91,7 +116,7 @@ export default function SettingsPage() {
 
   return (
     <div className="grid items-start gap-4" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-      {/* shop profile — TODO backend: no shop profile read/update endpoint yet. */}
+      {/* shop profile — stored server-side on shop_settings; printed on every receipt. */}
       <Card className="p-5">
         <SecTitle>{t("shop_profile")}</SecTitle>
         <div className="flex flex-col gap-3">
@@ -101,8 +126,9 @@ export default function SettingsPage() {
             <Field label={t("tin")}><Input value={shop.tin} onChange={(e) => setShop({ ...shop, tin: e.target.value })} className="font-mono" /></Field>
             <Field label={t("hours")}><Input value={shop.hours} onChange={(e) => setShop({ ...shop, hours: e.target.value })} className="font-mono" /></Field>
           </div>
-          <Button onClick={saveShop}>{t("save")}</Button>
-          <div className="text-[12px] text-muted-foreground">{t("shop_profile_local_hint")}</div>
+          <Field label={t("phone")}><Input value={shop.phone} onChange={(e) => setShop({ ...shop, phone: e.target.value })} className="font-mono" /></Field>
+          <Button disabled={savingShop} onClick={saveShop}>{savingShop ? <Spinner /> : t("save")}</Button>
+          <div className="text-[12px] text-muted-foreground">{t("shop_profile_hint")}</div>
         </div>
       </Card>
 
