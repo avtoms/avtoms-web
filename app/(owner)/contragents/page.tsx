@@ -20,8 +20,9 @@ import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import type { Contragent, CatalogTerm, ContragentBalance } from "@/lib/types";
 import { useAuth } from "@/components/providers";
-import { money, num } from "@/lib/format";
-import { BalanceLine, ContragentAccount } from "./_account";
+import { money, num, shortDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { ContragentAccount } from "./_account";
 
 export default function ContragentsPage() {
   const { t } = useLang();
@@ -124,14 +125,45 @@ export default function ContragentsPage() {
         );
       },
     },
+    // Turnover: what the shop has taken from them and handed over. Separate from the balance
+    // because a supplier you buy 50m from and settle every week is a different relationship
+    // from one you buy 2m from and owe 2m to, and a single balance column hides that.
     {
-      id: "balance",
-      accessorFn: (c) => num(balances[c.id]?.balance),
-      header: ({ column }) => <SortHeader column={column}>{t("cg_balance")}</SortHeader>,
+      id: "purchased",
+      accessorFn: (c) => num(balances[c.id]?.purchased),
+      header: ({ column }) => <SortHeader column={column}>{t("cg_purchased")}</SortHeader>,
+      cell: ({ row }) => <Amount value={num(balances[row.original.id]?.purchased)} />,
+    },
+    {
+      id: "paid",
+      accessorFn: (c) => num(balances[c.id]?.paid),
+      header: ({ column }) => <SortHeader column={column}>{t("cg_paid")}</SortHeader>,
+      cell: ({ row }) => <Amount value={num(balances[row.original.id]?.paid)} />,
+    },
+    // Debit and credit are the one balance split into the two questions an owner actually
+    // asks — who owes me, and who am I due to pay. One signed column made every reader work
+    // out which side of nought they were on, and a minus sign is a poor place to keep that.
+    {
+      id: "debit",
+      accessorFn: (c) => Math.max(0, -num(balances[c.id]?.balance)),
+      header: ({ column }) => <SortHeader column={column}>{t("cg_debit")}</SortHeader>,
+      cell: ({ row }) => <Amount value={Math.max(0, -num(balances[row.original.id]?.balance))} tone="success" />,
+    },
+    {
+      id: "credit",
+      accessorFn: (c) => Math.max(0, num(balances[c.id]?.balance)),
+      header: ({ column }) => <SortHeader column={column}>{t("cg_credit")}</SortHeader>,
+      cell: ({ row }) => <Amount value={Math.max(0, num(balances[row.original.id]?.balance))} tone="destructive" />,
+    },
+    {
+      id: "lastMove",
+      accessorFn: (c) => balances[c.id]?.lastAt ?? "",
+      header: ({ column }) => <SortHeader column={column}>{t("cg_last_move")}</SortHeader>,
       cell: ({ row }) => {
-        const b = balances[row.original.id];
-        if (!b) return <span className="text-[13px] text-muted-foreground">—</span>;
-        return <BalanceLine balance={num(b.balance)} />;
+        const at = balances[row.original.id]?.lastAt;
+        return at
+          ? <span className="font-mono text-[12px] text-muted-foreground">{shortDate(at)}</span>
+          : <span className="text-[13px] text-muted-foreground">—</span>;
       },
     },
     {
@@ -177,7 +209,13 @@ export default function ContragentsPage() {
           searchPlaceholder={t("search") + "…"}
           emptyText={t("no_contragents")}
           toolbar={<Button onClick={() => setEditing({ mode: "new", item: null })}><Plus /> {t("add_contragent")}</Button>}
-          columnLabels={{ name: t("contragent_name"), brand: t("brand"), balance: t("cg_balance") }}
+          columnLabels={{
+            name: t("contragent_name"), brand: t("brand"),
+            purchased: t("cg_purchased"), paid: t("cg_paid"),
+            debit: `${t("cg_debit")} · ${t("cg_debit_hint")}`,
+            credit: `${t("cg_credit")} · ${t("cg_credit_hint")}`,
+            lastMove: t("cg_last_move"),
+          }}
           pageSize={12}
         />
       )}
@@ -278,5 +316,17 @@ function ContragentModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Amount renders a money cell where nothing is a dash rather than a zero. A column of "0"
+// reads as data; a column of dashes reads as "nothing here", which is what it means.
+function Amount({ value, tone }: { value: number; tone?: "success" | "destructive" }) {
+  if (!value) return <span className="text-[13px] text-muted-foreground">—</span>;
+  return (
+    <span className={cn("font-mono text-[13.5px] font-bold",
+      tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : "text-foreground")}>
+      {money(value)}
+    </span>
   );
 }

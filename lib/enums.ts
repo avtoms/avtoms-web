@@ -5,7 +5,10 @@ import type { Lang } from "./i18n";
 export type WoState = "draft" | "estimated" | "approved" | "in_progress" | "ready" | "invoiced" | "closed" | "canceled";
 export type Role = "owner" | "mechanic" | "admin";
 export type FiscalStatus = "pending" | "fiscalized" | "failed" | "voided";
-export type PaymentMethod = "cash" | "card" | "other";
+// "credit" is nasiya: the goods left, the money did not, and the buyer owes it. It is a
+// payment method because that is the question the till asks — how is this being settled —
+// and the answer "not yet" has to be one of the buttons.
+export type PaymentMethod = "cash" | "card" | "other" | "credit";
 export type DiscountKind = "none" | "fixed" | "percent";
 // "service" and "material" are the current kinds; "labor"/"part" are legacy aliases
 // still returned for older line items.
@@ -126,12 +129,18 @@ export const fiscalFromProto = (s?: string): FiscalStatus => {
 };
 
 export const paymentToProto = (m: PaymentMethod): string =>
-  m === "card" ? "PAYMENT_METHOD_CARD" : m === "other" ? "PAYMENT_METHOD_OTHER" : "PAYMENT_METHOD_CASH";
+  m === "card" ? "PAYMENT_METHOD_CARD"
+    : m === "other" ? "PAYMENT_METHOD_OTHER"
+    : m === "credit" ? "PAYMENT_METHOD_CREDIT"
+    : "PAYMENT_METHOD_CASH";
 export const paymentFromProto = (s?: string): PaymentMethod =>
-  s === "PAYMENT_METHOD_CARD" ? "card" : s === "PAYMENT_METHOD_OTHER" ? "other" : "cash";
+  s === "PAYMENT_METHOD_CARD" ? "card"
+    : s === "PAYMENT_METHOD_OTHER" ? "other"
+    : s === "PAYMENT_METHOD_CREDIT" ? "credit"
+    : "cash";
 // i18n key for a payment method's label.
 export const paymentLabelKey = (m: PaymentMethod): string =>
-  m === "card" ? "pay_card" : m === "other" ? "pay_other" : "pay_cash";
+  m === "card" ? "pay_card" : m === "other" ? "pay_other" : m === "credit" ? "pay_credit" : "pay_cash";
 
 export const discountToProto = (k: DiscountKind): string =>
   k === "fixed" ? "DISCOUNT_KIND_FIXED" : k === "percent" ? "DISCOUNT_KIND_PERCENT" : "DISCOUNT_KIND_UNSPECIFIED";

@@ -19,7 +19,9 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, langFromProto, type PlateType } from "@/lib/enums";
-import type { Customer, Vehicle } from "@/lib/types";
+import type { Customer, CustomerBalance, Vehicle } from "@/lib/types";
+import { money, num } from "@/lib/format";
+import { CustomerAccount, DebtLine } from "./_debt";
 import { SecTitle } from "../_shared";
 import { MakeModelPicker, PlateField, PhoneField } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
@@ -59,6 +61,22 @@ export default function CustomersPage() {
     }).catch(() => {});
   }, [shopId]);
   useEffect(() => { loadVehicles(); }, [loadVehicles]);
+
+  // Who owes what. Owner-only on the server, so a mechanic simply sees the directory without
+  // a debt column rather than an error — and the sheet is only reachable from that column.
+  const [debts, setDebts] = useState<Record<string, CustomerBalance>>({});
+  const [totalDebt, setTotalDebt] = useState(0);
+  const [account, setAccount] = useState<Customer | null>(null);
+  const loadDebts = useCallback(async () => {
+    try {
+      const r = await api.customerBalances();
+      const m: Record<string, CustomerBalance> = {};
+      for (const b of r.balances ?? []) m[b.customerId] = b;
+      setDebts(m);
+      setTotalDebt(num(r.totalReceivable));
+    } catch { /* the directory is still useful without it */ }
+  }, []);
+  useEffect(() => { void loadDebts(); }, [loadDebts]);
 
   // Deep link from the Cars view (?focus=<customerId>) opens that customer's detail.
   // Read from window (not useSearchParams) to avoid a Suspense boundary at prerender.
@@ -112,15 +130,40 @@ export default function CustomersPage() {
       },
     },
     {
+      id: "debt",
+      accessorFn: (c) => num(debts[c.id]?.balance),
+      header: ({ column }) => <SortHeader column={column}>{t("cl_debt")}</SortHeader>,
+      cell: ({ row }) => {
+        const b = debts[row.original.id];
+        if (!b || num(b.balance) === 0) return <span className="text-[13px] text-muted-foreground">—</span>;
+        // Clicking the money opens the debt book rather than the customer card: someone who
+        // taps a debt figure wants to settle it, not read a phone number.
+        return (
+          <button onClick={(e) => { e.stopPropagation(); setAccount(row.original); }} className="text-left hover:underline">
+            <DebtLine balance={num(b.balance)} />
+          </button>
+        );
+      },
+    },
+    {
       id: "actions",
       enableHiding: false,
       header: () => null,
       cell: () => <div className="flex justify-end"><ChevronRight className="size-4 text-muted-foreground" /></div>,
     },
-  ], [t, platesByCustomer]);
+  ], [t, platesByCustomer, debts]);
 
   return (
     <div className="flex flex-col gap-4">
+      {totalDebt > 0 && (
+        <Card className="flex-row items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <span className="text-[12px] font-semibold text-muted-foreground">{t("cl_debts")}</span>
+            <p className="text-[11.5px] text-muted-foreground">{t("cg_all_time")}</p>
+          </div>
+          <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-destructive">{money(totalDebt)}</span>
+        </Card>
+      )}
       {loading && list.length === 0 ? (
         <Card className="gap-3 p-5">
           {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
@@ -131,7 +174,7 @@ export default function CustomersPage() {
           data={list}
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
-          columnLabels={{ customer: t("name"), vehicles: t("vehicles") }}
+          columnLabels={{ customer: t("name"), vehicles: t("vehicles"), debt: t("cl_debt") }}
           pageSize={12}
           onRowClick={(c) => setSel(c)}
           toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("new_customer")}</Button>}
@@ -139,6 +182,7 @@ export default function CustomersPage() {
       )}
       <AddCustomerModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={() => load()} />
       <CustomerDetailModal customer={sel} onClose={() => setSel(null)} onChanged={() => { load(); loadVehicles(); }} />
+      <CustomerAccount customer={account} onClose={() => setAccount(null)} onChanged={loadDebts} />
     </div>
   );
 }

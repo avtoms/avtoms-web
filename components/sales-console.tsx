@@ -12,7 +12,7 @@
 // that permission; this component assumes the caller already has it.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Banknote, Check, CreditCard, Minus, Plus, Printer, Send, Trash2, Undo2, Wallet,
+  Banknote, Check, CreditCard, HandCoins, Minus, Plus, Printer, Send, Trash2, Undo2, Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -146,6 +146,12 @@ export function SalesConsole() {
       setDiscountValue("");
       setPayOpen(false);
       toast(`${saleLabel(sale)} · ${money(sale.total)} ${t("soum")}`, { icon: "money" });
+      // No money came in, so the "sold!" toast on its own would be misleading. Say where
+      // the amount went instead.
+      if (method === "credit") {
+        const who = customers.find((c) => c.id === customerId)?.name;
+        toast(`${t("cl_charge")}${who ? " · " + who : ""}`, { icon: "alert", tone: "accent" });
+      }
       // Delivery is best-effort and happens after the sale is committed, so tell the
       // cashier which way it went rather than leaving them to wonder.
       if (customerId) {
@@ -438,10 +444,21 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
           </Field>
 
           {!cardMode ? (
-            <div className="grid grid-cols-3 gap-2.5">
-              <Button variant="soft" disabled={busy} onClick={() => onPay("cash", undefined, buyer?.id)}><Banknote />{t("pay_cash")}</Button>
-              <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard />{t("pay_card")}</Button>
-              <Button variant="soft" disabled={busy} onClick={() => onPay("other", undefined, buyer?.id)}><Wallet />{t("pay_other")}</Button>
+            <div className="flex flex-col gap-2.5">
+              <div className="grid grid-cols-3 gap-2.5">
+                <Button variant="soft" disabled={busy} onClick={() => onPay("cash", undefined, buyer?.id)}><Banknote />{t("pay_cash")}</Button>
+                <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard />{t("pay_card")}</Button>
+                <Button variant="soft" disabled={busy} onClick={() => onPay("other", undefined, buyer?.id)}><Wallet />{t("pay_other")}</Button>
+              </div>
+              {/* Nasiya. Disabled rather than hidden without a buyer, so the cashier can see
+                  the option exists and what unlocks it — a debt has to be owed by somebody,
+                  and the server refuses one that is not. */}
+              <Button variant="soft" disabled={busy || !buyer} onClick={() => onPay("credit", undefined, buyer?.id)}>
+                <HandCoins />{t("pay_credit")}
+              </Button>
+              <p className="text-[11.5px] leading-snug text-muted-foreground">
+                {buyer ? t("credit_hint") : t("credit_needs_client")}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-2.5">

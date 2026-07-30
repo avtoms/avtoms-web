@@ -168,6 +168,9 @@ export interface WorkOrder {
   make?: string;
   model?: string;
   customerName?: string;
+  customerPhone?: string;   // for a service reminder set at closing time
+  customerId?: string;
+  mileage?: string;         // the vehicle's odometer, for "next service in 10 000 km"
   vehicleImageUrl?: string; // denormalized car photo url
 }
 
@@ -451,6 +454,10 @@ export interface PaymentBucket { method: string; cardId?: string; cardNumber?: s
 export interface Statistics {
   shopId: string; from?: string; to?: string;
   revenue: string; orderRevenue: string; salesRevenue: string;
+  // All-time, not windowed: what clients still owe for anything taken on credit.
+  clientDebt?: string;
+  // Part of the window's revenue that was billed rather than collected.
+  creditRevenue?: string;
   costOfGoods: string; grossMargin: string; overhead: string; netProfit: string;
   discountsGiven: string; avgTicket: string;
   orderCount?: number; saleCount?: number;
@@ -502,6 +509,41 @@ export interface ContragentBalance {
   charged: string;
   received: string;
   balance: string;   // signed, all-time
+  lastAt?: string;
+  entries?: number;
+}
+
+// ── customer accounts (nasiya) ──
+// What CLIENTS owe the shop. Note the sign is the opposite of a contragent balance: there
+// positive means the shop owes the supplier, here positive means the client owes the shop.
+// Both screens then read the same way round — a big positive number is money you are owed.
+export type CustomerEntryKind =
+  | "CUSTOMER_ENTRY_KIND_CHARGE"      // sold to them on credit         → +
+  | "CUSTOMER_ENTRY_KIND_PAYMENT_IN"; // they paid off part of the debt → −
+
+export interface CustomerLedgerEntry {
+  id: string;
+  customerId: string;
+  kind: CustomerEntryKind | string;
+  amount: string;
+  description?: string;
+  saleId?: string;      // set when the charge came from a counter sale; those cannot be deleted
+  workOrderId?: string; // set when it came from closing an order on credit; likewise
+  invoiceId?: string;
+  method?: string;
+  staffId?: string;
+  note?: string;
+  occurredAt?: string;
+  createdAt?: string;
+}
+
+export interface CustomerBalance {
+  customerId: string;
+  name?: string;   // filled in by the gateway; empty if the client's record was deleted
+  phone?: string;
+  charged: string; // windowed
+  paid: string;    // windowed
+  balance: string; // all-time; positive means they owe the shop
   lastAt?: string;
   entries?: number;
 }

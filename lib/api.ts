@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, PublicReceipt,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, PublicReceipt,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -604,6 +604,29 @@ export const api = {
     }),
   deleteContragentEntry: (entryId: string) =>
     call<{ ok?: boolean }>("POST", `/v1/contragents/entries/${entryId}/delete`, {}),
+
+  // ── customer accounts (nasiya) ──
+  // What clients owe. Owner-only, so a screen that shows it must tolerate a 403.
+  customerBalances: (from?: string, to?: string) =>
+    call<{ balances?: CustomerBalance[]; totalReceivable?: string }>(
+      "GET", "/v1/customers/balances" + qs({ from, to })),
+  customerLedger: (id: string, from?: string, to?: string) =>
+    call<{ entries?: CustomerLedgerEntry[]; summary?: CustomerBalance }>(
+      "GET", `/v1/customers/${id}/ledger` + qs({ from, to })),
+  // Chiefly a repayment. A charge is accepted too, for an opening balance carried over from
+  // a paper book — but not one against an order: that is raised by closing the order on
+  // credit, and the gateway drops any order id sent here.
+  recordCustomerEntry: (id: string, e: {
+    kind: CustomerEntryKind; amount: number; method?: PaymentMethod;
+    note?: string; description?: string; occurredAt?: string;
+  }) =>
+    call<CustomerLedgerEntry>("POST", `/v1/customers/${id}/entries`, {
+      kind: e.kind, amount: String(e.amount),
+      method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
+      note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
+    }),
+  deleteCustomerEntry: (entryId: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/customers/entries/${entryId}/delete`, {}),
 
   // ── predefined property catalog ──
   // Open read (active only) — used by the product form to offer predefined properties.

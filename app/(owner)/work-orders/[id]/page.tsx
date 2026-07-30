@@ -4,7 +4,7 @@
 // every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell } from "lucide-react";
 import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
 import { Card, CardContent } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { money, num, vatBreakdown, orderLabel } from "@/lib/format";
+import { money, num, shortDate, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
   STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod, type DiscountKind,
@@ -94,6 +94,10 @@ export default function WorkOrderDetailPage() {
   const [discount, setDiscount] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [approval, setApproval] = useState<{ deepLink: string; botUsername: string } | null>(null);
+  // Offered once, the moment the car is handed back. Asking "when should they come again?"
+  // at any other time means someone has to remember to go and ask it, which is why the
+  // reminders list was mostly empty.
+  const [nextService, setNextService] = useState(false);
 
   const load = useCallback(async () => {
     try { setWo(await api.getWorkOrder(id)); }
@@ -112,7 +116,14 @@ export default function WorkOrderDetailPage() {
 
   const doTransition = async (target: WoState) => {
     if (busy) return; setBusy(true);
-    try { setWo(await api.transition(id, target)); toast(t(STATE_LABEL[target]), { icon: "check" }); }
+    try {
+      const updated = await api.transition(id, target);
+      setWo(updated);
+      toast(t(STATE_LABEL[target]), { icon: "check" });
+      // The car is going back to its owner: this is the one moment the shop knows what was
+      // done and when it will need doing again.
+      if (target === "closed") setNextService(true);
+    }
     catch (e) { err(e); } finally { setBusy(false); }
   };
   const doAssign = async (mechanicId: string) => {
@@ -187,7 +198,7 @@ export default function WorkOrderDetailPage() {
   const allowed = flowTransitions[state] || [];
   const canCancel = allowed.includes("canceled");
   const forwardTargets = allowed.filter((x) => x !== "canceled");
-  const hasBar = forwardTargets.length > 0 || canCancel || state === "ready" || state === "invoiced";
+  const hasBar = forwardTargets.length > 0 || canCancel || state === "ready" || state === "invoiced" || state === "closed";
 
   return (
     <div className="flex flex-col gap-4" style={{ paddingBottom: hasBar ? 90 : 16 }}>
@@ -323,10 +334,16 @@ export default function WorkOrderDetailPage() {
           className="fixed bottom-0 right-0 z-50 border-t border-border bg-[color-mix(in_oklch,var(--bg),transparent_8%)] p-3.5 backdrop-blur-md"
           style={{ left: isMobile ? 0 : 260, paddingBottom: isMobile ? "calc(14px + env(safe-area-inset-bottom))" : 14 }}
         >
-          <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-end gap-2.5">
+          {/* The AI launcher is fixed to the bottom-right corner at 56px + 20px of inset, and
+              this bar ends in the same corner — so without this reserve the last action sits
+              underneath it and its middle is unclickable. It was the close button hiding
+              under there, which is the one this screen most needs to work. */}
+          <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-end gap-2.5" style={{ paddingRight: 64 }}>
             {canCancel && <Button variant="ghost" size={isMobile ? "sm" : "default"} disabled={busy} onClick={() => setConfirmCancel(true)} className="mr-auto text-destructive hover:bg-destructive-soft">{t("cancel_wo")}</Button>}
             {state === "estimated" && <Button variant="soft" size={isMobile ? "sm" : "default"} disabled={busy} onClick={requestApproval}><Send /> {t("request_approval")}</Button>}
             {(state === "ready" || state === "invoiced") && <Button size={isMobile ? "default" : "lg"} disabled={busy} onClick={() => setInvoice(true)}><Receipt /> {state === "ready" ? t("generate_invoice") : t("invoice")}</Button>}
+            {/* Dismissed by accident, or thought of later — a closed order can still set one. */}
+            {state === "closed" && <Button variant="soft" size={isMobile ? "default" : "lg"} onClick={() => setNextService(true)}><Bell /> {t("next_service")}</Button>}
             {forwardTargets.map((target) => {
               if (state === "ready" && target === "invoiced") return null;
               return <Button key={target} size={isMobile ? "default" : "lg"} disabled={busy} onClick={() => doTransition(target)}>{t(STATE_LABEL[target])}</Button>;
@@ -341,6 +358,7 @@ export default function WorkOrderDetailPage() {
       <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
       <OrderDiscountModal open={discount} onClose={() => setDiscount(false)} wo={wo} onSaved={() => { setDiscount(false); load(); }} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
+      <NextServiceModal open={nextService} onClose={() => setNextService(false)} wo={wo} shopId={shopId} />
       <Dialog open={confirmCancel} onOpenChange={(o) => !o && setConfirmCancel(false)}>
         <DialogContent className="max-w-[400px]">
           <DialogHeader><DialogTitle>{t("cancel_wo")}</DialogTitle></DialogHeader>
@@ -967,10 +985,19 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
               {!inv.paid && !cardMode && (
                 <div>
                   <div className="mb-2 text-[12.5px] font-semibold text-muted-foreground">{t("mark_paid")} · {t("payment_method")}</div>
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <Button variant="soft" disabled={busy} onClick={() => pay("cash")}><Banknote /> {t("pay_cash")}</Button>
-                    <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard /> {t("pay_card")}</Button>
-                    <Button variant="soft" disabled={busy} onClick={() => pay("other")}><Wallet /> {t("pay_other")}</Button>
+                  <div className="flex flex-col gap-2.5">
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <Button variant="soft" disabled={busy} onClick={() => pay("cash")}><Banknote /> {t("pay_cash")}</Button>
+                      <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard /> {t("pay_card")}</Button>
+                      <Button variant="soft" disabled={busy} onClick={() => pay("other")}><Wallet /> {t("pay_other")}</Button>
+                    </div>
+                    {/* Letting the car go before the money arrives. The order closes and the
+                        work counts as earned, but the amount lands on the owner's account
+                        instead of in the till — the customer's copy goes out as a bill. */}
+                    <Button variant="soft" disabled={busy} onClick={() => pay("credit")}>
+                      <HandCoins /> {t("pay_credit")}
+                    </Button>
+                    <p className="text-[11.5px] leading-snug text-muted-foreground">{t("credit_hint")}</p>
                   </div>
                 </div>
               )}
@@ -1013,6 +1040,128 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
             </div>
           )}
         </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── next service, asked at the moment the car goes back ── */
+// A reminder is set as an INTERVAL — every 6 months, every 10 000 km — rather than as a date,
+// because that is how a shop actually thinks about servicing and how the customer will hear
+// it. The date and odometer target are worked out from the interval and shown, so nobody has
+// to do the arithmetic or trust that it was done right.
+//
+// Both bounds are honoured: whichever comes first is when the reminder is due. Only the date
+// can fire on its own, since the shop does not see the car's odometer in between visits — the
+// km target is what the reminder tells the customer when it does.
+const NEXT_PRESETS: { key: string; months: number; km: number }[] = [
+  { key: "preset_oil", months: 6, km: 10000 },
+  { key: "preset_inspection", months: 12, km: 0 },
+  { key: "preset_air_filter", months: 12, km: 15000 },
+];
+
+function NextServiceModal({ open, onClose, wo, shopId }: {
+  open: boolean; onClose: () => void; wo: WorkOrder; shopId: string;
+}) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [title, setTitle] = useState("");
+  const [months, setMonths] = useState("6");
+  const [km, setKm] = useState("10000");
+  const [currentKm, setCurrentKm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(t("preset_oil"));
+    setMonths("6");
+    setKm("10000");
+    // The odometer the gateway carried over from the vehicle, so the usual case is one tap.
+    setCurrentKm(num(wo.mileage) > 0 ? String(num(wo.mileage)) : "");
+  }, [open, wo.mileage, t]);
+
+  const m = parseInt(months, 10) || 0;
+  const k = parseInt(km, 10) || 0;
+  const cur = parseInt(currentKm, 10) || 0;
+  const due = m > 0 ? new Date(new Date().setMonth(new Date().getMonth() + m)) : null;
+  const dueKm = k > 0 && cur > 0 ? cur + k : 0;
+
+  const save = async () => {
+    if (!title.trim() || busy || (m <= 0 && k <= 0)) return;
+    setBusy(true);
+    try {
+      await api.createReminder(shopId, {
+        title: title.trim(),
+        vehicleId: wo.vehicleId,
+        customerName: wo.customerName ?? "",
+        phone: wo.customerPhone ?? "",
+        plate: wo.plate ?? "",
+        dueDate: due ? due.toISOString() : undefined,
+        dueMileage: dueKm,
+        repeatMonths: m,
+        repeatKm: k,
+      });
+      // The reading typed here is used for the km target and nothing else. Writing it back to
+      // the vehicle would mean re-sending every one of its other fields, and getting one of
+      // them wrong would quietly blank real data — not a trade worth making for a prefill.
+      toast(t("reminders_saved"), { icon: "check" });
+      onClose();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[440px]">
+        <DialogHeader><DialogTitle>{t("next_service")}</DialogTitle></DialogHeader>
+        <DialogBody className="flex flex-col gap-3.5 py-1">
+          <p className="text-[12.5px] leading-snug text-muted-foreground">{t("next_service_hint")}</p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {NEXT_PRESETS.map((p) => (
+              <Button key={p.key} type="button" variant="secondary" size="sm"
+                onClick={() => { setTitle(t(p.key)); setMonths(String(p.months)); setKm(p.km ? String(p.km) : ""); }}>
+                {t(p.key)}
+              </Button>
+            ))}
+          </div>
+
+          <Field label={t("reminder_title")}>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("every_months")}>
+              <Input value={months} inputMode="numeric" className="font-mono" placeholder="6"
+                onChange={(e) => setMonths(e.target.value.replace(/\D/g, ""))} />
+            </Field>
+            <Field label={t("every_km")}>
+              <Input value={km} inputMode="numeric" className="font-mono" placeholder="10000"
+                onChange={(e) => setKm(e.target.value.replace(/\D/g, ""))} />
+            </Field>
+          </div>
+          <Field label={t("current_km")} hint={wo.plate}>
+            <Input value={currentKm} inputMode="numeric" className="font-mono"
+              onChange={(e) => setCurrentKm(e.target.value.replace(/\D/g, ""))} />
+          </Field>
+
+          {/* What the interval actually works out to, so it is checked rather than trusted. */}
+          {(due || dueKm > 0) && (
+            <div className="flex items-baseline justify-between rounded-[10px] bg-secondary/60 px-3.5 py-2.5">
+              <span className="text-[12.5px] font-semibold text-muted-foreground">{t("due_at")}</span>
+              <span className="font-mono text-[13.5px] font-bold text-foreground">
+                {[due ? shortDate(due.toISOString()) : "", dueKm > 0 ? `${dueKm.toLocaleString("ru-RU")} km` : ""]
+                  .filter(Boolean).join(" · ")}
+              </span>
+            </div>
+          )}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("skip_reminder")}</Button>
+          <Button disabled={busy || !title.trim() || (m <= 0 && k <= 0)} onClick={save}>
+            {busy ? <Spinner /> : <><Bell /> {t("add_next_service")}</>}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
