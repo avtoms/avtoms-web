@@ -22,7 +22,12 @@ function OtpBoxes({ value, onChange, onComplete }: { value: string; onChange: (v
     <div style={{ display: "flex", gap: 9, justifyContent: "space-between" }}>
       {digits.map((d, i) => (
         <input key={i} ref={(el) => { refs.current[i] = el; }} value={d.trim()} inputMode="numeric" maxLength={1}
-          onChange={(e) => set(i, e.target.value.replace(/\D/g, "").slice(-1))}
+          autoComplete={i === 0 ? "one-time-code" : "off"} autoCapitalize="none" autoCorrect="off"
+          // Letters are accepted as well as digits: a real SMS code is always numeric, but the
+          // configured fallback code need not be, and a box that silently swallows what you
+          // type is worse than one that takes it. Lower-cased so the comparison cannot fail on
+          // capitalisation alone.
+          onChange={(e) => set(i, e.target.value.replace(/[^A-Za-z0-9]/g, "").toLowerCase().slice(-1))}
           onKeyDown={(e) => { if (e.key === "Backspace" && !d.trim() && i > 0) refs.current[i - 1]?.focus(); }}
           className="an-input" style={{ width: "100%", aspectRatio: "1", textAlign: "center", fontSize: "calc(24px * var(--scale))", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--ink)", background: "var(--surface)", border: "1.5px solid var(--line-2)", borderRadius: "var(--radius-sm)", outline: "none", minWidth: 0 }} />
       ))}
