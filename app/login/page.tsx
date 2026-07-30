@@ -21,7 +21,11 @@ function OtpBoxes({ value, onChange, onComplete }: { value: string; onChange: (v
   return (
     <div style={{ display: "flex", gap: 9, justifyContent: "space-between" }}>
       {digits.map((d, i) => (
-        <input key={i} ref={(el) => { refs.current[i] = el; }} value={d.trim()} inputMode="numeric" maxLength={1}
+        // inputMode is "text", not "numeric": a numeric keypad on a phone has no letters on
+        // it, so a code containing any would be impossible to type on the device most people
+        // sign in from. autoComplete="one-time-code" keeps the important mobile path intact —
+        // a real SMS code is still offered for autofill and never has to be typed at all.
+        <input key={i} ref={(el) => { refs.current[i] = el; }} value={d.trim()} inputMode="text" maxLength={1}
           autoComplete={i === 0 ? "one-time-code" : "off"} autoCapitalize="none" autoCorrect="off"
           // Letters are accepted as well as digits: a real SMS code is always numeric, but the
           // configured fallback code need not be, and a box that silently swallows what you
