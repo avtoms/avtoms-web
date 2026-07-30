@@ -20,7 +20,13 @@ export const STR: Record<string, Triple> = {
   send_code: ["Kod yuborish", "Код юбориш", "Отправить код"],
   otp_title: ["Tasdiqlash kodi", "Тасдиқлаш коди", "Код подтверждения"],
   otp_sub: ["SMS orqali yuborilgan 6 xonali kodni kiriting", "СМС орқали юборилган 6 хонали кодни киритинг", "Введите 6-значный код из SMS"],
-  otp_dev_hint: ["Demo kod: 000000", "Демо код: 000000", "Демо-код: 000000"],
+  // The account exists but an admin has not switched it on (or has switched it off).
+  // Retyping the code cannot fix it, so the message says who to go to.
+  account_not_active: [
+    "Hisobingiz hali faollashtirilmagan. Administratorga murojaat qiling.",
+    "Ҳисобингиз ҳали фаоллаштирилмаган. Администраторга мурожаат қилинг.",
+    "Ваша учётная запись ещё не активирована. Обратитесь к администратору.",
+  ],
   resend: ["Qayta yuborish", "Қайта юбориш", "Отправить снова"],
   verify: ["Tasdiqlash", "Тасдиқлаш", "Подтвердить"],
   sign_in_as: ["Demo: rol tanlang", "Демо: рол танланг", "Демо: выберите роль"],

@@ -76,7 +76,12 @@ export default function LoginPage() {
       const s = login(tp);
       router.replace(s.role === "mechanic" ? "/m" : "/dashboard");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+      // 403 means the code was right and access is the problem: the account is waiting on
+      // an admin, or has been switched off. Retyping the code will never fix it, so say so
+      // rather than showing the generic failure.
+      const denied = e instanceof ApiError && e.status === 403;
+      toast(denied ? t("account_not_active") : e instanceof ApiError ? e.message : t("error"),
+        { icon: "alert", tone: "danger" });
       setOtp("");
       setBusy(false);
     }
@@ -146,8 +151,7 @@ export default function LoginPage() {
               <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--ink)", fontSize: 15 }}>+998 {formatNational(phone)}</span>
             </div>
             <OtpBoxes value={otp} onChange={setOtp} onComplete={verify} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <Badge tone="accent" dot>{t("otp_dev_hint")}</Badge>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
               <button disabled={resend > 0} onClick={sendCode} className="an-btn" style={{ border: "none", background: "transparent", color: resend > 0 ? "var(--ink-3)" : "var(--accent-2)", cursor: resend > 0 ? "default" : "pointer", fontSize: 13.5, fontWeight: 600 }}>
                 {resend > 0 ? t("resend") + " (" + resend + ")" : t("resend")}
               </button>
@@ -155,7 +159,6 @@ export default function LoginPage() {
             <Btn variant="primary" size="lg" full onClick={() => verify()} disabled={otp.length !== 6 || busy} style={otp.length !== 6 ? { opacity: 0.5 } : {}}>
               {busy ? <Spinner /> : t("verify")}
             </Btn>
-            <Btn variant="ghost" size="sm" full onClick={() => setOtp("000000")}>↳ {t("otp_dev_hint")}</Btn>
           </>
         )}
       </div>
