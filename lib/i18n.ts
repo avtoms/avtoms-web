@@ -20,6 +20,18 @@ export const STR: Record<string, Triple> = {
   send_code: ["Kod yuborish", "Код юбориш", "Отправить код"],
   otp_title: ["Tasdiqlash kodi", "Тасдиқлаш коди", "Код подтверждения"],
   otp_sub: ["SMS orqali yuborilgan 6 xonali kodni kiriting", "СМС орқали юборилган 6 хонали кодни киритинг", "Введите 6-значный код из SMS"],
+  account_pending_title: [
+    "Hisob faollashtirilmagan",
+    "Ҳисоб фаоллаштирилмаган",
+    "Учётная запись не активирована",
+  ],
+  account_pending_sub: [
+    "Raqamingiz tasdiqlandi, lekin hisobingiz hali ochilmagan. Administrator hisobingizni faollashtirgach, kirishingiz mumkin bo'ladi.",
+    "Рақамингиз тасдиқланди, лекин ҳисобингиз ҳали очилмаган. Администратор ҳисобингизни фаоллаштиргач, киришингиз мумкин бўлади.",
+    "Номер подтверждён, но доступ ещё не открыт. Вы сможете войти, как только администратор активирует вашу учётную запись.",
+  ],
+  back_to_login: ["Kirishga qaytish", "Киришга қайтиш", "Вернуться ко входу"],
+
   // The account exists but an admin has not switched it on (or has switched it off).
   // Retyping the code cannot fix it, so the message says who to go to.
   account_not_active: [

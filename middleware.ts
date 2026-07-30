@@ -22,7 +22,10 @@ export function middleware(req: NextRequest) {
   // Not signed in → the public marketing site is the front door: the landing page ("/"),
   // the login screen, and the demo-request API are open; everything else bounces to /login.
   if (!role) {
-    const isPublic = pathname === "/" || pathname === "/login" || pathname.startsWith("/api/");
+    // /pending is reached only by someone whose code was accepted but whose account is not
+    // active, so by definition they have no session and must be let through.
+    const isPublic = pathname === "/" || pathname === "/login" || pathname === "/pending"
+      || pathname.startsWith("/api/");
     return isPublic ? NextResponse.next() : redirect("/login");
   }
 

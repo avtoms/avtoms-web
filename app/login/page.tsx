@@ -86,11 +86,13 @@ export default function LoginPage() {
       router.replace(s.role === "mechanic" ? "/m" : "/dashboard");
     } catch (e) {
       // 403 means the code was right and access is the problem: the account is waiting on
-      // an admin, or has been switched off. Retyping the code will never fix it, so say so
-      // rather than showing the generic failure.
-      const denied = e instanceof ApiError && e.status === 403;
-      toast(denied ? t("account_not_active") : e instanceof ApiError ? e.message : t("error"),
-        { icon: "alert", tone: "danger" });
+      // an admin, or has been switched off. That is a dead end rather than a retry, so it
+      // gets its own page instead of an error on a form the person will only try again.
+      if (e instanceof ApiError && e.status === 403) {
+        router.replace("/pending?phone=" + encodeURIComponent(phone));
+        return;
+      }
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
       setOtp("");
       setBusy(false);
     }
