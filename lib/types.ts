@@ -419,8 +419,13 @@ export interface Sale {
   saleNo?: string | number; // per-shop sequence, shown as "S-0001"
   staffId?: string;
   items?: SaleItem[];
+  // subtotal is what the goods came to; total is what was charged, net of the discount.
+  subtotal?: string;
   total: string;
   totalCost?: string;
+  discountKind?: string;   // DISCOUNT_KIND_FIXED | _PERCENT | _UNSPECIFIED
+  discountValue?: string;
+  discountAmount?: string;
   paymentMethod?: string; // PAYMENT_METHOD_CASH | _CARD | _OTHER
   cardId?: string;
   cardNumber?: string;

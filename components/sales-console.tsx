@@ -19,6 +19,7 @@ import { Button } from "@/components/ui-kit/button";
 import { Badge } from "@/components/ui-kit/badge";
 import { Input } from "@/components/ui-kit/input";
 import { Field } from "@/components/ui-kit/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
 import { SkeletonRows } from "@/components/ui";
@@ -62,6 +63,8 @@ export function SalesConsole() {
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [cards, setCards] = useState<ShopCard[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
+  const [discountKind, setDiscountKind] = useState<"fixed" | "percent">("percent");
+  const [discountValue, setDiscountValue] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [selling, setSelling] = useState(false);
   const [detail, setDetail] = useState<Sale | null>(null);
@@ -103,7 +106,18 @@ export function SalesConsole() {
   const setPrice = (key: string, price: string) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, price } : l)));
   const drop = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
 
-  const total = lines.reduce((s, l) => s + lineTotal(l), 0);
+  // A counter discount is given on the basket, not by re-typing every line's price.
+  // discountValue is digits only: tiyin when fixed, whole percent when percent.
+  const subtotal = lines.reduce((s, l) => s + lineTotal(l), 0);
+  const discountPct = discountKind === "percent";
+  const discountRaw = parseInt(discountValue, 10) || 0;
+  // Clamped to the basket, the same rule the backend applies, so the screen can never promise
+  // a total the server will not honour.
+  const discount = Math.min(
+    subtotal,
+    discountPct ? Math.round((subtotal * discountRaw) / 100) : discountRaw,
+  );
+  const total = subtotal - discount;
   // A line asking for more than is on the shelf blocks the sale here rather than letting the
   // backend refuse the whole basket after the till has been opened.
   const overStock = lines.filter((l) => parseQty(l.qty) > num(l.item.variant.quantityOnHand));
@@ -120,8 +134,12 @@ export function SalesConsole() {
           unitPrice: parseInt(l.price, 10) || 0,
         })),
         method, cardId: card?.cardId, cardNumber: card?.cardNumber,
+        // Percent goes over the wire as basis points, the unit the contract uses.
+        discountKind: discount > 0 ? discountKind : undefined,
+        discountValue: discountPct ? discountRaw * 100 : discountRaw,
       });
       setLines([]);
+      setDiscountValue("");
       setPayOpen(false);
       toast(`${saleLabel(sale)} · ${money(sale.total)} ${t("soum")}`, { icon: "money" });
       setDetail(sale);
@@ -225,11 +243,43 @@ export function SalesConsole() {
                 );
               })}
 
-              <div className="flex items-baseline justify-between rounded-[12px] bg-secondary/60 px-4 py-3">
-                <span className="text-[13px] font-semibold text-muted-foreground">{t("total")}</span>
-                <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-foreground">
-                  {money(total)} <span className="font-sans text-[12px] font-semibold text-muted-foreground">{t("soum")}</span>
-                </span>
+              {/* Discount on the whole basket. Percent or a flat sum — the two ways a counter
+                  discount is actually given. */}
+              <div className="flex items-center gap-2">
+                <Tabs value={discountKind} onValueChange={(v: string) => setDiscountKind(v as "fixed" | "percent")}>
+                  <TabsList>
+                    <TabsTrigger value="percent" className="px-3">%</TabsTrigger>
+                    <TabsTrigger value="fixed" className="px-3">{t("soum")}</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                {discountPct ? (
+                  <Input value={discountValue} inputMode="numeric" placeholder={t("discount")}
+                    className="h-9 flex-1 font-mono text-[13px]"
+                    onChange={(e) => setDiscountValue(e.target.value.replace(/\D/g, "").slice(0, 3))} />
+                ) : (
+                  <div className="flex-1"><MoneyInput value={discountValue} onChange={setDiscountValue} placeholder={t("discount")} hideHint /></div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5 rounded-[12px] bg-secondary/60 px-4 py-3">
+                {discount > 0 && (
+                  <>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[12.5px] text-muted-foreground">{t("subtotal")}</span>
+                      <span className="font-mono text-[13px] font-semibold text-foreground">{money(subtotal)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[12.5px] text-muted-foreground">{t("discount")}</span>
+                      <span className="font-mono text-[13px] font-bold text-success">−{money(discount)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[13px] font-semibold text-muted-foreground">{t("total")}</span>
+                  <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-foreground">
+                    {money(total)} <span className="font-sans text-[12px] font-semibold text-muted-foreground">{t("soum")}</span>
+                  </span>
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -389,6 +439,23 @@ function SaleDetailDialog({ sale, onClose, onVoid }: { sale: Sale | null; onClos
                 <span className="shrink-0 font-mono text-[13px] font-bold">{money(Math.round(num(it.unitPrice) * (it.quantity || 0)))}</span>
               </div>
             ))}
+            {/* A receipt that omits the discount looks like the prices were simply lower.
+                Shown the same way the basket showed it before the sale was taken. */}
+            {num(sale.discountAmount) > 0 && (
+              <div className="mt-2 flex flex-col gap-1 border-t border-border pt-2">
+                <div className="flex items-baseline justify-between text-[12.5px]">
+                  <span className="text-muted-foreground">{t("subtotal")}</span>
+                  <span className="font-mono font-semibold">{money(sale.subtotal || sale.total)}</span>
+                </div>
+                <div className="flex items-baseline justify-between text-[12.5px]">
+                  <span className="text-muted-foreground">
+                    {t("discount")}
+                    {sale.discountKind === "DISCOUNT_KIND_PERCENT" && ` ${num(sale.discountValue) / 100}%`}
+                  </span>
+                  <span className="font-mono font-bold text-success">−{money(num(sale.discountAmount))}</span>
+                </div>
+              </div>
+            )}
             <div className="mt-2 flex items-baseline justify-between border-t-2 border-foreground pt-2.5">
               <span className="text-[13px] font-bold text-muted-foreground">{t("total")}</span>
               <span className="font-mono text-[18px] font-extrabold">{money(sale.total)} {t("soum")}</span>

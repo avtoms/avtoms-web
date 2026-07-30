@@ -434,9 +434,12 @@ export const api = {
   listSales: (shopId: string, from?: string, to?: string) =>
     call<{ sales?: Sale[] }>("GET", "/v1/sales" + qs({ shopId, from, to })).then((r) => r.sales ?? []),
   getSale: (id: string) => call<Sale>("GET", `/v1/sales/${id}`),
+  // discountValue is tiyin when the kind is fixed and basis points when percent (100 = 1%),
+  // matching the whole-order discount. The gateway decides whether the shop's cap applies.
   createSale: (s: {
     items: { variantId: string; quantity: number; unitPrice: number }[];
     method: PaymentMethod; cardId?: string; cardNumber?: string; note?: string;
+    discountKind?: "fixed" | "percent"; discountValue?: number;
   }) =>
     call<Sale>("POST", "/v1/sales", {
       items: s.items.map((it) => ({ variantId: it.variantId, quantity: it.quantity, unitPrice: String(it.unitPrice) })),
@@ -444,6 +447,9 @@ export const api = {
       cardId: s.cardId ?? "",
       cardNumber: s.cardNumber ?? "",
       note: s.note ?? "",
+      discountKind: s.discountKind === "fixed" ? "DISCOUNT_KIND_FIXED"
+        : s.discountKind === "percent" ? "DISCOUNT_KIND_PERCENT" : "DISCOUNT_KIND_UNSPECIFIED",
+      discountValue: String(s.discountValue ?? 0),
     }),
   voidSale: (id: string) => call<Sale>("POST", `/v1/sales/${id}/void`),
 
