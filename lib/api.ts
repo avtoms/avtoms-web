@@ -386,6 +386,10 @@ export const api = {
     call<{ token: string; workOrderId: string; botUsername: string; deepLink: string }>("POST", `/v1/work-orders/${woId}/approval`),
   createWorkOrder: (shopId: string, vehicleId: string) =>
     call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId }),
+  // The note is internal to the shop: it is not printed on the customer's check or sent
+  // with their copy. An empty string clears it.
+  setNotes: (woId: string, notes: string) =>
+    call<WorkOrder>("POST", `/v1/work-orders/${woId}/notes`, { notes }),
   addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number }) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items`, {
       lineItem: {

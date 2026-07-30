@@ -717,6 +717,18 @@ export const STR: Record<string, Triple> = {
     "Необязательно. Если выбрать, чек уйдёт клиенту в Telegram.",
   ],
   walk_in_customer: ["Oddiy xaridor", "Оддий харидор", "Обычный покупатель"],
+
+  // ── the order's note ──
+  note_placeholder: [
+    "Mijoz nima so'radi, nimaga e'tibor berish kerak…",
+    "Мижоз нима сўради, нимага эътибор бериш керак…",
+    "Что просил клиент, на что обратить внимание…",
+  ],
+  note_internal_hint: [
+    "Faqat ichki foydalanish uchun — chekda ko'rinmaydi",
+    "Фақат ички фойдаланиш учун — чекда кўринмайди",
+    "Только для внутреннего пользования — в чеке не показывается",
+  ],
 };
 
 export function translate(lang: Lang, key: string): string {

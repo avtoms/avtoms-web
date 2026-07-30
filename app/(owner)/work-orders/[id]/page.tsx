@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
 import { Button } from "@/components/ui-kit/button";
 import { UserAvatar } from "@/components/ui-kit/avatar";
+import { Textarea } from "@/components/ui-kit/textarea";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
@@ -298,12 +299,7 @@ export default function WorkOrderDetailPage() {
             </div>
           </Card>
 
-          {wo.notes && (
-            <Card className="p-4">
-              <SecTitle>{t("notes")}</SecTitle>
-              <div className="whitespace-pre-wrap text-[14px] text-ink-2">{wo.notes}</div>
-            </Card>
-          )}
+          <NotesCard wo={wo} onSaved={setWo} />
         </div>
 
         {/* side column */}
@@ -805,6 +801,75 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
 }
 
 /* ── assign mechanic ── */
+// NotesCard is the order's free-text note: what the customer asked for, what to watch for
+// next time, who collected it. Internal to the shop — it is not printed on the customer's
+// check or sent with their copy — and editable at any point in the order's life, because
+// the useful moment to write one is often after the work is finished.
+function NotesCard({ wo, onSaved }: { wo: WorkOrder; onSaved: (w: WorkOrder) => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(wo.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  // Re-sync when the order reloads under us, but never while the user is mid-edit —
+  // a background refresh must not eat what they are typing.
+  useEffect(() => { if (!editing) setDraft(wo.notes ?? ""); }, [wo.notes, editing]);
+
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      onSaved(await api.setNotes(wo.id, draft.trim()));
+      setEditing(false);
+      toast(t("save"), { icon: "check" });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const has = (wo.notes ?? "").trim().length > 0;
+  if (!editing && !has) {
+    return (
+      <Card className="p-4">
+        <button onClick={() => { setDraft(""); setEditing(true); }}
+          className="flex w-full items-center gap-2 text-left text-[13.5px] font-semibold text-muted-foreground hover:text-foreground">
+          <Plus className="size-4" /> {t("add_note")}
+        </button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <SecTitle>{t("notes")}</SecTitle>
+        {!editing && (
+          <button onClick={() => setEditing(true)}
+            className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">{t("edit")}</button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex flex-col gap-2.5">
+          <Textarea value={draft} rows={4} maxLength={4000} autoFocus
+            placeholder={t("note_placeholder")}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.target.value)} />
+          <div className="flex items-center gap-2">
+            <Button disabled={saving} onClick={save}>{saving ? <Spinner /> : t("save")}</Button>
+            <Button variant="secondary" disabled={saving}
+              onClick={() => { setDraft(wo.notes ?? ""); setEditing(false); }}>{t("cancel")}</Button>
+            <span className="ml-auto text-[12px] text-muted-foreground">{t("note_internal_hint")}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="whitespace-pre-wrap text-[14px] text-ink-2">{wo.notes}</div>
+      )}
+    </Card>
+  );
+}
+
 function AssignModal({ open, onClose, mechanics, current, onPick }: { open: boolean; onClose: () => void; mechanics: Staff[]; current?: string; onPick: (id: string) => void }) {
   const { t } = useLang();
   return (
