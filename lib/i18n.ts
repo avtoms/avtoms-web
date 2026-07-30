@@ -648,6 +648,8 @@ export const STR: Record<string, Triple> = {
   search: ["Qidirish", "Қидириш", "Поиск"],
   show_all: ["Hammasini ko'rsatish", "Ҳаммасини кўрсатиш", "Показать все"],
   clear: ["Tozalash", "Тозалаш", "Очистить"],
+  select_all: ["Barchasini tanlash", "Барчасини танлаш", "Выбрать все"],
+  other_group: ["Boshqa", "Бошқа", "Прочее"],
   view_all: ["Hammasini ko'rish", "Ҳаммасини кўриш", "Показать все"],
   empty: ["Ma'lumot yo'q", "Маълумот йўқ", "Нет данных"],
   loading: ["Yuklanmoqda…", "Юкланмоқда…", "Загрузка…"],

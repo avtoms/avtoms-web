@@ -5,7 +5,7 @@
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Trash2, Wand2 } from "lucide-react";
+import { ChevronRight, Plus, Search, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
@@ -20,6 +20,7 @@ import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
 import { pickLangText } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm, Contragent } from "@/lib/types";
 
 // TermSelect is a dropdown over an admin-managed term list (brand/category). It
@@ -344,6 +345,16 @@ export function ProductForm({
       return { ...p, chosen: has ? p.chosen.filter((v) => v !== value) : [...p.chosen, value] };
     }));
 
+  // Turning a whole group on or off at once. Done as a set so a repeated tap cannot duplicate
+  // a value in `chosen`.
+  const setChosenMany = (key: string, vals: string[], on: boolean) =>
+    setProps((prev) => prev.map((p) => {
+      if (p.key !== key) return p;
+      const next = new Set(p.chosen);
+      for (const v of vals) { if (on) next.add(v); else next.delete(v); }
+      return { ...p, chosen: [...next] };
+    }));
+
   // Regenerate the variant grid from current property combinations, preserving
   // data already entered for combinations that still exist.
   const generate = () => setVars((prev) => regen(props, prev));
@@ -478,6 +489,7 @@ export function ProductForm({
                     color={p.kind === "color"}
                     label={valLabel}
                     onToggle={(value) => toggleChosen(p.key, value)}
+                    onSetMany={(vals, on) => setChosenMany(p.key, vals, on)}
                     onClear={() => setProp(p.key, { chosen: [] })}
                   />
                 ) : (
@@ -586,19 +598,48 @@ export function ProductForm({
 // must not disappear behind a search term.
 const VALUE_SEARCH_FROM = 12;   // below this a plain wrap of chips is easier than a search box
 const VALUE_PREVIEW = 24;       // unsearched, unexpanded: enough to browse, not enough to bury
+const VALUE_GROUP_FROM = 24;    // below this, group headers cost more chrome than they save
+const OTHER_GROUP = " ";   // values with no leading word share one trailing group
 
-function ValuePicker({ values, chosen, color, label, onToggle, onClear }: {
+// The leading word of a value is its family: "Chevrolet Cobalt", "Chevrolet Lacetti" and
+// "Chevrolet Spark" are all Chevrolets. Taken from the DISPLAYED label so the heading is in the
+// same language as the values under it.
+//
+// A make written as two words ("Land Rover Defender") groups under the first only. The group
+// still gathers exactly the right values — only its heading is short — which is a fair price
+// for needing no schema, no data entry and no migration.
+const groupKeyOf = (s: string) => {
+  const trimmed = s.trim();
+  const i = trimmed.indexOf(" ");
+  return i > 0 ? trimmed.slice(0, i) : "";
+};
+
+type ValueGroup = { key: string; title: string; items: PropertyDefinitionValue[] };
+
+// Inside its own group a value drops the leading word the heading already carries.
+const stripGroup = (label: string, key: string) =>
+  key !== OTHER_GROUP && label.startsWith(key + " ") ? label.slice(key.length + 1) : label;
+
+function ValuePicker({ values, chosen, color, label, onToggle, onSetMany, onClear }: {
   values: PropertyDefinitionValue[];
   chosen: string[];
   color: boolean;
   label: (v: PropertyDefinitionValue) => string;
   onToggle: (value: string) => void;
+  onSetMany: (values: string[], on: boolean) => void;
   onClear: () => void;
 }) {
   const { t } = useLang();
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
+  // Which groups the reader has opened or closed by hand; anything absent falls back to the
+  // default (open when it holds a selection, or when a search matched inside it).
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const searchable = values.length >= VALUE_SEARCH_FROM;
+  const searching = query.trim().length > 0;
+
+  // A new search re-opens by relevance rather than inheriting what was open for the last one.
+  useEffect(() => { setOpenMap({}); }, [query]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -606,9 +647,33 @@ function ValuePicker({ values, chosen, color, label, onToggle, onClear }: {
     return values.filter((v) => (label(v) + " " + v.value).toLowerCase().includes(q));
   }, [values, query, label]);
 
+  // Grouping earns its keep only when it actually shortens the list. Values that share no
+  // leading word would become one group each, which is the wall of chips again with extra
+  // furniture, so that case falls back to the flat list.
+  const groups = useMemo<ValueGroup[] | null>(() => {
+    if (values.length < VALUE_GROUP_FROM) return null;
+    const byKey = new Map<string, ValueGroup>();
+    for (const v of values) {
+      const key = groupKeyOf(label(v)) || OTHER_GROUP;
+      const g = byKey.get(key);
+      if (g) g.items.push(v);
+      else byKey.set(key, { key, title: key === OTHER_GROUP ? t("other_group") : key, items: [v] });
+    }
+    const out = [...byKey.values()].sort((a, b) =>
+      // "Boshqa" last; everything else alphabetical, because a list you scan should be where
+      // you expect it rather than shuffling as you pick.
+      a.key === OTHER_GROUP ? 1 : b.key === OTHER_GROUP ? -1 : a.title.localeCompare(b.title));
+    if (out.length < 2 || out.length > values.length * 0.6) return null;
+    return out;
+  }, [values, label, t]);
+
   // Chosen values first, so a pick never scrolls out of sight, then the rest.
   const on = useMemo(() => matches.filter((v) => chosen.includes(v.value)), [matches, chosen]);
   const off = useMemo(() => matches.filter((v) => !chosen.includes(v.value)), [matches, chosen]);
+
+  // Group membership is decided per value, so the search result needs to be a set the group
+  // rows can test against rather than a list to scan per chip.
+  const matchSet = useMemo(() => new Set(matches.map((v) => v.value)), [matches]);
 
   // The cap trims the unchosen tail only. Everything picked stays on screen however many there
   // are — hiding a choice behind "show all" is how you lose track of what you selected.
@@ -634,29 +699,84 @@ function ValuePicker({ values, chosen, color, label, onToggle, onClear }: {
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {groups ? (
+        <div className="flex flex-col gap-1.5">
+          {groups.map((g) => {
+            const visible = searching ? g.items.filter((v) => matchSet.has(v.value)) : g.items;
+            if (visible.length === 0) return null;
+            const picked = g.items.filter((v) => chosen.includes(v.value)).length;
+            // Open by default when it holds a pick — a selection must never be invisible —
+            // or when a search found something inside it.
+            const isOpen = openMap[g.key] ?? (searching || picked > 0);
+            const allOn = picked === g.items.length;
+            return (
+              <div key={g.key} className="overflow-hidden rounded-[9px] border border-border/70">
+                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                  <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 bg-transparent text-left"
+                    onClick={() => setOpenMap((m) => ({ ...m, [g.key]: !isOpen }))}>
+                    <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+                    <span className="truncate text-[12.5px] font-bold text-foreground">{g.title}</span>
+                    {/* When the whole group is picked, "12 · 12 ✓" says the same thing twice. */}
+                    {!allOn && (
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {searching ? `${visible.length}/${g.items.length}` : g.items.length}
+                      </span>
+                    )}
+                    {picked > 0 && <span className="shrink-0 text-[11px] font-semibold text-primary-emphasis">{picked} ✓</span>}
+                  </button>
+                  {/* A part that fits a whole make is one tap, not nine. */}
+                  <button type="button"
+                    onClick={() => onSetMany(g.items.map((v) => v.value), !allOn)}
+                    className="shrink-0 bg-transparent text-[11px] font-semibold text-muted-foreground hover:text-primary">
+                    {allOn ? t("clear") : t("all")}
+                  </button>
+                </div>
+                {isOpen && (
+                  <div className="flex flex-wrap gap-1.5 px-2.5 pb-2.5">
+                    {/* The make is already the heading, so the chips under it drop it:
+                        "BYD Han" reads as "Han" inside BYD. Only the display is trimmed —
+                        the value stored on the variant is untouched. */}
+                    {visible.map((v) => (
+                      <ValueChip key={v.value} v={v} on={chosen.includes(v.value)} color={color}
+                        label={(x) => stripGroup(label(x), g.key)} onToggle={onToggle} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {matches.length === 0 && <span className="py-1 text-[12px] text-muted-foreground">{t("empty")}</span>}
+        </div>
+      ) : shown.length === 0 ? (
         <span className="py-1 text-[12px] text-muted-foreground">{t("empty")}</span>
       ) : (
         <div className="flex flex-wrap gap-1.5">
-          {shown.map((v) => {
-            const on = chosen.includes(v.value);
-            return (
-              <button key={v.value} type="button" onClick={() => onToggle(v.value)}
-                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
-                {color && <span className="size-3.5 rounded-full border border-black/10" style={{ background: v.colorHex || "#888" }} />}
-                {label(v)}
-              </button>
-            );
-          })}
+          {shown.map((v) => <ValueChip key={v.value} v={v} on={chosen.includes(v.value)} color={color} label={label} onToggle={onToggle} />)}
         </div>
       )}
 
-      {hidden > 0 && (
+      {!groups && hidden > 0 && (
         <button type="button" onClick={() => setExpanded(true)}
           className="self-start text-[11.5px] font-semibold text-primary hover:underline">
           {t("show_all")} (+{hidden})
         </button>
       )}
     </div>
+  );
+}
+
+function ValueChip({ v, on, color, label, onToggle }: {
+  v: PropertyDefinitionValue;
+  on: boolean;
+  color: boolean;
+  label: (v: PropertyDefinitionValue) => string;
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <button type="button" onClick={() => onToggle(v.value)}
+      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] transition-colors ${on ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground hover:bg-secondary"}`}>
+      {color && <span className="size-3.5 rounded-full border border-black/10" style={{ background: v.colorHex || "#888" }} />}
+      {label(v)}
+    </button>
   );
 }
