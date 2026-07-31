@@ -56,6 +56,7 @@ function flattenVariants(products: Product[]): PickVariant[] {
   return out;
 }
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { SuggestInput } from "@/components/suggest-input";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { FiscalCheck } from "@/components/fiscal-check";
@@ -732,7 +733,11 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                   <TabsList className="w-full">{LINE_ITEM_KINDS.map((k) => <TabsTrigger key={k} value={k} className="flex-1">{t(k)}</TabsTrigger>)}</TabsList>
                 </Tabs>
               )}
-              <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
+              {/* A custom line is usually a job the shop does often but never put on the menu.
+                  Offering the menu here means it is at least written the same way each time. */}
+              <Field label={t("description")}>
+                <SuggestInput value={desc} options={menu.map((m) => menuName(m, lang))} onChange={setDesc} placeholder={t("description")} />
+              </Field>
               <div className="grid grid-cols-[1fr_76px] gap-2.5">
                 <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
                 {/* Services are billed in whole units; a separately-added material may be

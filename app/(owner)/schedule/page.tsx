@@ -10,6 +10,8 @@ import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { SearchSelect } from "@/components/ui-kit/search-select";
+import { SuggestInput } from "@/components/suggest-input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -49,6 +51,9 @@ export default function SchedulePage() {
   useEffect(() => { api.listStaff(shopId).then((s) => setMechanics(s.filter((x) => x.role === "ROLE_MECHANIC" && x.active))).catch(() => {}); }, [shopId]);
 
   const mechName = (id?: string) => mechanics.find((m) => m.id === id)?.name;
+
+  // The jobs this shop actually books, offered when writing the next appointment.
+  const titles = useMemo(() => list.flatMap((a) => (a.title ? [a.title] : [])), [list]);
 
   const setState = async (a: Appointment, state: "done" | "canceled") => {
     if (busy) return; setBusy(true);
@@ -104,7 +109,7 @@ export default function SchedulePage() {
           </div>
         ))
       )}
-      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} mechanics={mechanics} onCreated={load} />
+      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} mechanics={mechanics} titles={titles} onCreated={load} />
     </div>
   );
 }
@@ -115,7 +120,7 @@ function defaultWhen(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boolean; onClose: () => void; shopId: string; mechanics: Staff[]; onCreated: () => void }) {
+function AddModal({ open, onClose, shopId, mechanics, titles, onCreated }: { open: boolean; onClose: () => void; shopId: string; mechanics: Staff[]; titles: string[]; onCreated: () => void }) {
   const { t, lang } = useLang();
   const { toast } = useToast();
   const [f, setF] = useState({ title: "", customerId: "", customer: "", phone: "", vehicleId: "", plate: "", when: defaultWhen(), duration: "60", mechanicId: "", notes: "" });
@@ -175,29 +180,34 @@ function AddModal({ open, onClose, shopId, mechanics, onCreated }: { open: boole
       <DialogContent className="max-w-[480px]">
         <DialogHeader><DialogTitle>{t("add_appointment")}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-3 py-1">
-          <Field label={t("description")}><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("service")} /></Field>
+          <Field label={t("description")}>
+            <SuggestInput value={f.title} options={titles} onChange={(v) => setF({ ...f, title: v })} placeholder={t("service")} />
+          </Field>
           <div className="grid grid-cols-[1fr_90px] gap-2.5">
             <Field label={t("appt_when")}><Input type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} /></Field>
             <Field label={t("duration_min")}><Input value={f.duration} onChange={(e) => setF({ ...f, duration: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
           </div>
           <Field label={t("nav_customers")}>
-            <Select value={f.customerId || NONE} onValueChange={(v) => pickCustomer(v === NONE ? "" : v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t("appt_new_client")}</SelectItem>
-                {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              value={f.customerId}
+              onChange={pickCustomer}
+              options={customers.map((c) => ({ value: c.id, label: c.name + (c.phone ? " · " + c.phone : "") }))}
+              placeholder={t("appt_new_client")}
+              clearLabel={t("appt_new_client")}
+              searchPlaceholder={t("search") + "…"}
+              emptyLabel={t("empty")}
+            />
           </Field>
           {f.customerId && vehicles.length > 0 && (
             <Field label={t("vehicle")}>
-              <Select value={f.vehicleId || NONE} onValueChange={(v) => pickVehicle(v === NONE ? "" : v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                value={f.vehicleId}
+                onChange={pickVehicle}
+                options={vehicles.map((v) => ({ value: v.id, label: [v.make, v.model].filter(Boolean).join(" ") + " · " + v.plate }))}
+                placeholder="—"
+                searchPlaceholder={t("search") + "…"}
+                emptyLabel={t("empty")}
+              />
             </Field>
           )}
           <div className="grid grid-cols-2 gap-2.5">

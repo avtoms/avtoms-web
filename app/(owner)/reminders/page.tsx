@@ -11,7 +11,8 @@ import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Separator, Spinner } from "@/components/ui-kit/misc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { SearchSelect } from "@/components/ui-kit/search-select";
+import { SuggestInput } from "@/components/suggest-input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -20,9 +21,6 @@ import { reminderStateFromProto, reminderStateToProto } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
 import type { ServiceReminder, Customer, Vehicle } from "@/lib/types";
 
-// Radix Select forbids an empty-string item value, so "" (unset / reset) is represented by
-// this sentinel in the Select only and mapped back to "" at the state boundary.
-const NONE = "__none";
 const dateStr = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "");
 const isRecurring = (m: ServiceReminder) => !!(m.repeatMonths || m.repeatKm);
 
@@ -45,6 +43,10 @@ export default function RemindersPage() {
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // What this shop actually calls its recurring jobs, newest first — the vocabulary offered
+  // when writing the next one.
+  const titles = useMemo(() => list.map((m) => m.title).filter(Boolean), [list]);
 
   const setState = async (m: ServiceReminder, state: "done" | "dismissed") => {
     if (busy) return; setBusy(true);
@@ -125,12 +127,12 @@ export default function RemindersPage() {
           {section("reminders_done", done, "neutral", true)}
         </>
       )}
-      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onCreated={load} />
+      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} titles={titles} onCreated={load} />
     </div>
   );
 }
 
-function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose: () => void; shopId: string; onCreated: () => void }) {
+function AddModal({ open, onClose, shopId, titles, onCreated }: { open: boolean; onClose: () => void; shopId: string; titles: string[]; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
   const [f, setF] = useState({ title: "", customerId: "", customerName: "", phone: "", vehicleId: "", plate: "", due: "", mileage: "", repeat: false, repMonths: "", repKm: "" });
@@ -184,25 +186,31 @@ function AddModal({ open, onClose, shopId, onCreated }: { open: boolean; onClose
       <DialogContent className="max-w-[480px]">
         <DialogHeader><DialogTitle>{t("add_reminder")}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-3 py-1">
-          <Field label={t("reminder_title")}><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("reminder_title")} /></Field>
+          {/* The same handful of services come round again and again — offer them rather than
+              have them spelled a new way each time. */}
+          <Field label={t("reminder_title")}>
+            <SuggestInput value={f.title} options={titles} onChange={(v) => setF({ ...f, title: v })} placeholder={t("reminder_title")} />
+          </Field>
           <Field label={t("nav_customers")}>
-            <Select value={f.customerId || NONE} onValueChange={(v) => pickCustomer(v === NONE ? "" : v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>—</SelectItem>
-                {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}{c.phone ? " · " + c.phone : ""}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              value={f.customerId}
+              onChange={pickCustomer}
+              options={customers.map((c) => ({ value: c.id, label: c.name + (c.phone ? " · " + c.phone : "") }))}
+              placeholder="—"
+              searchPlaceholder={t("search") + "…"}
+              emptyLabel={t("empty")}
+            />
           </Field>
           {f.customerId && (
             <Field label={t("vehicle")}>
-              <Select value={f.vehicleId || NONE} onValueChange={(v) => pickVehicle(v === NONE ? "" : v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{[v.make, v.model].filter(Boolean).join(" ")} · {v.plate}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                value={f.vehicleId}
+                onChange={pickVehicle}
+                options={vehicles.map((v) => ({ value: v.id, label: [v.make, v.model].filter(Boolean).join(" ") + " · " + v.plate }))}
+                placeholder="—"
+                searchPlaceholder={t("search") + "…"}
+                emptyLabel={t("empty")}
+              />
             </Field>
           )}
           {f.plate && <span className="inline-block"><PlatePreview plate={f.plate} size="sm" /></span>}

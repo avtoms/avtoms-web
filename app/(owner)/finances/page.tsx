@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
+import { SuggestInput } from "@/components/suggest-input";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { PeriodPicker, usePeriod, monthRange, lastNMonths } from "../_period";
 import { api, ApiError } from "@/lib/api";
@@ -61,6 +62,8 @@ export default function FinancesPage() {
     for (const e of expenses) if (e.category) set.add(e.category);
     return Array.from(set);
   }, [expenses]);
+  // Who this shop has paid before, most recent first — the expense list already arrives that way.
+  const payees = useMemo(() => expenses.flatMap((e) => (e.payee ? [e.payee] : [])), [expenses]);
 
   useEffect(() => {
     // Everyone, including people who have left: the salary picker below filters to active
@@ -184,7 +187,7 @@ export default function FinancesPage() {
               </Card>}
           </div>
         </>}
-      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} onCreated={reload} />
+      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} payees={payees} onCreated={reload} />
       <ExpenseDetailModal expense={detail} receiver={staffName(detail?.staffId) || detail?.payee || ""} paidByName={staffName(detail?.paidBy)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
       <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={range.from} to={range.to} title={t("income_title")} />
     </div>
@@ -305,7 +308,7 @@ function PLRow({ label, value, pct, strong, tone, muted, onClick }: { label: str
 
 const CUSTOM = "__custom__";
 
-function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open: boolean; onClose: () => void; shopId: string; staff: Staff[]; knownCats: string[]; onCreated: () => void }) {
+function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }: { open: boolean; onClose: () => void; shopId: string; staff: Staff[]; knownCats: string[]; payees: string[]; onCreated: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -365,7 +368,9 @@ function AddModal({ open, onClose, shopId, staff, knownCats, onCreated }: { open
             </Field>
           ) : (
             <Field label={t("receiver")}>
-              <Input value={f.payee} onChange={(e) => setF({ ...f, payee: e.target.value })} placeholder={t("receiver_ph")} />
+              {/* The same landlord, the same parts supplier, month after month. Typed afresh
+                  every time they become several spellings of one payee in the breakdown. */}
+              <SuggestInput value={f.payee} options={payees} onChange={(v) => setF({ ...f, payee: v })} placeholder={t("receiver_ph")} />
             </Field>
           )}
           <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
