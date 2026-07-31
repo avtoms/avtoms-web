@@ -53,7 +53,10 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
     <div className="flex flex-col gap-3">
       {showTotal && grand > 0 && (
         <div className="flex items-baseline justify-between rounded-[12px] bg-secondary/60 px-4 py-3">
-          <span className="text-[13px] font-semibold text-muted-foreground">{t("total_income")}</span>
+          <div className="min-w-0">
+            <span className="text-[13px] font-semibold text-muted-foreground">{t("total_income")}</span>
+            <p className="text-[11px] text-muted-foreground">{t("collected_note")}</p>
+          </div>
           <span className="font-mono text-[18px] font-extrabold text-foreground">{money(grand)}</span>
         </div>
       )}
@@ -62,6 +65,10 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
           of it was orders and 3m was the counter" is the one that tells you what the shop is
           actually doing, and it was only ever visible as a footnote on the statistics page. */}
       <IncomeSourcePanel shopId={shopId} from={from} to={to} />
+
+      <div className="mt-1 px-0.5 text-[12px] font-bold uppercase tracking-[0.04em] text-muted-foreground">
+        {t("income_by_method")}
+      </div>
 
       {loading && <div className="flex justify-center py-6"><Spinner className="size-6" /></div>}
       {empty && <div className="py-6 text-center text-[13px] text-muted-foreground">{t("no_income")}</div>}
@@ -153,7 +160,13 @@ export function IncomeSourcePanel({ shopId, from, to }: { shopId: string; from?:
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="px-0.5 text-[12px] font-bold uppercase tracking-[0.04em] text-muted-foreground">{t("income_by_source")}</span>
+      <div className="flex items-baseline justify-between gap-3 px-0.5">
+        <span className="text-[12px] font-bold uppercase tracking-[0.04em] text-muted-foreground">{t("income_by_source")}</span>
+        {/* Its own total. Without one this section sat under the payment-method total and
+            looked like it contradicted it — the two count different things. */}
+        <span className="font-mono text-[14px] font-extrabold text-foreground">{money(total)}</span>
+      </div>
+      <p className="px-0.5 pb-0.5 text-[11px] leading-snug text-muted-foreground">{t("billed_note")}</p>
       <MethodBlock icon={<Wrench className="size-4" />} label={t("from_orders")} amount={st.orders}
         count={st.orderCount} share={total} tCount={t("orders_n")} />
       <MethodBlock icon={<ShoppingCart className="size-4" />} label={t("from_sales")} amount={st.sales}

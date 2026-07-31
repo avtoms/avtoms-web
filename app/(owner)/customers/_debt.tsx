@@ -38,10 +38,13 @@ export function DebtLine({ balance, className }: { balance: number; className?: 
   const { t } = useLang();
   if (balance === 0) return <span className={cn("text-[13px] text-muted-foreground", className)}>—</span>;
   const owes = balance > 0;
+  // A client in credit is shown, but quietly. It is money the shop is holding for someone,
+  // and nine times in ten it is a repayment typed larger than the debt — so it must read as
+  // something to look at, not as a success. Green here would say "settled, well done".
   return (
     <span className={cn("inline-flex items-baseline gap-1.5", className)}>
-      <span className={cn("font-mono text-[14px] font-extrabold", owes ? "text-destructive" : "text-success")}>
-        {money(Math.abs(balance))}
+      <span className={cn("font-mono text-[14px] font-extrabold", owes ? "text-destructive" : "text-ink-2")}>
+        {owes ? "" : "−"}{money(Math.abs(balance))}
       </span>
       {!owes && <span className="text-[11.5px] font-semibold text-muted-foreground">{t("cl_in_credit")}</span>}
     </span>
@@ -86,6 +89,9 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
   }, [id, load]);
 
   const balance = num(summary?.balance);
+  const taking = kind === "CUSTOMER_ENTRY_KIND_PAYMENT_IN";
+  // How much of the typed amount is more than the client actually owes.
+  const over = taking ? Math.max(0, (parseInt(amount, 10) || 0) - Math.max(0, balance)) : 0;
 
   const record = async () => {
     const a = parseInt(amount, 10) || 0;
@@ -150,11 +156,19 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                 <Field label={t("amount")}>
                   <MoneyInput value={amount} onChange={setAmount} />
                   {/* One tap to settle up, which is the usual case and the easiest to mistype. */}
-                  {kind === "CUSTOMER_ENTRY_KIND_PAYMENT_IN" && balance > 0 && (
+                  {taking && balance > 0 && (
                     <button type="button" onClick={() => setAmount(String(balance))}
                       className="mt-1 text-[11.5px] font-semibold text-primary-emphasis hover:underline">
                       {t("cl_pay_full")} · {money(balance)}
                     </button>
+                  )}
+                  {/* Taking more than is owed is allowed — a deposit is a real thing — but it
+                      must never be silent. Before this, the extra simply turned the client's
+                      balance negative and the list showed it in green. */}
+                  {taking && over > 0 && (
+                    <p className="mt-1.5 text-[11.5px] font-semibold leading-snug text-warning">
+                      {balance > 0 ? t("cl_over_debt") : t("cl_no_debt_yet")} · {t("cl_will_be_credit")} {money(over)}
+                    </p>
                   )}
                 </Field>
                 <Field label={t("payment_method")}>

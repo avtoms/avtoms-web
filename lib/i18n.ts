@@ -489,6 +489,13 @@ export const STR: Record<string, Triple> = {
   cl_take_payment: ["Qarzni yopish", "Қарзни ёпиш", "Погасить долг"],
   cl_add_charge: ["Eski qarzni kiritish", "Эски қарзни киритиш", "Внести старый долг"],
   cl_pay_full: ["Hammasini", "Ҳаммасини", "Всю сумму"],
+  cl_over_debt: ["Qarzdan ko'p", "Қарздан кўп", "Больше долга"],
+  cl_no_debt_yet: ["Bu mijozda qarz yo'q", "Бу мижозда қарз йўқ", "У этого клиента нет долга"],
+  cl_will_be_credit: [
+    "ortiqcha summa oldindan to'lov bo'lib qoladi:",
+    "ортиқча сумма олдиндан тўлов бўлиб қолади:",
+    "лишняя сумма останется предоплатой:",
+  ],
   cl_from_sale: ["sotuvdan", "сотувдан", "из продажи"],
   cl_from_order: ["buyurtmadan", "буюртмадан", "из заказа"],
   cl_locked_entry: [
@@ -503,6 +510,18 @@ export const STR: Record<string, Triple> = {
   ],
   // ── income by source ──
   income_by_source: ["Daromad qayerdan", "Даромад қаердан", "Откуда доход"],
+  // The two totals on this card count different things, and saying so is cheaper than
+  // letting an owner discover the difference and distrust both.
+  billed_note: [
+    "Hisob chiqarilgan va yopilgan ishlar \u2014 to'lov kelgan-kelmaganidan qat'i nazar",
+    "Ҳисоб чиқарилган ва ёпилган ишлар \u2014 тўлов келган-келмаганидан қатъи назар",
+    "Выставлено и закрыто \u2014 независимо от того, поступила оплата или нет",
+  ],
+  collected_note: [
+    "Kassaga tushgani",
+    "Кассага тушгани",
+    "Фактически поступило",
+  ],
   from_orders: ["Buyurtmalardan", "Буюртмалардан", "От заказов"],
   from_sales: ["Sotuvdan", "Сотувдан", "От продаж"],
   on_credit_of_it: ["shundan nasiyaga", "шундан насияга", "из них в долг"],
