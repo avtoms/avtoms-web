@@ -4,7 +4,7 @@
 // every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell, Gauge } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell, Gauge, Split } from "lucide-react";
 import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
 import { Card, CardContent } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -22,7 +22,7 @@ import { ProductPicker, variantLabel } from "@/components/product-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { useStaffNames } from "@/lib/use-staff";
 import { money, num, shortDate, vatBreakdown, orderLabel } from "@/lib/format";
@@ -59,6 +59,7 @@ import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { FiscalCheck } from "@/components/fiscal-check";
+import { SplitPayment } from "@/components/split-payment";
 import { useShopFlow, useShopProfile } from "@/lib/shop";
 import { SecTitle, Row } from "../../_shared";
 
@@ -925,6 +926,7 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
   const [busy, setBusy] = useState(false);
   const [cards, setCards] = useState<import("@/lib/types").ShopCard[]>([]);
   const [cardMode, setCardMode] = useState(false);   // card sub-panel is open
+  const [splitMode, setSplitMode] = useState(false); // several payments on one bill
   const [pickedCard, setPickedCard] = useState("");  // chosen saved-card id
   const [adhoc, setAdhoc] = useState("");            // typed one-off number
 
@@ -963,6 +965,21 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
     finally { setBusy(false); }
   };
 
+  // The same bill, settled several ways at once. Recorded together or not at all, so a
+  // half-applied split can never leave the day's takings wrong.
+  const paySplit = async (parts: PaymentPart[]) => {
+    if (!inv || busy) return;
+    setBusy(true);
+    try {
+      const updated = await api.payInvoice(inv.id, parts);
+      setInv(updated);
+      setSplitMode(false);
+      toast(t("paid"), { icon: "money" });
+      onChange();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    finally { setBusy(false); }
+  };
+
   const payCard = () => {
     const chosen = cards.find((c) => c.id === pickedCard);
     const number = chosen ? chosen.cardNumber : adhoc.trim();
@@ -987,7 +1004,13 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
                   <span className="ml-auto font-mono font-semibold">{inv.cardNumber}</span>
                 </div>
               )}
-              {!inv.paid && !cardMode && (
+              {!inv.paid && splitMode && (
+                <SplitPayment
+                  total={num(inv.total)} cards={cards} busy={busy} allowCredit
+                  onBack={() => setSplitMode(false)} onPay={paySplit}
+                />
+              )}
+              {!inv.paid && !cardMode && !splitMode && (
                 <div>
                   <div className="mb-2 text-[12.5px] font-semibold text-muted-foreground">{t("mark_paid")} · {t("payment_method")}</div>
                   <div className="flex flex-col gap-2.5">
@@ -1003,6 +1026,12 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
                       <HandCoins /> {t("pay_credit")}
                     </Button>
                     <p className="text-[11.5px] leading-snug text-muted-foreground">{t("credit_hint")}</p>
+                    {/* One tap covers the common case above; this is the way out for the
+                        customer who pays some of it now and leaves the rest owing. */}
+                    <button disabled={busy} onClick={() => setSplitMode(true)}
+                      className="mt-0.5 flex items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border py-2 text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
+                      <Split className="size-4" />{t("split_payment")}
+                    </button>
                   </div>
                 </div>
               )}

@@ -78,6 +78,9 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
   const doxod = wo?.totalMargin != null ? num(wo.totalMargin) : netSubtotal - orderDiscount - totalCost;
 
   const payment = paymentFromProto(invoice.paymentMethod);
+  // Every payment against this bill. One method leaves exactly one, which reads the same as
+  // it always did; a split has several.
+  const parts = invoice.payments ?? [];
   const fiscal = fiscalFromProto(invoice.fiscalStatus);
   const created = invoice.createdAt ? new Date(invoice.createdAt).toLocaleString("ru-RU") : "";
   const cashier = session?.staff?.name || "";
@@ -173,8 +176,24 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
             <span className="inv-paid" style={{ background: invoice.paid ? "#dcfce7" : "#fef3c7", color: invoice.paid ? "#166534" : "#92400e" }}>
               {invoice.paid ? t("paid") : t("unpaid")}
             </span>
-            <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>{t("payment_method")}: {t(paymentLabelKey(payment))}</div>
-            {payment === "card" && invoice.cardNumber && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 4 }}>{t("received_on")}: {invoice.cardNumber}</div>}
+            {/* A bill settled two ways names both, with the amounts. "Naqd" alone on a check
+                half of which went on a card is what gets argued about a week later. */}
+            {parts.length > 1 ? (
+              <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>
+                <div>{t("split_paid_as")}:</div>
+                {parts.map((p, i) => (
+                  <div key={p.id || i} className="inv-mono" style={{ fontSize: 12, marginTop: 3 }}>
+                    {t(paymentLabelKey(paymentFromProto(p.method)))} — {money(num(p.amount))}
+                    {p.cardNumber ? ` · ${p.cardNumber}` : ""}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>{t("payment_method")}: {t(paymentLabelKey(payment))}</div>
+                {payment === "card" && invoice.cardNumber && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 4 }}>{t("received_on")}: {invoice.cardNumber}</div>}
+              </>
+            )}
             {invoice.fiscalReceiptId && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 6 }}>OFD: {invoice.fiscalReceiptId}</div>}
             {fiscal === "pending" && <div style={{ fontSize: 11.5, color: "#a1a1aa", marginTop: 6 }}>{t("fiscalizing")}</div>}
             {shop.hours && <div style={{ fontSize: 12, color: "#71717a", marginTop: 8 }}>{shop.hours}</div>}

@@ -18,6 +18,22 @@ import type { WoState, PaymentMethod, LineItemKind, Role } from "./enums";
 const rawBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 export const API_BASE = (rawBase === undefined || rawBase === null ? "http://localhost:8080" : rawBase).replace(/\/$/, "");
 
+// PaymentPart is one part of a split payment. Amounts are tiyin and always positive; the
+// card fields are only meaningful on a card part.
+export interface PaymentPart {
+  amount: number;
+  method: PaymentMethod;
+  cardId?: string;
+  cardNumber?: string;
+}
+
+const partToWire = (p: PaymentPart) => ({
+  amount: String(p.amount),
+  method: paymentToProto(p.method),
+  cardId: p.cardId ?? "",
+  cardNumber: p.cardNumber ?? "",
+});
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -448,6 +464,9 @@ export const api = {
     discountKind?: "fixed" | "percent"; discountValue?: number;
     // Optional: who bought it, so the receipt has somewhere to go. A walk-in omits it.
     customerId?: string;
+    // Optional split — part cash, part card, part nasiya. Sent instead of `method`, which
+    // stays the shape for the ordinary one-method sale.
+    payments?: PaymentPart[];
   }) =>
     call<Sale>("POST", "/v1/sales", {
       items: s.items.map((it) => ({ variantId: it.variantId, quantity: it.quantity, unitPrice: String(it.unitPrice) })),
@@ -455,6 +474,7 @@ export const api = {
       cardId: s.cardId ?? "",
       cardNumber: s.cardNumber ?? "",
       note: s.note ?? "",
+      ...(s.payments?.length ? { payments: s.payments.map(partToWire) } : {}),
       discountKind: s.discountKind === "fixed" ? "DISCOUNT_KIND_FIXED"
         : s.discountKind === "percent" ? "DISCOUNT_KIND_PERCENT" : "DISCOUNT_KIND_UNSPECIFIED",
       discountValue: String(s.discountValue ?? 0),
@@ -691,6 +711,10 @@ export const api = {
       cardId: card?.cardId ?? "",
       cardNumber: card?.cardNumber ?? "",
     }),
+  // Settle a bill with several payments at once. Recorded together or not at all, so a
+  // half-applied split can never leave the day's takings wrong.
+  payInvoice: (id: string, payments: PaymentPart[]) =>
+    call<Invoice>("POST", `/v1/invoices/${id}/pay`, { payments: payments.map(partToWire) }),
 
   // ── shop payment cards (the shop's own receiving cards) ──
   // Degrades to an empty list on a backend that predates shop cards, so the pay flow still

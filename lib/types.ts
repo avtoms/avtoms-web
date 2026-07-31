@@ -439,6 +439,9 @@ export interface Sale {
   cardId?: string;
   cardNumber?: string;
   invoiceId?: string;     // the receipt generated for this sale
+  // How much of this sale was left on the buyer's account. Zero with paymentMethod = CREDIT
+  // means the whole thing was, which is what every sale predating split payments is.
+  creditAmount?: string;
   note?: string;
   voided?: boolean;
   voidedAt?: string;
@@ -645,10 +648,29 @@ export interface Invoice {
   fiscalQr?: string;
   fiscalReceiptId?: string;
   paid?: boolean;
+  // paymentMethod and card* describe the FIRST payment. Where the real question is "how was
+  // this paid", read payments — a bill settled part in cash and part on a card has two.
   paymentMethod?: string;
   cardId?: string;
   cardNumber?: string;
+  payments?: InvoicePayment[];
+  // Sum of the payments. paid is paidAmount >= total, so a part-settled bill has a positive
+  // paidAmount and paid = false — which is how a deposit shows.
+  paidAmount?: string;
   createdAt?: string;
+}
+
+// One part of settling a bill: an amount, how it arrived, and — for a card — which card.
+export interface InvoicePayment {
+  id: string;
+  invoiceId?: string;
+  amount: string;
+  method?: string;
+  cardId?: string;
+  cardNumber?: string;
+  cardLabel?: string;
+  staffId?: string;
+  paidAt?: string;
 }
 
 export interface ShopCard {

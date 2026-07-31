@@ -466,6 +466,21 @@ export const STR: Record<string, Triple> = {
   pay_other: ["Boshqa", "Бошқа", "Другое"],
   pay_credit: ["Nasiya", "Насия", "В долг"],
   payment_method: ["To'lov usuli", "Тўлов усули", "Способ оплаты"],
+  // ── one bill, several payments ──
+  split_payment: ["Bo'lib to'lash", "Бўлиб тўлаш", "Оплата частями"],
+  split_hint: [
+    "Bir qismi naqd, bir qismi karta — yoki qolgani nasiyaga.",
+    "Бир қисми нақд, бир қисми карта — ёки қолгани насияга.",
+    "Часть наличными, часть картой — или остаток в долг.",
+  ],
+  split_add_part: ["Yana bir usul", "Яна бир усул", "Ещё способ"],
+  split_rest: ["Qolgani", "Қолгани", "Остаток"],
+  split_over: [
+    "Kiritilgan summalar jamidan oshib ketdi.",
+    "Киритилган суммалар жамидан ошиб кетди.",
+    "Введённые суммы превышают итог.",
+  ],
+  split_paid_as: ["To'lov usullari", "Тўлов усуллари", "Способы оплаты"],
   // ── selling on credit, and client accounts ──
   credit_needs_client: [
     "Nasiyaga sotish uchun mijozni tanlang \u2014 qarz kimningdir nomiga yozilishi kerak.",

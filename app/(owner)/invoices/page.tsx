@@ -3,7 +3,7 @@
 // paid badges, mark-paid, and a fiscal-QR modal. Wired to api.listInvoices / markPaid.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Banknote, Printer, CreditCard, Wallet, Check } from "lucide-react";
+import { Banknote, Printer, CreditCard, Wallet, Check, Split } from "lucide-react";
 import { FiscalBadge, QR, SkeletonRows } from "@/components/ui";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -14,8 +14,9 @@ import { Spinner } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { CarImage } from "@/components/car-image";
+import { SplitPayment } from "@/components/split-payment";
 import { useAuth, useLang, useToast } from "@/components/providers";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { cn } from "@/lib/utils";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
@@ -62,6 +63,16 @@ export default function InvoicesPage() {
   const pay = async (inv: Invoice, method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
     try {
       const updated = await api.markPaid(inv.id, method, card);
+      toast(t("paid"), { icon: "money" });
+      setSel(updated);
+      load();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+  };
+
+  // The same bill, settled several ways at once.
+  const paySplit = async (inv: Invoice, parts: PaymentPart[]) => {
+    try {
+      const updated = await api.payInvoice(inv.id, parts);
       toast(t("paid"), { icon: "money" });
       setSel(updated);
       load();
@@ -150,15 +161,16 @@ export default function InvoicesPage() {
           pageSize={12}
         />
       )}
-      <InvoiceDetailModal invoice={sel} orderNo={orderNoFor(sel)} wo={woFor(sel)} cards={cards} onClose={() => setSel(null)} onPay={pay} />
+      <InvoiceDetailModal invoice={sel} orderNo={orderNoFor(sel)} wo={woFor(sel)} cards={cards} onClose={() => setSel(null)} onPay={pay} onSplit={paySplit} />
     </div>
   );
 }
 
-function InvoiceDetailModal({ invoice, orderNo, wo, cards, onClose, onPay }: { invoice: Invoice | null; orderNo: string; wo?: WorkOrder; cards: ShopCard[]; onClose: () => void; onPay: (inv: Invoice, m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => void }) {
+function InvoiceDetailModal({ invoice, orderNo, wo, cards, onClose, onPay, onSplit }: { invoice: Invoice | null; orderNo: string; wo?: WorkOrder; cards: ShopCard[]; onClose: () => void; onPay: (inv: Invoice, m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => void; onSplit: (inv: Invoice, parts: PaymentPart[]) => void }) {
   const { t } = useLang();
   const { toast } = useToast();
   const [cardMode, setCardMode] = useState(false);
+  const [splitMode, setSplitMode] = useState(false);
   const [pickedCard, setPickedCard] = useState("");
   const [adhoc, setAdhoc] = useState("");
   useEffect(() => { if (!invoice) { setCardMode(false); setPickedCard(""); setAdhoc(""); } }, [invoice]);
@@ -208,7 +220,15 @@ function InvoiceDetailModal({ invoice, orderNo, wo, cards, onClose, onPay }: { i
             </div>
           )}
 
-          {!invoice.paid && !cardMode && (
+          {!invoice.paid && splitMode && (
+            <SplitPayment
+              total={num(invoice.total)} cards={cards} busy={false} allowCredit={false}
+              onBack={() => setSplitMode(false)}
+              onPay={(parts) => { setSplitMode(false); onSplit(invoice, parts); }}
+            />
+          )}
+
+          {!invoice.paid && !cardMode && !splitMode && (
             <div>
               <div className="mb-2 text-[12.5px] font-semibold text-muted-foreground">{t("mark_paid")} · {t("payment_method")}</div>
               <div className="grid grid-cols-3 gap-2.5">
@@ -216,6 +236,13 @@ function InvoiceDetailModal({ invoice, orderNo, wo, cards, onClose, onPay }: { i
                 <Button variant="soft" onClick={() => setCardMode(true)}><CreditCard /> {t("pay_card")}</Button>
                 <Button variant="soft" onClick={() => onPay(invoice, "other")}><Wallet /> {t("pay_other")}</Button>
               </div>
+              {/* Nasiya is deliberately absent here: a debt has to be owed by somebody, and
+                  this screen lists bills without knowing whose car each one is. It is offered
+                  where the owner is known — on the order itself and at the counter. */}
+              <button onClick={() => setSplitMode(true)}
+                className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border py-2 text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
+                <Split className="size-4" />{t("split_payment")}
+              </button>
             </div>
           )}
 

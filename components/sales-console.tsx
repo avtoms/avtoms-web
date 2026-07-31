@@ -12,7 +12,7 @@
 // that permission; this component assumes the caller already has it.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Banknote, Check, CreditCard, HandCoins, Minus, Plus, Printer, Send, Trash2, Undo2, Wallet,
+  Banknote, Check, CreditCard, HandCoins, Minus, Plus, Printer, Send, Split, Trash2, Undo2, Wallet,
 } from "lucide-react";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -25,9 +25,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/
 import { SkeletonRows } from "@/components/ui";
 import { ProductPicker, variantLabel } from "@/components/product-picker";
 import { MoneyInput } from "@/components/catalog-fields";
+import { SplitPayment } from "@/components/split-payment";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
 import { useStaffNames } from "@/lib/use-staff";
@@ -126,7 +127,14 @@ export function SalesConsole() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
 
-  const sell = async (method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }, customerId?: string) => {
+  const sell = async (
+    method: PaymentMethod,
+    card?: { cardId?: string; cardNumber?: string },
+    customerId?: string,
+    // A split sends its parts instead. `method` still arrives — it is the first part — so
+    // everything below that reads a method keeps working.
+    payments?: PaymentPart[],
+  ) => {
     if (!sellable || selling) return;
     setSelling(true);
     try {
@@ -142,6 +150,7 @@ export function SalesConsole() {
         // Percent goes over the wire as basis points, the unit the contract uses.
         discountKind: discount > 0 ? discountKind : undefined,
         discountValue: discountPct ? discountRaw * 100 : discountRaw,
+        payments,
       });
       setLines([]);
       setDiscountValue("");
@@ -149,9 +158,12 @@ export function SalesConsole() {
       toast(`${saleLabel(sale)} · ${money(sale.total)} ${t("soum")}`, { icon: "money" });
       // No money came in, so the "sold!" toast on its own would be misleading. Say where
       // the amount went instead.
-      if (method === "credit") {
+      // Only the part left owing lands on the account, so say the amount rather than letting
+      // the cashier assume the whole basket went on the client's name.
+      const owed = num(sale.creditAmount);
+      if (owed > 0) {
         const who = customers.find((c) => c.id === customerId)?.name;
-        toast(`${t("cl_charge")}${who ? " · " + who : ""}`, { icon: "alert", tone: "accent" });
+        toast(`${t("cl_charge")} · ${money(owed)}${who ? " · " + who : ""}`, { icon: "alert", tone: "accent" });
       }
       // Delivery is best-effort and happens after the sale is committed, so tell the
       // cashier which way it went rather than leaving them to wonder.
@@ -364,12 +376,13 @@ export function SalesConsole() {
 function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustomers }: {
   open: boolean; total: number; cards: ShopCard[]; busy: boolean; shopId: string;
   onClose: () => void;
-  onPay: (m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }, customerId?: string) => void;
+  onPay: (m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }, customerId?: string, payments?: PaymentPart[]) => void;
   onCustomers: (list: Customer[]) => void;
 }) {
   const { t } = useLang();
   const { toast } = useToast();
   const [cardMode, setCardMode] = useState(false);
+  const [splitMode, setSplitMode] = useState(false);
   const [pickedCard, setPickedCard] = useState("");
   const [adhoc, setAdhoc] = useState("");
   // Who to send the check to. Optional throughout: a walk-in leaves it alone and the sale
@@ -378,7 +391,7 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
   const [buyer, setBuyer] = useState<Customer | null>(null);
   const [matches, setMatches] = useState<Customer[]>([]);
   useEffect(() => {
-    if (!open) { setCardMode(false); setPickedCard(""); setAdhoc(""); setBuyer(null); setBuyerQuery(""); setMatches([]); }
+    if (!open) { setCardMode(false); setSplitMode(false); setPickedCard(""); setAdhoc(""); setBuyer(null); setBuyerQuery(""); setMatches([]); }
   }, [open]);
   // Search only once the cashier has typed enough to mean something, and never while a
   // buyer is already chosen.
@@ -454,7 +467,13 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
             )}
           </Field>
 
-          {!cardMode ? (
+          {splitMode ? (
+            <SplitPayment
+              total={total} cards={cards} busy={busy} allowCredit={!!buyer}
+              onBack={() => setSplitMode(false)}
+              onPay={(parts) => onPay(parts[0].method, { cardId: parts[0].cardId, cardNumber: parts[0].cardNumber }, buyer?.id, parts)}
+            />
+          ) : !cardMode ? (
             <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-3 gap-2.5">
                 <Button variant="soft" disabled={busy} onClick={() => onPay("cash", undefined, buyer?.id)}><Banknote />{t("pay_cash")}</Button>
@@ -470,6 +489,12 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
               <p className="text-[11.5px] leading-snug text-muted-foreground">
                 {buyer ? t("credit_hint") : t("credit_needs_client")}
               </p>
+              {/* One tap covers the common case above; this is the way out for the customer
+                  who hands over some cash and puts the rest on a card. */}
+              <button disabled={busy} onClick={() => setSplitMode(true)}
+                className="mt-0.5 flex items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border py-2 text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
+                <Split className="size-4" />{t("split_payment")}
+              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -565,6 +590,17 @@ function SaleDetailDialog({ sale, onClose, onVoid }: { sale: Sale | null; onClos
             <span className="text-muted-foreground">{t(paymentLabelKey(paymentFromProto(sale.paymentMethod)))}</span>
             {sale.cardNumber && <span className="ml-auto font-mono font-semibold">{sale.cardNumber}</span>}
           </div>
+
+          {/* What was left owing, when only part of it was. The row above names the method the
+              money that DID arrive came in by, which on its own would read as if the whole
+              basket had been paid for. */}
+          {num(sale.creditAmount) > 0 && num(sale.creditAmount) < num(sale.total) && (
+            <div className="flex items-center gap-2 rounded-[9px] border border-warning/40 bg-warning-soft px-3 py-2 text-[13px]">
+              <HandCoins className="size-4 text-muted-foreground" />
+              <span className="text-muted-foreground">{t("cl_charge")}</span>
+              <span className="ml-auto font-mono font-bold">{money(num(sale.creditAmount))} {t("soum")}</span>
+            </div>
+          )}
 
           {sale.invoiceId && (
             <Button variant="secondary" onClick={() => window.open(`/print-invoice/${sale.invoiceId}`, "_blank")}>
