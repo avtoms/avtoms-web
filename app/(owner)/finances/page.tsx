@@ -145,7 +145,7 @@ export default function FinancesPage() {
 
           {/* income by payment method (cash / card — which card / other) */}
           <Card className="p-5">
-            <div className="mb-3 text-[15px] font-bold text-foreground">{t("income_by_method")}</div>
+            <div className="mb-3 text-[15px] font-bold text-foreground">{t("income_title")}</div>
             <IncomeBreakdownPanel shopId={shopId} from={range.from} to={range.to} />
           </Card>
 
@@ -186,7 +186,7 @@ export default function FinancesPage() {
         </>}
       <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} onCreated={reload} />
       <ExpenseDetailModal expense={detail} receiver={staffName(detail?.staffId) || detail?.payee || ""} paidByName={staffName(detail?.paidBy)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
-      <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={range.from} to={range.to} title={t("income_by_method")} />
+      <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={range.from} to={range.to} title={t("income_title")} />
     </div>
   );
 }

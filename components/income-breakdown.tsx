@@ -51,23 +51,17 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
 
   return (
     <div className="flex flex-col gap-3">
-      {showTotal && grand > 0 && (
-        <div className="flex items-baseline justify-between rounded-[12px] bg-secondary/60 px-4 py-3">
-          <div className="min-w-0">
-            <span className="text-[13px] font-semibold text-muted-foreground">{t("total_income")}</span>
-            <p className="text-[11px] text-muted-foreground">{t("collected_note")}</p>
-          </div>
-          <span className="font-mono text-[18px] font-extrabold text-foreground">{money(grand)}</span>
-        </div>
-      )}
-
       {/* Where the money came from, before how it arrived. "We took 12m" is one number; "9m
           of it was orders and 3m was the counter" is the one that tells you what the shop is
           actually doing, and it was only ever visible as a footnote on the statistics page. */}
       <IncomeSourcePanel shopId={shopId} from={from} to={to} />
 
-      <div className="mt-1 px-0.5 text-[12px] font-bold uppercase tracking-[0.04em] text-muted-foreground">
-        {t("income_by_method")}
+      <div className="mt-1 flex flex-col gap-0.5">
+        <div className="flex items-baseline justify-between gap-3 px-0.5">
+          <span className="text-[12px] font-bold uppercase tracking-[0.04em] text-muted-foreground">{t("income_by_method")}</span>
+          {showTotal && grand > 0 && <span className="font-mono text-[14px] font-extrabold text-foreground">{money(grand)}</span>}
+        </div>
+        <p className="px-0.5 pb-0.5 text-[11px] leading-snug text-muted-foreground">{t("collected_note")}</p>
       </div>
 
       {loading && <div className="flex justify-center py-6"><Spinner className="size-6" /></div>}

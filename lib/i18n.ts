@@ -601,6 +601,9 @@ export const STR: Record<string, Triple> = {
   sku: ["Artikul", "Артикул", "Артикул"],
   sold_qty: ["Sotilgan", "Сотилган", "Продано"],
   sold_times: ["Marta", "Марта", "Раз"],
+  // The card holds two sections — where the money came from, and how it arrived — so its own
+  // title has to be broader than either, or it repeats one of them.
+  income_title: ["Daromad", "Даромад", "Доход"],
   income_by_method: ["To'lov usuli bo'yicha daromad", "Тўлов усули бўйича даромад", "Доход по способу оплаты"],
   total_income: ["Jami daromad", "Жами даромад", "Общий доход"],
   no_income: ["Bu davr uchun daromad yo'q", "Бу давр учун даромад йўқ", "Нет дохода за период"],

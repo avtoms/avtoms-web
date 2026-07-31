@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
       {/* Today's income by payment method (cash / card — which card / other) */}
       <Card className="p-5">
-        <SecTitle>{t("income_by_method")}</SecTitle>
+        <SecTitle>{t("income_title")}</SecTitle>
         <IncomeBreakdownPanel shopId={shopId} from={today} to={today} />
       </Card>
 
