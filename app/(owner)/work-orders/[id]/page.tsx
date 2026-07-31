@@ -4,7 +4,7 @@
 // every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell, Gauge } from "lucide-react";
 import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
 import { Card, CardContent } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -219,6 +219,10 @@ export default function WorkOrderDetailPage() {
               <div className="mt-1 flex flex-wrap items-center gap-2.5">
                 {wo.plate ? <PlatePreview plate={wo.plate} size="sm" /> : <span className="font-mono text-[12.5px] text-muted-foreground">{wo.vehicleId.slice(0, 8)}</span>}
                 {wo.customerName && <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Users className="size-3.5" />{wo.customerName}</span>}
+                {/* This visit's line in the service book. Here rather than on the new-order
+                    form because that form is for finding the car; this is where the car is
+                    already identified and somebody is standing next to it. */}
+                <OdometerField wo={wo} onSaved={setWo} />
               </div>
             </div>
           </div>
@@ -1171,5 +1175,53 @@ function NextServiceModal({ open, onClose, wo, shopId }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── the reading for this visit ── */
+// Editable for the whole life of the order, and after it: the reliable moment to read a
+// dashboard is whenever the car is actually there, which is rarely when a form is open.
+// Empty says so in words instead of showing 0 km, which would read as a fact about the car.
+function OdometerField({ wo, onSaved }: { wo: WorkOrder; onSaved: (wo: WorkOrder) => void }) {
+  const { t } = useLang();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const odo = num(wo.odometer);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      onSaved(await api.setOdometer(wo.id, parseInt(value, 10) || 0));
+      setEditing(false);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally { setBusy(false); }
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Gauge className="size-3.5 text-muted-foreground" />
+        <Input value={value} inputMode="numeric" autoFocus placeholder="82000"
+          className="h-7 w-[110px] font-mono text-[12.5px]"
+          onChange={(e) => setValue(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") setEditing(false); }} />
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save()}>{busy ? <Spinner /> : <Check />}</Button>
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={() => { setValue(odo > 0 ? String(odo) : ""); setEditing(true); }}
+      className="inline-flex items-center gap-1.5 rounded-[7px] px-1 py-0.5 text-[12.5px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+    >
+      <Gauge className="size-3.5" />
+      {odo > 0
+        ? <span className="font-mono font-semibold text-foreground">{odo.toLocaleString("ru-RU")} km</span>
+        : <span>{t("sb_no_reading")}</span>}
+    </button>
   );
 }

@@ -62,11 +62,14 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
     return () => clearTimeout(h);
   }, [q, mode, shopId, t, toast]);
 
-  const createFor = async (vehicleId: string) => {
+  const createFor = async (vehicleId: string, odometer = 0) => {
     if (busy) return;
     setBusy(true);
     try {
-      const wo = await api.createWorkOrder(shopId, vehicleId, parseInt(odo, 10) || 0);
+      // No odometer here: for a car the shop already knows, the reading is recorded on the
+      // order itself, where the car is identified and somebody can actually see the dash.
+      // Asking for it in the plate search meant asking before the car had been chosen.
+      const wo = await api.createWorkOrder(shopId, vehicleId, odometer);
       toast(t("create_wo") + " · " + orderLabel(wo), { icon: "clipboard" });
       onClose();
       router.push(`${basePath}/${wo.id}`);
@@ -88,7 +91,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
       // Attach the requested recurring service reminders to the new client + vehicle (best-effort;
       // never blocks opening the work order).
       try { await saveReminders(shopId, reminders, { customerName: cust.name, phone: cust.phone, vehicleId: veh.id, plate: veh.plate }); } catch { /* non-fatal */ }
-      await createFor(veh.id);
+      await createFor(veh.id, parseInt(odo, 10) || 0);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
       setBusy(false);
@@ -114,10 +117,6 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input autoFocus value={q} onChange={(e) => setQ(e.target.value.toUpperCase())} placeholder="01 A 777 AB" className="pl-9 font-mono" />
                 </div>
-              </Field>
-              <Field label={t("odometer")} hint={t("odometer_hint")}>
-                <Input value={odo} inputMode="numeric" className="font-mono" placeholder="82000"
-                  onChange={(e) => setOdo(e.target.value.replace(/\D/g, ""))} />
               </Field>
               <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto">
                 {searching && <div className="flex justify-center py-4"><Spinner /></div>}
