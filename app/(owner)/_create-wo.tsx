@@ -49,10 +49,20 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
     if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); setOdo(""); }
   }, [open]);
 
+  // The shop's own cars, loaded once the dialog opens, so an empty box already offers
+  // something to pick rather than a blank panel.
+  const [recent, setRecent] = React.useState<Vehicle[]>([]);
+  React.useEffect(() => {
+    if (!open) return;
+    api.listShopVehicles(shopId).then((vs) => setRecent(vs.slice(0, 40))).catch(() => setRecent([]));
+  }, [open, shopId]);
+
   React.useEffect(() => {
     if (mode !== "search") return;
     const plate = q.trim();
-    if (!plate) { setMatches([]); return; }
+    // Nothing typed: show what the shop already has. The server search needs a plate, so
+    // this is the list rather than a query with an empty string.
+    if (!plate) { setMatches(recent); setSearching(false); return; }
     setSearching(true);
     const h = setTimeout(async () => {
       try { setMatches(await api.searchVehicles(shopId, plate)); }
@@ -60,7 +70,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
       finally { setSearching(false); }
     }, 350);
     return () => clearTimeout(h);
-  }, [q, mode, shopId, t, toast]);
+  }, [q, mode, shopId, recent, t, toast]);
 
   const createFor = async (vehicleId: string, odometer = 0) => {
     if (busy) return;
@@ -120,7 +130,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
               </Field>
               <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto">
                 {searching && <div className="flex justify-center py-4"><Spinner /></div>}
-                {!searching && q.trim() && matches.length === 0 && <Empty icon="car" text={t("empty")} />}
+                {!searching && matches.length === 0 && <Empty icon="car" text={q.trim() ? t("empty") : t("no_vehicles_yet")} />}
                 {matches.map((v) => (
                   <button key={v.id} disabled={busy} onClick={() => createFor(v.id)} className="flex items-center gap-3 rounded-[10px] border border-border bg-card px-3.5 py-3 text-left transition-colors hover:bg-secondary">
                     <div className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-secondary text-ink-2"><Car className="size-5" /></div>

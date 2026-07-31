@@ -382,14 +382,19 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
   }, [open]);
   // Search only once the cashier has typed enough to mean something, and never while a
   // buyer is already chosen.
+  // Blank box, blank panel was the old behaviour, and it hid the feature: a cashier had to
+  // already know they could type here. The shop's clients are offered straight away and
+  // typing narrows them. listCustomers takes an optional query, so the empty case is the
+  // same call without one.
   useEffect(() => {
-    if (!open || buyer || buyerQuery.trim().length < 2) { setMatches([]); return; }
+    if (!open || buyer) { setMatches([]); return; }
     let alive = true;
+    const q = buyerQuery.trim();
     const id = setTimeout(() => {
-      api.listCustomers(shopId, buyerQuery.trim())
-        .then((list) => { if (alive) { setMatches(list.slice(0, 5)); onCustomers(list); } })
+      api.listCustomers(shopId, q || undefined)
+        .then((list) => { if (alive) { setMatches(list.slice(0, 6)); onCustomers(list); } })
         .catch(() => { if (alive) setMatches([]); });
-    }, 250);
+    }, q ? 250 : 0);
     return () => { alive = false; clearTimeout(id); };
   }, [open, buyer, buyerQuery, shopId, onCustomers]);
 
@@ -428,6 +433,11 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
                 <Input value={buyerQuery} placeholder={t("search")} onChange={(e) => setBuyerQuery(e.target.value)} />
                 {matches.length > 0 && (
                   <div className="mt-1.5 flex flex-col gap-1">
+                    {!buyerQuery.trim() && (
+                      <span className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                        {t("recent_clients")}
+                      </span>
+                    )}
                     {matches.map((c) => (
                       <button key={c.id} onClick={() => { setBuyer(c); setMatches([]); }}
                         className="flex items-center gap-2 rounded-[9px] border border-border bg-card px-3 py-2 text-left hover:bg-secondary">

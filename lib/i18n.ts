@@ -779,6 +779,8 @@ export const STR: Record<string, Triple> = {
   other_group: ["Boshqa", "Бошқа", "Прочее"],
   view_all: ["Hammasini ko'rish", "Ҳаммасини кўриш", "Показать все"],
   empty: ["Ma'lumot yo'q", "Маълумот йўқ", "Нет данных"],
+  no_vehicles_yet: ["Hali avtomobil qo'shilmagan", "Ҳали автомобиль қўшилмаган", "Автомобилей пока нет"],
+  recent_clients: ["Mijozlar", "Мижозлар", "Клиенты"],
   loading: ["Yuklanmoqda…", "Юкланмоқда…", "Загрузка…"],
   error: ["Xatolik yuz berdi", "Хатолик юз берди", "Произошла ошибка"],
   bad_phone: ["Noto'g'ri telefon raqam — masalan: +998 90 123 45 67", "Нотўғри телефон рақам — масалан: +998 90 123 45 67", "Неверный номер телефона — например: +998 90 123 45 67"],
