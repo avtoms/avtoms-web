@@ -1,15 +1,19 @@
 "use client";
-// VehicleHistoryModal: everything about one car — its warranties (with add/void) and full
-// service history (every work order, newest first). Shared by the customer detail modal and
-// the Cars tab so both open the same per-vehicle view.
+// VehicleHistoryModal: everything about one car — its service book and its warranties.
+// Shared by the customer detail modal and the Cars tab so both open the same per-vehicle view.
+//
+// The history used to be a date, a count of line items and a total per visit. That answers
+// "when did they come and what did they pay"; it cannot answer what a service book is for,
+// which is "when was the oil last done and how far has it gone since". <ServiceBookPanel>
+// answers that, so it replaces the list here rather than sitting beside it.
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Badge, Btn, Modal, Field, TextInput, Spinner, Empty } from "@/components/ui";
+import { Card, Badge, Btn, Modal, Field, TextInput, Spinner } from "@/components/ui";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money } from "@/lib/format";
-import { STATE_LABEL, woStateFromProto, plateTypeFromProto } from "@/lib/enums";
+import { plateTypeFromProto } from "@/lib/enums";
+import { ServiceBookPanel } from "@/components/service-book";
 import { PlatePreview } from "@/components/plate";
-import type { Vehicle, WorkOrder, Warranty } from "@/lib/types";
+import type { Vehicle, Warranty } from "@/lib/types";
 
 export function warrantyStatus(w: Warranty): "active" | "expired" | "voided" {
   if (w.voided) return "voided";
@@ -20,9 +24,7 @@ export function warrantyStatus(w: Warranty): "active" | "expired" | "voided" {
 export function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Vehicle | null; shopId: string; onClose: () => void }) {
   const { t } = useLang();
   const { toast } = useToast();
-  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [warranties, setWarranties] = useState<Warranty[]>([]);
-  const [loading, setLoading] = useState(false);
   const [addingW, setAddingW] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -33,13 +35,9 @@ export function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Veh
 
   useEffect(() => {
     if (!vehicle) return;
-    setLoading(true); setAddingW(false);
-    api.listWorkOrders(shopId, undefined, undefined, vehicle.id)
-      .then((o) => setOrders([...o].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false));
+    setAddingW(false);
     loadWarranties();
-  }, [vehicle, shopId, loadWarranties]);
+  }, [vehicle, loadWarranties]);
 
   const voidW = async (id: string) => {
     if (busy) return; setBusy(true);
@@ -51,10 +49,13 @@ export function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Veh
   if (!vehicle) return null;
   const title = [vehicle.make, vehicle.model].filter(Boolean).join(" ") || t("vehicle");
   return (
-    <Modal open={!!vehicle} onClose={onClose} title={t("service_history")} maxWidth={520}>
+    <Modal open={!!vehicle} onClose={onClose} title={t("service_book")} maxWidth={560}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 13.5, color: "var(--ink-2)", display: "flex", alignItems: "center", gap: 8 }}>{title} <PlatePreview plate={vehicle.plate} type={plateTypeFromProto(vehicle.plateType)} size="sm" /></div>
 
+        {/* the service book */}
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("service_book")}</div>
+        <ServiceBookPanel vehicleId={vehicle.id} />
         {/* warranties */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -84,28 +85,6 @@ export function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Veh
             </Card>
           )}
         </div>
-
-        {/* service history */}
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("service_history")}</div>
-        <Card pad={0}>
-          {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner size={20} /></div>
-            : orders.length === 0 ? <div style={{ padding: 24 }}><Empty icon="clock" text={t("no_history")} /></div>
-            : orders.map((o) => {
-              const st = woStateFromProto(o.state);
-              return (
-                <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--line)" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(13.5px * var(--scale))" }}>
-                      {o.createdAt ? new Date(o.createdAt).toLocaleDateString() : "—"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{(o.lineItems?.length ?? 0)} {t("items").toLowerCase()}</div>
-                  </div>
-                  <Badge tone={st === "closed" ? "ok" : st === "canceled" ? "neutral" : "accent"} dot>{t(STATE_LABEL[st])}</Badge>
-                  <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--ink)", fontSize: "calc(13.5px * var(--scale))", minWidth: 80, textAlign: "right" }}>{money(o.total ?? 0)}</div>
-                </div>
-              );
-            })}
-        </Card>
       </div>
     </Modal>
   );

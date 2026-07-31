@@ -510,6 +510,22 @@ export const STR: Record<string, Triple> = {
   orders_n: ["buyurtma", "буюртма", "заказов"],
   sales_n: ["sotuv", "сотув", "продаж"],
   // ── next service, set when an order is closed ──
+  // ── service book ──
+  service_book: ["Servis kitobchasi", "Сервис китобчаси", "Сервисная книжка"],
+  sb_empty: ["Bu avtomobil hali kelmagan", "Бу автомобиль ҳали келмаган", "Эта машина ещё не приезжала"],
+  sb_last_reading: ["Oxirgi km", "Охирги км", "Последний пробег"],
+  sb_visits: ["Tashriflar", "Ташрифлар", "Визитов"],
+  sb_visits_n: ["marta", "марта", "раз"],
+  sb_total_spent: ["Jami", "Жами", "Всего"],
+  sb_days: ["kun", "кун", "дн."],
+  sb_no_reading: ["km yozilmagan \u2014 kiritish", "км ёзилмаган \u2014 киритиш", "пробег не записан \u2014 внести"],
+  sb_reading: ["Spidometr ko'rsatkichi", "Спидометр кўрсаткичи", "Показание одометра"],
+  odometer: ["Spidometr (km)", "Спидометр (км)", "Одометр (км)"],
+  odometer_hint: [
+    "Mashina kelganda spidometrda nechchi km bor edi. Servis kitobchasiga yoziladi.",
+    "Машина келганда спидометрда неччи км бор эди. Сервис китобчасига ёзилади.",
+    "Сколько км было на одометре при приёме. Записывается в сервисную книжку.",
+  ],
   next_service: ["Keyingi xizmat", "Кейинги хизмат", "Следующее обслуживание"],
   next_service_hint: [
     "Mijoz qachon qaytishi kerak? Muddat kelganda eslatma chiqadi.",

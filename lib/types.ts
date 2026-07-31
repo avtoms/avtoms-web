@@ -170,7 +170,10 @@ export interface WorkOrder {
   customerName?: string;
   customerPhone?: string;   // for a service reminder set at closing time
   customerId?: string;
-  mileage?: string;         // the vehicle's odometer, for "next service in 10 000 km"
+  mileage?: string;         // the vehicle's odometer TODAY, denormalized by the gateway
+  // The reading recorded FOR THIS VISIT. Unlike mileage it is history and never changes,
+  // which is what the service book is built from. "0"/absent means it was not recorded.
+  odometer?: string;
   vehicleImageUrl?: string; // denormalized car photo url
 }
 
@@ -546,6 +549,48 @@ export interface CustomerBalance {
   balance: string; // all-time; positive means they owe the shop
   lastAt?: string;
   entries?: number;
+}
+
+// ── service book ──
+// A car's history the way a paper "сервисная книжка" reads: one entry per visit, newest
+// first, saying how far the car had gone, what was done and what it cost.
+export interface ServiceBookItem {
+  description: string;
+  kind?: string;
+  quantity: number;
+  unitPrice: string;
+  total: string;
+}
+
+export interface ServiceBookEntry {
+  workOrderId: string;
+  orderNo?: string | number;
+  state?: string;
+  occurredAt?: string;
+  // Reading recorded at this visit, km. "0"/absent means nobody wrote it down, and the
+  // screen shows a gap rather than a number the shop cannot stand behind.
+  odometer?: string;
+  // Km since the previous visit that had a reading; 0 when unknown or when the reading went
+  // backwards (an odometer does not, so that is a typo rather than a distance).
+  odometerDelta?: string;
+  daysSincePrevious?: number;
+  items?: ServiceBookItem[];
+  total?: string;
+  mechanicId?: string;
+  mechanicName?: string;  // filled in by the gateway
+  notes?: string;
+}
+
+export interface ServiceBook {
+  vehicleId: string;
+  entries?: ServiceBookEntry[];
+  visits?: number;
+  totalSpent?: string;
+  firstVisit?: string;
+  lastVisit?: string;
+  lastOdometer?: string;
+  avgKmBetween?: string;
+  avgDaysBetween?: number;
 }
 
 export interface ShopSettings {

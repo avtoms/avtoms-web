@@ -1101,9 +1101,16 @@ function NextServiceModal({ open, onClose, wo, shopId }: {
         repeatMonths: m,
         repeatKm: k,
       });
-      // The reading typed here is used for the km target and nothing else. Writing it back to
-      // the vehicle would mean re-sending every one of its other fields, and getting one of
-      // them wrong would quietly blank real data — not a trade worth making for a prefill.
+      // The same reading is this visit's line in the service book. Handing the car back is
+      // the moment somebody actually looks at the dashboard, so it is the honest place to
+      // take it. Best-effort: the reminder is already saved and is what was asked for.
+      //
+      // It is deliberately not written back to the VEHICLE's mileage: that would mean
+      // re-sending every one of its other fields, and getting one wrong would quietly blank
+      // real data. The book only needs the reading against the visit.
+      if (cur > 0) {
+        try { await api.setOdometer(wo.id, cur); } catch { /* the reminder is what mattered */ }
+      }
       toast(t("reminders_saved"), { icon: "check" });
       onClose();
     } catch (e) {

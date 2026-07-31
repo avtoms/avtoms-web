@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, PublicReceipt,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, PublicReceipt,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -384,8 +384,10 @@ export const api = {
     call<{ entries?: AuditEntry[] }>("GET", `/v1/work-orders/${woId}/audit`).then((r) => r.entries ?? []),
   createApprovalLink: (woId: string) =>
     call<{ token: string; workOrderId: string; botUsername: string; deepLink: string }>("POST", `/v1/work-orders/${woId}/approval`),
-  createWorkOrder: (shopId: string, vehicleId: string) =>
-    call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId }),
+  // odometer is the reading taken at intake, in km. Optional: 0 means nobody wrote it down,
+  // and the service book shows a gap rather than inventing a number.
+  createWorkOrder: (shopId: string, vehicleId: string, odometer?: number) =>
+    call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId, odometer: String(odometer ?? 0) }),
   // The note is internal to the shop: it is not printed on the customer's check or sent
   // with their copy. An empty string clears it.
   setNotes: (woId: string, notes: string) =>
@@ -514,6 +516,16 @@ export const api = {
       dueMileage: String(m.dueMileage ?? 0), notes: m.notes ?? "",
       repeatMonths: m.repeatMonths ?? 0, repeatKm: String(m.repeatKm ?? 0),
     }),
+  // ── service book ──
+  // One car's history, assembled by the server: the gaps between visits are differences
+  // over the full ordered history, so they are not something a screen can work out from
+  // whatever subset it happens to have.
+  serviceBook: (vehicleId: string) =>
+    call<ServiceBook>("GET", `/v1/vehicles/${vehicleId}/service-book`),
+  // The reading taken at one visit, in km. 0 clears it back to "not recorded".
+  setOdometer: (woId: string, odometer: number) =>
+    call<WorkOrder>("POST", `/v1/work-orders/${woId}/odometer`, { odometer: String(odometer) }),
+
   setReminderState: (id: string, state: string) =>
     call<ServiceReminder>("POST", `/v1/reminders/${id}/state`, { state }),
 

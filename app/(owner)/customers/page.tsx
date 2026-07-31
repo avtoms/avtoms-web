@@ -3,7 +3,7 @@
 // detail modal with add-vehicle. Wired to api.listCustomers / createCustomer / createVehicle.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Clock, ChevronRight, Car, Bell } from "lucide-react";
+import { Plus, Pencil, BookOpen, ChevronRight, Car, Bell } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -273,7 +273,11 @@ function CustomerDetailModal({ customer, onClose, onChanged }: { customer: Custo
   useEffect(() => { if (customer && !addV && !editVeh) loadVehicles(customer.id); }, [customer, addV, editVeh, loadVehicles]);
 
   if (!customer || !cust) return null;
-  const detailOpen = !!customer && !addV && !editCust && !editVeh;
+  // Every sub-view closes the card behind it. Leaving it open does not just stack two
+  // panels: the card is a Radix dialog and keeps the pointer trap, so anything interactive
+  // in the panel on top is visible but dead. The history view got away with it while it was
+  // read-only; the service book has a field you type in, and it did not.
+  const detailOpen = !!customer && !addV && !editCust && !editVeh && !histVehicle && !remVehicle;
   return (
     <>
       <Dialog open={detailOpen} onOpenChange={(o) => !o && onClose()}>
@@ -311,7 +315,7 @@ function CustomerDetailModal({ customer, onClose, onChanged }: { customer: Custo
                   </div>
                   <Button variant="ghost" size="icon-sm" aria-label={t("edit")} onClick={() => setEditVeh(v)}><Pencil /></Button>
                   <Button variant="ghost" size="icon-sm" aria-label={t("add_reminder")} onClick={() => setRemVehicle(v)}><Bell /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => setHistVehicle(v)}><Clock /> {t("history")}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setHistVehicle(v)}><BookOpen /> {t("service_book")}</Button>
                 </div>
               ))}
             </Card>

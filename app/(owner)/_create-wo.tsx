@@ -40,9 +40,13 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
   const [cf, setCf] = useState({ name: "", phone: "", telegram: "", language: "uz" as Lang });
   const [vf, setVf] = useState({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType });
   const [reminders, setReminders] = useState<ReminderDraft[]>([]);
+  // The reading on the dash when the car came in. Optional — a shop that does not take it
+  // gets a gap in the book rather than a made-up number — but asked for here, because the
+  // car is standing in front of whoever is typing and never will be again.
+  const [odo, setOdo] = useState("");
 
   React.useEffect(() => {
-    if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); }
+    if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); setOdo(""); }
   }, [open]);
 
   React.useEffect(() => {
@@ -62,7 +66,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
     if (busy) return;
     setBusy(true);
     try {
-      const wo = await api.createWorkOrder(shopId, vehicleId);
+      const wo = await api.createWorkOrder(shopId, vehicleId, parseInt(odo, 10) || 0);
       toast(t("create_wo") + " · " + orderLabel(wo), { icon: "clipboard" });
       onClose();
       router.push(`${basePath}/${wo.id}`);
@@ -80,7 +84,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
     setBusy(true);
     try {
       const cust = await api.createCustomer(shopId, { phone: toE164(cf.phone), name: cf.name.trim(), language: cf.language, telegramHandle: cf.telegram.trim(), walkIn: false });
-      const veh = await api.createVehicle({ customerId: cust.id, plate: vf.plate.trim(), vin: vf.vin.trim(), make: vf.make.trim(), model: vf.model.trim(), year: parseInt(vf.year, 10) || 0, mileage: parseInt(vf.mileage, 10) || 0, plateType: plateTypeToProto(vf.plateType) });
+      const veh = await api.createVehicle({ customerId: cust.id, plate: vf.plate.trim(), vin: vf.vin.trim(), make: vf.make.trim(), model: vf.model.trim(), year: parseInt(vf.year, 10) || 0, mileage: parseInt(odo, 10) || 0, plateType: plateTypeToProto(vf.plateType) });
       // Attach the requested recurring service reminders to the new client + vehicle (best-effort;
       // never blocks opening the work order).
       try { await saveReminders(shopId, reminders, { customerName: cust.name, phone: cust.phone, vehicleId: veh.id, plate: veh.plate }); } catch { /* non-fatal */ }
@@ -110,6 +114,10 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input autoFocus value={q} onChange={(e) => setQ(e.target.value.toUpperCase())} placeholder="01 A 777 AB" className="pl-9 font-mono" />
                 </div>
+              </Field>
+              <Field label={t("odometer")} hint={t("odometer_hint")}>
+                <Input value={odo} inputMode="numeric" className="font-mono" placeholder="82000"
+                  onChange={(e) => setOdo(e.target.value.replace(/\D/g, ""))} />
               </Field>
               <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto">
                 {searching && <div className="flex justify-center py-4"><Spinner /></div>}
@@ -150,7 +158,12 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
               <div className="grid grid-cols-2 gap-3">
                 <MakeModelPicker make={vf.make} model={vf.model} onChange={(mk, md) => setVf((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
               </div>
-              <Field label={t("year")}><Input value={vf.year} onChange={(e) => setVf({ ...vf, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={t("year")}><Input value={vf.year} onChange={(e) => setVf({ ...vf, year: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
+                {/* For a car the shop is seeing for the first time this one reading is both
+                    its current mileage and the first line of its service book. */}
+                <Field label={t("odometer")}><Input value={odo} onChange={(e) => setOdo(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="font-mono" placeholder="82000" /></Field>
+              </div>
               <Separator />
               <ReminderRows value={reminders} onChange={setReminders} />
             </div>
