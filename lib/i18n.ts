@@ -524,8 +524,11 @@ export const STR: Record<string, Triple> = {
   ],
   from_orders: ["Buyurtmalardan", "Буюртмалардан", "От заказов"],
   from_sales: ["Sotuvdan", "Сотувдан", "От продаж"],
-  on_credit_of_it: ["shundan nasiyaga", "шундан насияга", "из них в долг"],
-  not_collected_yet: ["hali olinmagan", "ҳали олинмаган", "ещё не получено"],
+  // Two different facts. The first is part of this window's trading and never changes; the
+  // second is what is still outstanding right now and falls with every repayment.
+  sold_on_credit: ["Nasiyaga sotilgan", "Насияга сотилган", "Продано в долг"],
+  in_this_period: ["shu davrda", "шу даврда", "за этот период"],
+  not_collected_yet: ["Hali olinmagan", "Ҳали олинмаган", "Ещё не получено"],
   orders_n: ["buyurtma", "буюртма", "заказов"],
   sales_n: ["sotuv", "сотув", "продаж"],
   // ── next service, set when an order is closed ──

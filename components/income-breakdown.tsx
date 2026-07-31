@@ -166,26 +166,36 @@ export function IncomeSourcePanel({ shopId, from, to }: { shopId: string; from?:
       <MethodBlock icon={<ShoppingCart className="size-4" />} label={t("from_sales")} amount={st.sales}
         count={st.saleCount} share={total} tCount={t("sales_n")} />
 
-      {/* Some of that revenue is real work done and goods gone, but no money in the till.
-          Saying it here stops the total above reading as cash on hand. */}
-      {st.credit > 0 && (
-        <div className="flex items-center gap-2.5 rounded-[10px] border border-warning/40 bg-warning-soft px-3.5 py-2.5">
-          <HandCoins className="size-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-foreground">{t("on_credit_of_it")}</div>
-            <div className="text-[11.5px] text-muted-foreground">{t("not_collected_yet")}</div>
-          </div>
-          <span className="shrink-0 font-mono text-[14px] font-extrabold text-foreground">{money(st.credit)}</span>
+      {/* Two different questions, and they must not be confused for one another.
+          "Sold on credit" is part of THIS window's trading: it is history and never moves,
+          however much the client later pays. "Still owed" is live and drops with every
+          repayment. Showing the first under the second's label made a repayment look as
+          though it had changed nothing. */}
+      {(st.credit > 0 || st.debt > 0) && (
+        <div className="flex flex-col gap-1.5 rounded-[10px] border border-warning/40 bg-warning-soft px-3.5 py-2.5">
+          {st.credit > 0 && (
+            <div className="flex items-center gap-2.5">
+              <HandCoins className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-semibold text-foreground">{t("sold_on_credit")}</div>
+                <div className="text-[11.5px] text-muted-foreground">{t("in_this_period")}</div>
+              </div>
+              <span className="shrink-0 font-mono text-[14px] font-extrabold text-foreground">{money(st.credit)}</span>
+            </div>
+          )}
+          {st.debt > 0 && (
+            <div className={cn("flex items-center gap-2.5", st.credit > 0 && "border-t border-warning/30 pt-1.5")}>
+              <Wallet className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-semibold text-foreground">{t("not_collected_yet")}</div>
+                <div className="text-[11.5px] text-muted-foreground">{t("cl_debts")} · {t("cg_all_time")}</div>
+              </div>
+              <span className="shrink-0 font-mono text-[14px] font-extrabold text-destructive">{money(st.debt)}</span>
+            </div>
+          )}
         </div>
       )}
-      {/* The all-time debt, which is a different question from "how much of this window was
-          on credit" — an old debt does not belong to this month's trading. */}
-      {st.debt > 0 && (
-        <div className="flex items-baseline justify-between px-1 text-[11.5px] text-muted-foreground">
-          <span>{t("cl_debts")} · {t("cg_all_time")}</span>
-          <span className="font-mono font-bold text-destructive">{money(st.debt)}</span>
-        </div>
-      )}
+
     </div>
   );
 }
