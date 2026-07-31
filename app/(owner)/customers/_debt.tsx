@@ -22,6 +22,7 @@ import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
 import { paymentLabelKey, type PaymentMethod } from "@/lib/enums";
+import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
 import type { CustomerBalance, CustomerEntryKind, CustomerLedgerEntry } from "@/lib/types";
 
@@ -58,6 +59,7 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
 }) {
   const { t } = useLang();
   const { toast } = useToast();
+  const who = useStaffNames();
   const [entries, setEntries] = useState<CustomerLedgerEntry[] | null>(null);
   const [summary, setSummary] = useState<CustomerBalance | null>(null);
   const [busy, setBusy] = useState(false);
@@ -205,7 +207,7 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-semibold text-foreground">{e.description || t(k.labelKey)}</div>
                       <div className="font-mono text-[11.5px] text-muted-foreground">
-                        {shortDateTime(e.occurredAt)}{source ? " · " + source : ""}{e.note ? " · " + e.note : ""}
+                        {shortDateTime(e.occurredAt)}{who(e.staffId) ? " · " + who(e.staffId) : ""}{source ? " · " + source : ""}{e.note ? " · " + e.note : ""}
                       </div>
                     </div>
                     <span className={cn("shrink-0 font-mono text-[13.5px] font-bold", k.sign > 0 ? "text-destructive" : "text-success")}>

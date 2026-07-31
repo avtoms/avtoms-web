@@ -21,6 +21,7 @@ import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
 import { paymentLabelKey, type PaymentMethod } from "@/lib/enums";
+import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
 import type { Contragent, ContragentBalance, ContragentEntryKind, ContragentLedgerEntry } from "@/lib/types";
 
@@ -56,6 +57,7 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
 }) {
   const { t } = useLang();
   const { toast } = useToast();
+  const who = useStaffNames();
   const [entries, setEntries] = useState<ContragentLedgerEntry[] | null>(null);
   const [summary, setSummary] = useState<ContragentBalance | null>(null);
   const [busy, setBusy] = useState(false);
@@ -181,7 +183,7 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-semibold text-foreground">{e.description || t(k.labelKey)}</div>
                       <div className="font-mono text-[11.5px] text-muted-foreground">
-                        {shortDateTime(e.occurredAt)}{e.note ? " · " + e.note : ""}
+                        {shortDateTime(e.occurredAt)}{who(e.staffId) ? " · " + who(e.staffId) : ""}{e.note ? " · " + e.note : ""}
                       </div>
                     </div>
                     <span className={cn("shrink-0 font-mono text-[13.5px] font-bold", k.sign > 0 ? "text-destructive" : "text-success")}>

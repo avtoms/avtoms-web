@@ -194,6 +194,9 @@ export interface MenuPriceChange {
   oldCost?: string | number;
   newCost?: string | number;
   changedAt: string; // RFC3339
+  // Who made the change. Empty for rows recorded before this was kept, and for an
+  // unattributed edit — the row is then shown without an author rather than a wrong one.
+  changedBy?: string;
 }
 
 export interface MenuItem {

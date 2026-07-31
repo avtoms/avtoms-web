@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { useStaffNames } from "@/lib/use-staff";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -154,6 +155,7 @@ const emptyForm = { name: "", category: "", minutes: "", price: "", cost: "" };
 function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; onClose: () => void; shopId: string; item?: MenuItem | null; onSaved: () => void }) {
   const { lang, t } = useLang();
   const { toast } = useToast();
+  const who = useStaffNames();
   const isEdit = !!item;
   const [f, setF] = useState(emptyForm);
   const [active, setActive] = useState(true);
@@ -317,7 +319,9 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
                       <span className="font-mono text-muted-foreground">{money(h.oldPrice)}</span>
                       <ChevronRight className="size-3.5 text-muted-foreground" />
                       <span className="font-mono font-bold text-foreground">{money(h.newPrice)}</span>
-                      <span className="ml-auto font-mono text-[11.5px] text-muted-foreground">{new Date(h.changedAt).toLocaleDateString()}</span>
+                      <span className="ml-auto truncate font-mono text-[11.5px] text-muted-foreground">
+                        {new Date(h.changedAt).toLocaleDateString()}{who(h.changedBy) ? " · " + who(h.changedBy) : ""}
+                      </span>
                     </div>
                   ))}
                 </div>}

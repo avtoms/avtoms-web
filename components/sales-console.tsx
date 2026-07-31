@@ -30,6 +30,7 @@ import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
+import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
 import type { Customer, Product, ProductVariant, Sale, ShopCard } from "@/lib/types";
 
@@ -497,6 +498,7 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
 /* ── one sale, after the fact ── */
 function SaleDetailDialog({ sale, onClose, onVoid }: { sale: Sale | null; onClose: () => void; onVoid: (s: Sale) => void }) {
   const { t } = useLang();
+  const who = useStaffNames();
   const [confirming, setConfirming] = useState(false);
   useEffect(() => { setConfirming(false); }, [sale?.id]);
   if (!sale) return null;
@@ -510,7 +512,9 @@ function SaleDetailDialog({ sale, onClose, onVoid }: { sale: Sale | null; onClos
         <DialogBody className="flex flex-col gap-4 pb-5">
           <div className="flex items-center justify-between">
             <Badge tone={sale.voided ? "danger" : "ok"} dot>{sale.voided ? t("voided") : t("paid")}</Badge>
-            <span className="font-mono text-[12px] text-muted-foreground">{shortDateTime(sale.createdAt)}</span>
+            <span className="font-mono text-[12px] text-muted-foreground">
+              {shortDateTime(sale.createdAt)}{who(sale.staffId) ? " · " + who(sale.staffId) : ""}
+            </span>
           </div>
 
           <div className="rounded-[12px] bg-secondary/60 p-4">

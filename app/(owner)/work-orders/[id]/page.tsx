@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
+import { useStaffNames } from "@/lib/use-staff";
 import { money, num, shortDate, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
@@ -328,7 +329,7 @@ export default function WorkOrderDetailPage() {
               </div>
             ) : <span className="text-[14px] text-muted-foreground">{t("unassigned")}</span>}
           </Card>
-          <AuditCard woId={id} refresh={`${state}|${items.length}|${wo.assignedMechanicId ?? ""}`} mechanics={mechanics} />
+          <AuditCard woId={id} refresh={`${state}|${items.length}|${wo.assignedMechanicId ?? ""}`} />
         </div>
       </div>
 
@@ -384,8 +385,9 @@ const AUDIT_LABEL: Record<string, string> = {
   order_discount: "order_discount",
 };
 
-function AuditCard({ woId, refresh, mechanics }: { woId: string; refresh: string; mechanics: Staff[] }) {
+function AuditCard({ woId, refresh }: { woId: string; refresh: string }) {
   const { t } = useLang();
+  const who = useStaffNames();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
 
   useEffect(() => {
@@ -397,7 +399,6 @@ function AuditCard({ woId, refresh, mechanics }: { woId: string; refresh: string
   }, [woId, refresh]);
 
   if (entries.length === 0) return null;
-  const who = (id?: string) => (id ? (mechanics.find((m) => m.id === id)?.name ?? id.slice(0, 8)) : "");
 
   return (
     <Card className="p-4">

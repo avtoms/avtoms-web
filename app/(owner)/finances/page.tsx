@@ -63,7 +63,9 @@ export default function FinancesPage() {
   }, [expenses]);
 
   useEffect(() => {
-    api.listStaff(shopId).then((s) => setStaff(s.filter((x) => x.active))).catch(() => {});
+    // Everyone, including people who have left: the salary picker below filters to active
+    // itself, while the expense list needs to name whoever actually recorded each row.
+    api.listStaff(shopId).then(setStaff).catch(() => {});
   }, [shopId]);
 
   const loadTrend = useCallback(async () => {
