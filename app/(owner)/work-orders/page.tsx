@@ -19,8 +19,9 @@ import { WO_STATES, STATE_LABEL, visibleStates, woStateFromProto, type WoState }
 import { useShopFlow } from "@/lib/shop";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
-import type { WorkOrder } from "@/lib/types";
+import type { MaterialReturn, WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
+import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
 import { MoneyTile, SecTitle } from "../_shared";
 import { CarImage } from "@/components/car-image";
 
@@ -50,6 +51,8 @@ export default function WorkOrdersPage() {
   const [filter, setFilter] = useState<"all" | WoState>("all");
   const [list, setList] = useState<WorkOrder[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The order a drag into the cancelled column is waiting on, with the stock it drew.
+  const [cancelling, setCancelling] = useState<{ wo: WorkOrder; materials: ReturnableMaterial[] } | null>(null);
   // The shop's configured status flow; undefined until loaded, meaning "every status".
   const { enabled, transitions: flowTransitions } = useShopFlow();
 
@@ -73,13 +76,26 @@ export default function WorkOrdersPage() {
 
   // Owner board move: a plain state transition (the backend rejects invalid hops with a
   // clear error, which we surface). No timer side-effects here — that's the mechanic's flow.
-  const moveTo = async (woId: string, target: WoState) => {
+  const moveTo = async (woId: string, target: WoState, returns?: MaterialReturn[]) => {
     if (busyId) return;
     const wo = (list || []).find((w) => w.id === woId);
     if (!wo) return;
+    // Dragging a card into the cancelled column calls the job off just as firmly as the
+    // button on the order screen does, so it has to ask the same question about the
+    // materials. The board's list carries no line items, so the order is fetched to find
+    // out whether it drew any stock at all; one with none goes straight through.
+    if (target === "canceled" && !returns) {
+      setBusyId(woId);
+      try {
+        const full = await api.getWorkOrder(woId);
+        const mats = returnableMaterials(full);
+        if (mats.length > 0) { setCancelling({ wo: full, materials: mats }); return; }
+      } catch { /* fall through and cancel plainly — a failed lookup must not block the move */ }
+      finally { setBusyId(null); }
+    }
     setBusyId(woId);
     try {
-      await api.transition(woId, target);
+      await api.transition(woId, target, returns);
       toast(t(STATE_LABEL[target]), { icon: "check" });
       await load();
     } catch (e) {
@@ -229,6 +245,22 @@ export default function WorkOrdersPage() {
           }
         />
       )}
+
+      {/* Dropping a card into the cancelled column reaches here before anything moves. */}
+      <MaterialReturnDialog
+        open={!!cancelling}
+        title={t("cancel_wo")}
+        warning={t("cancel_wo_confirm")}
+        confirmLabel={t("cancel_wo")}
+        materials={cancelling?.materials ?? []}
+        busy={!!busyId}
+        onClose={() => setCancelling(null)}
+        onConfirm={async (returns) => {
+          const id = cancelling?.wo.id;
+          setCancelling(null);
+          if (id) await moveTo(id, "canceled", returns);
+        }}
+      />
     </div>
   );
 }

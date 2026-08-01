@@ -19,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
 import { ProductPicker, variantLabel } from "@/components/product-picker";
-import { MaterialReturnDialog, type ReturnableMaterial } from "@/components/material-return-dialog";
+import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
@@ -105,14 +105,8 @@ export default function WorkOrderDetailPage() {
 
   // The materials that actually left the warehouse on this order — the only things that can
   // come back if it is called off. An order with none of them gets the plain confirm, because
-  // there is nothing to ask about.
-  const returnable = useMemo<ReturnableMaterial[]>(
-    () => (wo?.lineItems ?? []).flatMap((it) =>
-      it.id && it.variantId && (it.consumedQty ?? 0) > 0
-        ? [{ lineId: it.id, description: it.description, drawn: it.consumedQty as number }]
-        : []),
-    [wo],
-  );
+  // there is nothing to ask about. Memoised because the dialog seeds its inputs from this list.
+  const returnable = useMemo<ReturnableMaterial[]>(() => returnableMaterials(wo ?? {}), [wo]);
 
   const load = useCallback(async () => {
     try { setWo(await api.getWorkOrder(id)); }

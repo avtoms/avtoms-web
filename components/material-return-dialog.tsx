@@ -26,7 +26,7 @@ import { Input } from "@/components/ui-kit/input";
 import { Spinner } from "@/components/ui-kit/misc";
 import { useLang } from "@/components/providers";
 import { cn } from "@/lib/utils";
-import type { MaterialReturn } from "@/lib/types";
+import type { LineItem, MaterialReturn } from "@/lib/types";
 
 // One stock line that could come back: what it is and how much of it left the warehouse.
 export type ReturnableMaterial = {
@@ -38,6 +38,17 @@ export type ReturnableMaterial = {
 
 // Trailing zeros would make "4.50" out of four and a half litres, which reads like a price.
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
+
+// The materials an order actually drew from the warehouse — the only things that can come
+// back if it is called off. Shared, because an order can be cancelled from the detail screen
+// and by dragging its card on the board, and the two must ask about the same lines.
+// An empty result means there is nothing to ask about.
+export function returnableMaterials(wo: { lineItems?: LineItem[] }): ReturnableMaterial[] {
+  return (wo.lineItems ?? []).flatMap((it) =>
+    it.id && it.variantId && (it.consumedQty ?? 0) > 0
+      ? [{ lineId: it.id, description: it.description, drawn: it.consumedQty as number }]
+      : []);
+}
 
 export type MaterialReturnState = ReturnType<typeof useMaterialReturn>;
 
