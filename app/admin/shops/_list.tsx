@@ -18,6 +18,7 @@ import { Field } from "@/components/ui-kit/label";
 import { Spinner, Switch } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { SuggestInput } from "@/components/suggest-input";
+import { LocationPicker, hasPoint } from "@/components/location-picker";
 import { useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import type { Shop } from "@/lib/types";
@@ -67,6 +68,15 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
               <div className="flex flex-wrap gap-x-3 text-[11.5px] text-muted-foreground">
                 {s.serviceType && <span className="inline-flex items-center gap-1"><Wrench className="size-3" />{s.serviceType}</span>}
                 {s.location && <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{s.location}</span>}
+                {/* A service with no point cannot be navigated to, which is worth seeing at
+                    a glance rather than discovering when a customer asks for directions. */}
+                {hasPoint(s.latitude, s.longitude) && (
+                  <a href={`https://www.openstreetmap.org/?mlat=${s.latitude}&mlon=${s.longitude}#map=17/${s.latitude}/${s.longitude}`}
+                    target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 font-semibold text-primary-emphasis hover:underline">
+                    <MapPin className="size-3" />Xaritada
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -153,9 +163,12 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
     name: "", serviceType: "", staffCount: "", location: "", phone: "",
     ownerName: "", ownerPhone: "", ownerLogin: "", ownerPassword: "",
   });
+  const [pt, setPt] = useState({ lat: 0, lng: 0 });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   useEffect(() => {
-    if (open) setF({ name: "", serviceType: "", staffCount: "", location: "", phone: "", ownerName: "", ownerPhone: "", ownerLogin: "", ownerPassword: "" });
+    if (!open) return;
+    setF({ name: "", serviceType: "", staffCount: "", location: "", phone: "", ownerName: "", ownerPhone: "", ownerLogin: "", ownerPassword: "" });
+    setPt({ lat: 0, lng: 0 });
   }, [open]);
 
   // The server refuses each of these too. Checking here as well is not duplication for its
@@ -174,6 +187,8 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
         staffCount: parseInt(f.staffCount, 10) || 0,
         location: f.location.trim(),
         phone: f.phone.trim(),
+        latitude: pt.lat,
+        longitude: pt.lng,
         ownerName: f.ownerName.trim(),
         ownerPhone: f.ownerPhone.trim(),
         ownerLogin: f.ownerLogin.trim().toLowerCase(),
@@ -207,6 +222,11 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
             </div>
             <Field label="Lokatsiya" hint="Mijozning chekida shu manzil chiqadi">
               <Input value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="Toshkent, Chilonzor 12" />
+            </Field>
+            {/* The address above is the line a person reads; this is the point that can route
+                them there. Two different facts, so two different fields. */}
+            <Field label="Xaritada joylashuvi" hint="Xaritadan tanlang — mijoz shu nuqta bo'yicha yo'l topadi">
+              <LocationPicker lat={pt.lat} lng={pt.lng} onChange={(lat, lng) => setPt({ lat, lng })} />
             </Field>
             <Field label="Servis telefoni" hint="Egasining shaxsiy raqami emas — bu raqam chekda chiqadi">
               <Input value={f.phone} inputMode="tel" onChange={(e) => set("phone", e.target.value)} placeholder="+998 71 200 00 00" className="font-mono" />
@@ -256,6 +276,7 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ name: "", serviceType: "", staffCount: "", location: "", phone: "", active: true });
+  const [pt, setPt] = useState({ lat: 0, lng: 0 });
   const set = (k: keyof typeof f, v: string | boolean) => setF((p) => ({ ...p, [k]: v }));
   useEffect(() => {
     if (!shop) return;
@@ -263,6 +284,7 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
       name: shop.name, serviceType: shop.serviceType ?? "", staffCount: String(shop.staffCount ?? ""),
       location: shop.location ?? "", phone: shop.phone ?? "", active: shop.active ?? true,
     });
+    setPt({ lat: shop.latitude ?? 0, lng: shop.longitude ?? 0 });
   }, [shop]);
   if (!shop) return null;
 
@@ -274,6 +296,7 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
         name: f.name.trim(), serviceType: f.serviceType.trim(),
         staffCount: parseInt(f.staffCount, 10) || 0,
         location: f.location.trim(), phone: f.phone.trim(), active: f.active,
+        latitude: pt.lat, longitude: pt.lng,
       });
       toast("Saqlandi", { icon: "check" });
       onDone();
@@ -300,6 +323,11 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
           </div>
           <Field label="Lokatsiya"><Input value={f.location} onChange={(e) => set("location", e.target.value)} /></Field>
           <Field label="Servis telefoni"><Input value={f.phone} inputMode="tel" onChange={(e) => set("phone", e.target.value)} className="font-mono" /></Field>
+          <Field label="Xaritada joylashuvi">
+            {/* Keyed on the shop so switching rows rebuilds the map on the new point rather
+                than leaving Leaflet holding the previous shop's pin. */}
+            <LocationPicker key={shop.id} lat={pt.lat} lng={pt.lng} onChange={(lat, lng) => setPt({ lat, lng })} />
+          </Field>
           {/* Switching a service off stops it being usable without destroying anything it
               has recorded — the same reason contragents are retired rather than deleted. */}
           <div className="flex items-center justify-between rounded-[11px] border border-border px-3.5 py-2.5">

@@ -24,6 +24,10 @@ export interface Shop {
   staffCount?: number;  // headcount as stated at registration, not derived from accounts
   location?: string;
   phone?: string;       // the service's own public number, the one that goes on a check
+  // Where the service actually is. 0/0 (or absent) means it has not been placed on a map —
+  // the address above is what a person reads, these are what route them there.
+  latitude?: number;
+  longitude?: number;
   active?: boolean;
   createdAt?: string;
   members?: number;     // staff records actually attached; read-only

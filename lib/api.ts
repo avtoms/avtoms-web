@@ -767,18 +767,22 @@ export const api = {
   // creatable alone. The owner can sign in the moment this returns.
   registerShop: (s: {
     name: string; serviceType?: string; staffCount?: number; location?: string; phone?: string;
+    latitude?: number; longitude?: number;
     ownerName: string; ownerPhone?: string; ownerLogin: string; ownerPassword: string;
   }) => call<{ shop: Shop; owner: Staff }>("POST", "/v1/admin/shops", {
     name: s.name, serviceType: s.serviceType ?? "", staffCount: s.staffCount ?? 0,
     location: s.location ?? "", phone: s.phone ?? "",
+    latitude: s.latitude ?? 0, longitude: s.longitude ?? 0,
     ownerName: s.ownerName, ownerPhone: s.ownerPhone ?? "",
     ownerLogin: s.ownerLogin, ownerPassword: s.ownerPassword,
   }),
   updateShop: (id: string, s: {
-    name: string; serviceType?: string; staffCount?: number; location?: string; phone?: string; active?: boolean;
+    name: string; serviceType?: string; staffCount?: number; location?: string; phone?: string;
+    active?: boolean; latitude?: number; longitude?: number;
   }) => call<Shop>("POST", `/v1/admin/shops/${id}`, {
     name: s.name, serviceType: s.serviceType ?? "", staffCount: s.staffCount ?? 0,
     location: s.location ?? "", phone: s.phone ?? "", active: s.active ?? true,
+    latitude: s.latitude ?? 0, longitude: s.longitude ?? 0,
   }),
 
   // ── super-admin integration credentials ──
