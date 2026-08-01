@@ -557,6 +557,14 @@ export interface CustomerBalance {
   entries?: number;
 }
 
+// One stock line going back to the warehouse off a cancelled order or a voided sale. lineId
+// is a work order's line item id, or a sale item id; quantity is in the variant's own unit
+// and may be fractional, and the server clamps it to what was actually drawn.
+export interface MaterialReturn {
+  lineId: string;
+  quantity: number;
+}
+
 // ── service book ──
 // A car's history the way a paper "сервисная книжка" reads: one entry per visit, newest
 // first, saying how far the car had gone, what was done and what it cost.

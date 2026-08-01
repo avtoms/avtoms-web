@@ -351,6 +351,16 @@ export const STR: Record<string, Triple> = {
   cancel_wo_confirm: ["Bu buyurtmani bekor qilasizmi? Bu amalni qaytarib bo'lmaydi.", "Бу буюртмани бекор қиласизми? Бу амални қайтариб бўлмайди.", "Отменить этот заказ-наряд? Это действие нельзя отменить."],
   no: ["Yo'q", "Йўқ", "Нет"],
   yes: ["Ha", "Ҳа", "Да"],
+  // Cancelling an order or voiding a sale: what happened to the goods that already left the
+  // warehouse. Fractional, because half a job is half a bottle.
+  mat_question: ["Materiallar sarflandimi yoki omborga qaytariladimi?", "Материаллар сарфландими ёки омборга қайтариладими?", "Материалы израсходованы или возвращаются на склад?"],
+  mat_returned: ["Qaytarildi", "Қайтарилди", "Возвращены"],
+  mat_returned_hint: ["Omborga qaytariladi", "Омборга қайтарилади", "Вернутся на склад"],
+  mat_spent: ["Sarflandi", "Сарфланди", "Израсходованы"],
+  mat_spent_hint: ["Omborga qaytarilmaydi", "Омборга қайтарилмайди", "На склад не вернутся"],
+  mat_drawn: ["Olingan", "Олинган", "Списано"],
+  mat_all: ["Hammasi", "Ҳаммаси", "Всё"],
+  mat_none: ["Hech narsa", "Ҳеч нарса", "Ничего"],
   // Staff permission: let a mechanic create work orders (in addition to their board).
   perm_create_orders: ["Buyurtma yaratish", "Буюртма яратиш", "Создание заказов"],
   perm_create_orders_hint: [

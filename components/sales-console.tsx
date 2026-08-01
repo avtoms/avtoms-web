@@ -26,6 +26,7 @@ import { SkeletonRows } from "@/components/ui";
 import { ProductPicker, variantLabel } from "@/components/product-picker";
 import { MoneyInput } from "@/components/catalog-fields";
 import { SplitPayment } from "@/components/split-payment";
+import { MaterialReturnPanel, useMaterialReturn, type ReturnableMaterial } from "@/components/material-return-dialog";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
@@ -33,7 +34,7 @@ import { money, num, shortDateTime } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
 import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
-import type { Customer, Product, ProductVariant, Sale, ShopCard } from "@/lib/types";
+import type { Customer, MaterialReturn, Product, ProductVariant, Sale, ShopCard } from "@/lib/types";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : fallback);
 
@@ -180,9 +181,9 @@ export function SalesConsole() {
     }
   };
 
-  const voidSale = async (s: Sale) => {
+  const voidSale = async (s: Sale, returns?: MaterialReturn[]) => {
     try {
-      const updated = await api.voidSale(s.id);
+      const updated = await api.voidSale(s.id, returns);
       setDetail(updated);
       toast(t("sale_voided"), { icon: "check" });
       await load();
@@ -531,11 +532,21 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
 }
 
 /* ── one sale, after the fact ── */
-function SaleDetailDialog({ sale, onClose, onVoid }: { sale: Sale | null; onClose: () => void; onVoid: (s: Sale) => void }) {
+function SaleDetailDialog({ sale, onClose, onVoid }: {
+  sale: Sale | null; onClose: () => void; onVoid: (s: Sale, returns?: MaterialReturn[]) => void;
+}) {
   const { t } = useLang();
   const who = useStaffNames();
   const [confirming, setConfirming] = useState(false);
   useEffect(() => { setConfirming(false); }, [sale?.id]);
+  // Every line of a counter sale is stock, so all of it can come back. Memoised because the
+  // question below seeds its inputs from this list.
+  const returnable = useMemo<ReturnableMaterial[]>(
+    () => (sale?.items ?? []).flatMap((it) =>
+      it.id ? [{ lineId: it.id, description: it.description || it.sku || "—", drawn: it.quantity || 0 }] : []),
+    [sale],
+  );
+  const ret = useMaterialReturn(returnable, confirming);
   if (!sale) return null;
 
   return (
@@ -608,14 +619,19 @@ function SaleDetailDialog({ sale, onClose, onVoid }: { sale: Sale | null; onClos
             </Button>
           )}
 
-          {/* Voiding puts the stock back and takes the money out of the statistics, so it asks
-              once before doing it. */}
+          {/* Voiding takes the money out of the statistics and puts back whatever the buyer
+              actually brought with them, so it asks both questions once before doing it.
+              In place rather than in a second dialog: the cashier is checking these lines
+              against what is on the counter as they answer. */}
           {!sale.voided && (confirming ? (
-            <div className="flex flex-col gap-2 rounded-[10px] border border-destructive/40 bg-destructive-soft p-3">
+            <div className="flex flex-col gap-3 rounded-[10px] border border-destructive/40 bg-destructive-soft p-3">
               <div className="text-[13px] font-semibold text-destructive">{t("void_sale_confirm")}</div>
+              {returnable.length > 0 && <MaterialReturnPanel materials={returnable} state={ret} />}
               <div className="flex gap-2">
                 <Button variant="ghost" className="flex-1" onClick={() => setConfirming(false)}>{t("cancel")}</Button>
-                <Button variant="destructive" className="flex-1" onClick={() => onVoid(sale)}><Undo2 />{t("void_sale")}</Button>
+                <Button variant="destructive" className="flex-1" onClick={() => onVoid(sale, returnable.length > 0 ? ret.values() : undefined)}>
+                  <Undo2 />{t("void_sale")}
+                </Button>
               </div>
             </div>
           ) : (

@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, PublicReceipt,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, PublicReceipt, MaterialReturn,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -432,8 +432,15 @@ export const api = {
     }),
   removeLineItem: (woId: string, lineItemId: string) =>
     call<WorkOrder>("DELETE", `/v1/work-orders/${woId}/line-items/${lineItemId}`),
-  transition: (woId: string, target: WoState) =>
-    call<WorkOrder>("POST", `/v1/work-orders/${woId}/transition`, { target: woStateToProto(target) }),
+  // returns is read only when cancelling: it says how much of each material line is still on
+  // the shelf and goes back to the warehouse. Leaving it out writes the materials off against
+  // the abandoned job, which is what cancelling did before anyone was asked — so an order with
+  // no stock lines passes nothing and behaves exactly as before.
+  transition: (woId: string, target: WoState, returns?: MaterialReturn[]) =>
+    call<WorkOrder>("POST", `/v1/work-orders/${woId}/transition`, {
+      target: woStateToProto(target),
+      ...(returns ? { materialSettlement: { returns } } : {}),
+    }),
   // Set or clear the whole-order discount. value is fixed tiyin, or basis points for percent
   // (100 = 1%); pass kind "none" (value 0) to clear.
   setOrderDiscount: (woId: string, kind: DiscountKind, value: number) =>
@@ -480,7 +487,10 @@ export const api = {
       discountValue: String(s.discountValue ?? 0),
       customerId: s.customerId ?? "",
     }),
-  voidSale: (id: string) => call<Sale>("POST", `/v1/sales/${id}/void`),
+  // returns names what the buyer actually brought back. Omitting it restocks the whole sale,
+  // which is what voiding has always done and what the gateway relies on internally.
+  voidSale: (id: string, returns?: MaterialReturn[]) =>
+    call<Sale>("POST", `/v1/sales/${id}/void`, returns ? { materialSettlement: { returns } } : undefined),
 
   // ── pricing menu ──
   listMenuItems: (shopId: string) =>

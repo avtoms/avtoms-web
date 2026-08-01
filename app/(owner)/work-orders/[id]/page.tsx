@@ -2,7 +2,7 @@
 // Work order detail wired to the live backend. Loads api.getWorkOrder; line items, assign
 // mechanic, state transitions, invoice generation + fiscal QR + mark-paid. Re-fetches after
 // every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell, Gauge, Split } from "lucide-react";
 import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
 import { ProductPicker, variantLabel } from "@/components/product-picker";
+import { MaterialReturnDialog, type ReturnableMaterial } from "@/components/material-return-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
@@ -30,7 +31,7 @@ import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
   STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod, type DiscountKind,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, Contragent, LineItem } from "@/lib/types";
+import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, Contragent, LineItem, MaterialReturn } from "@/lib/types";
 
 // A single stocked variant, flattened with its product context, for the material picker.
 type PickVariant = { id: string; name: string; unit?: string; unitPrice?: string; unitCost?: string; quantityOnHand: number };
@@ -102,6 +103,17 @@ export default function WorkOrderDetailPage() {
   // reminders list was mostly empty.
   const [nextService, setNextService] = useState(false);
 
+  // The materials that actually left the warehouse on this order — the only things that can
+  // come back if it is called off. An order with none of them gets the plain confirm, because
+  // there is nothing to ask about.
+  const returnable = useMemo<ReturnableMaterial[]>(
+    () => (wo?.lineItems ?? []).flatMap((it) =>
+      it.id && it.variantId && (it.consumedQty ?? 0) > 0
+        ? [{ lineId: it.id, description: it.description, drawn: it.consumedQty as number }]
+        : []),
+    [wo],
+  );
+
   const load = useCallback(async () => {
     try { setWo(await api.getWorkOrder(id)); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
@@ -117,10 +129,10 @@ export default function WorkOrderDetailPage() {
 
   const err = (e: unknown) => toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
 
-  const doTransition = async (target: WoState) => {
+  const doTransition = async (target: WoState, returns?: MaterialReturn[]) => {
     if (busy) return; setBusy(true);
     try {
-      const updated = await api.transition(id, target);
+      const updated = await api.transition(id, target, returns);
       setWo(updated);
       toast(t(STATE_LABEL[target]), { icon: "check" });
       // The car is going back to its owner: this is the one moment the shop knows what was
@@ -366,16 +378,31 @@ export default function WorkOrderDetailPage() {
       <OrderDiscountModal open={discount} onClose={() => setDiscount(false)} wo={wo} onSaved={() => { setDiscount(false); load(); }} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
       <NextServiceModal open={nextService} onClose={() => setNextService(false)} wo={wo} shopId={shopId} />
-      <Dialog open={confirmCancel} onOpenChange={(o) => !o && setConfirmCancel(false)}>
-        <DialogContent className="max-w-[400px]">
-          <DialogHeader><DialogTitle>{t("cancel_wo")}</DialogTitle></DialogHeader>
-          <DialogBody className="py-1"><div className="text-[14px] leading-relaxed text-ink-2">{t("cancel_wo_confirm")}</div></DialogBody>
-          <DialogFooter>
-            <Button variant="ghost" disabled={busy} onClick={() => setConfirmCancel(false)}>{t("no")}</Button>
-            <Button variant="destructive" disabled={busy} onClick={async () => { setConfirmCancel(false); await doTransition("canceled"); }}>{busy ? <Spinner /> : t("cancel_wo")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* An order that drew stock has to say what became of it before it can be called off;
+          one that drew none has nothing to settle and keeps the plain confirm. */}
+      {returnable.length > 0 ? (
+        <MaterialReturnDialog
+          open={confirmCancel}
+          title={t("cancel_wo")}
+          warning={t("cancel_wo_confirm")}
+          confirmLabel={t("cancel_wo")}
+          materials={returnable}
+          busy={busy}
+          onClose={() => setConfirmCancel(false)}
+          onConfirm={async (returns) => { setConfirmCancel(false); await doTransition("canceled", returns); }}
+        />
+      ) : (
+        <Dialog open={confirmCancel} onOpenChange={(o) => !o && setConfirmCancel(false)}>
+          <DialogContent className="max-w-[400px]">
+            <DialogHeader><DialogTitle>{t("cancel_wo")}</DialogTitle></DialogHeader>
+            <DialogBody className="py-1"><div className="text-[14px] leading-relaxed text-ink-2">{t("cancel_wo_confirm")}</div></DialogBody>
+            <DialogFooter>
+              <Button variant="ghost" disabled={busy} onClick={() => setConfirmCancel(false)}>{t("no")}</Button>
+              <Button variant="destructive" disabled={busy} onClick={async () => { setConfirmCancel(false); await doTransition("canceled"); }}>{busy ? <Spinner /> : t("cancel_wo")}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
