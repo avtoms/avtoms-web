@@ -46,7 +46,12 @@ export default function LoginPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  // Three ways this screen can look. "password" is the default because it is the door most
+  // staff are given now; "phone" is unchanged and still here, because clients sign in by
+  // number and so does every account issued before passwords existed.
+  const [step, setStep] = useState<"password" | "phone" | "otp">("password");
+  const [loginName, setLoginName] = useState("");
+  const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -59,6 +64,22 @@ export default function LoginPage() {
     const iv = setInterval(() => setResend((r) => (r > 0 ? r - 1 : 0)), 1000);
     return () => clearInterval(iv);
   }, [step]);
+
+  const signIn = async () => {
+    if (!loginName.trim() || !password || busy) return;
+    setBusy(true);
+    try {
+      const tp = await api.signIn(loginName.trim(), password);
+      const s = login(tp);
+      router.replace(s.role === "mechanic" ? "/m" : s.role === "admin" ? "/admin" : "/dashboard");
+    } catch (e) {
+      // The server answers a wrong password and an unknown login identically, on purpose, so
+      // there is nothing more specific to say here than what it said.
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+      setPassword("");
+      setBusy(false);
+    }
+  };
 
   const sendCode = async () => {
     if (!isValidUzPhone(phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
@@ -132,6 +153,36 @@ export default function LoginPage() {
         <LangSwitcher lang={lang} onChange={setLang} compact={isMobile} />
       </div>
       <div style={{ margin: "auto", width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 22 }}>
+        {step === "password" && (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <h1 style={{ margin: 0, fontSize: "calc(27px * var(--scale))", fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.03em" }}>{t("login_pw_title")}</h1>
+              <p style={{ margin: 0, fontSize: "calc(15px * var(--scale))", color: "var(--ink-2)" }}>{t("login_pw_sub")}</p>
+            </div>
+            <Field label={t("login_label")}>
+              {/* Lower-cased as it is typed, matching how the server stores and compares it —
+                  a login that looks different from the one that will be matched is how
+                  somebody ends up unable to sign in with the credential they were handed. */}
+              <input value={loginName} onChange={(e) => setLoginName(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
+                onKeyDown={(e) => { if (e.key === "Enter") signIn(); }} placeholder="sardor"
+                autoComplete="username" autoCapitalize="none" autoCorrect="off" className="an-input"
+                style={{ width: "100%", border: "1px solid var(--line-2)", borderRadius: "var(--radius-sm)", outline: "none", padding: "12px 13px", fontSize: "calc(15.5px * var(--scale))", fontFamily: "var(--font-mono)", background: "var(--surface)", color: "var(--ink)" }} />
+            </Field>
+            <Field label={t("password_label")}>
+              <input value={password} type="password" onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") signIn(); }} placeholder="••••••"
+                autoComplete="current-password" className="an-input"
+                style={{ width: "100%", border: "1px solid var(--line-2)", borderRadius: "var(--radius-sm)", outline: "none", padding: "12px 13px", fontSize: "calc(15.5px * var(--scale))", fontFamily: "var(--font-mono)", background: "var(--surface)", color: "var(--ink)" }} />
+            </Field>
+            <Btn variant="primary" size="lg" full onClick={signIn} disabled={busy || !loginName.trim() || !password}>
+              {busy ? <Spinner /> : t("sign_in")}
+            </Btn>
+            <button onClick={() => setStep("phone")} className="an-btn"
+              style={{ border: "none", background: "transparent", color: "var(--accent-2)", cursor: "pointer", fontSize: 13.5, fontWeight: 600, padding: 0 }}>
+              {t("use_phone")}
+            </button>
+          </>
+        )}
         {step === "phone" && (
           <>
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -149,6 +200,10 @@ export default function LoginPage() {
             <Btn variant="primary" size="lg" iconRight={busy ? undefined : "chevR"} full onClick={sendCode} disabled={busy}>
               {busy ? <Spinner /> : t("send_code")}
             </Btn>
+            <button onClick={() => setStep("password")} className="an-btn"
+              style={{ border: "none", background: "transparent", color: "var(--accent-2)", cursor: "pointer", fontSize: 13.5, fontWeight: 600, padding: 0 }}>
+              {t("use_password")}
+            </button>
           </>
         )}
         {step === "otp" && (

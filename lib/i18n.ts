@@ -349,6 +349,15 @@ export const STR: Record<string, Triple> = {
   cancel_wo: ["Buyurtmani bekor qilish", "Буюртмани бекор қилиш", "Отменить заказ"],
   cancel_wo_confirm: ["Bu buyurtmani bekor qilasizmi? Bu amalni qaytarib bo'lmaydi.", "Бу буюртмани бекор қиласизми? Бу амални қайтариб бўлмайди.", "Отменить этот заказ-наряд? Это действие нельзя отменить."],
   no: ["Yo'q", "Йўқ", "Нет"],
+  // Signing in with a login and password. The phone path stays exactly as it was — this is
+  // another door, not a replacement, and clients keep using the number.
+  login_pw_title: ["Tizimga kirish", "Тизимга кириш", "Вход в систему"],
+  login_pw_sub: ["Login va parolingizni kiriting", "Логин ва паролингизни киритинг", "Введите логин и пароль"],
+  login_label: ["Login", "Логин", "Логин"],
+  password_label: ["Parol", "Парол", "Пароль"],
+  sign_in: ["Kirish", "Кириш", "Войти"],
+  use_phone: ["Telefon raqami orqali kirish", "Телефон рақами орқали кириш", "Войти по номеру телефона"],
+  use_password: ["Login va parol orqali kirish", "Логин ва парол орқали кириш", "Войти по логину и паролю"],
   yes: ["Ha", "Ҳа", "Да"],
   // Cancelling an order or voiding a sale: what happened to the goods that already left the
   // warehouse. Fractional, because half a job is half a bottle.

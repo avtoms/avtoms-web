@@ -11,6 +11,22 @@ export interface Staff {
   createdAt?: string;
   avatarUrl?: string;
   canCreateOrders?: boolean; // owner-granted: this worker may create work orders
+  login?: string;    // the name they sign in with; empty for an account that arrives by phone
+  shopName?: string; // the registered name of their shop, filled where the registry is to hand
+}
+
+// A registered service: the tenant every staff record, order and invoice hangs off. Until
+// this existed a shopId was a bare UUID nobody could put a name to.
+export interface Shop {
+  id: string;
+  name: string;
+  serviceType?: string; // what the place does — full service, oil change, body, tyres
+  staffCount?: number;  // headcount as stated at registration, not derived from accounts
+  location?: string;
+  phone?: string;       // the service's own public number, the one that goes on a check
+  active?: boolean;
+  createdAt?: string;
+  members?: number;     // staff records actually attached; read-only
 }
 
 export interface TokenPair {

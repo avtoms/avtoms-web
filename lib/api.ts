@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, PublicReceipt, MaterialReturn,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, PublicReceipt, MaterialReturn, Shop,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -333,6 +333,10 @@ export const api = {
     call<TokenPair>("POST", "/v1/auth/otp/verify", { challengeId, code }, false),
   refresh: (refreshToken: string) =>
     call<TokenPair>("POST", "/v1/auth/token/refresh", { refreshToken }, false),
+  // The other way in. requestOtp/verifyOtp above are untouched and stay the way clients sign
+  // in, and the way every account issued before passwords existed still signs in.
+  signIn: (login: string, password: string) =>
+    call<TokenPair>("POST", "/v1/auth/signin", { login, password }, false),
 
   // ── staff ──
   listStaff: (shopId: string) =>
@@ -751,6 +755,31 @@ export const api = {
     call<Staff>("POST", "/v1/admin/staff/active", { staffId, active }),
   setStaffRole: (staffId: string, role: Role) =>
     call<Staff>("POST", "/v1/admin/staff/role", { staffId, role: roleToProto(role) }),
+  // Issuing or resetting a credential. A stored password cannot be read back, so this is also
+  // the answer to a forgotten one. An empty login keeps the account's current name.
+  setStaffPassword: (staffId: string, password: string, login?: string) =>
+    call<Staff>("POST", `/v1/admin/staff/${staffId}/password`, { login: login ?? "", password }),
+
+  // ── super-admin shop registry (admin only) ──
+  listShops: () =>
+    call<{ shops?: Shop[] }>("GET", "/v1/admin/shops").then((r) => r.shops ?? []),
+  // Creates the company and its owner together: neither is usable alone, so neither is
+  // creatable alone. The owner can sign in the moment this returns.
+  registerShop: (s: {
+    name: string; serviceType?: string; staffCount?: number; location?: string; phone?: string;
+    ownerName: string; ownerPhone?: string; ownerLogin: string; ownerPassword: string;
+  }) => call<{ shop: Shop; owner: Staff }>("POST", "/v1/admin/shops", {
+    name: s.name, serviceType: s.serviceType ?? "", staffCount: s.staffCount ?? 0,
+    location: s.location ?? "", phone: s.phone ?? "",
+    ownerName: s.ownerName, ownerPhone: s.ownerPhone ?? "",
+    ownerLogin: s.ownerLogin, ownerPassword: s.ownerPassword,
+  }),
+  updateShop: (id: string, s: {
+    name: string; serviceType?: string; staffCount?: number; location?: string; phone?: string; active?: boolean;
+  }) => call<Shop>("POST", `/v1/admin/shops/${id}`, {
+    name: s.name, serviceType: s.serviceType ?? "", staffCount: s.staffCount ?? 0,
+    location: s.location ?? "", phone: s.phone ?? "", active: s.active ?? true,
+  }),
 
   // ── super-admin integration credentials ──
   listIntegrations: () =>

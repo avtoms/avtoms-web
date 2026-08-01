@@ -17,9 +17,12 @@ const ROLE_BADGE: Record<Role, { label: string; tone: "accent" | "info" | "warn"
   admin: { label: "Admin", tone: "warn" },
 };
 
-function shopLabel(shopId: string): string {
-  if (!shopId) return "—";
-  return shopId.length > 10 ? shopId.slice(0, 8) : shopId;
+// The registered name where there is one. The id fallback is for a staff record whose shop
+// predates the registry and has not been named yet — it used to be all this column ever had.
+function shopLabel(s: Staff): string {
+  if (s.shopName) return s.shopName;
+  if (!s.shopId) return "—";
+  return s.shopId.length > 10 ? s.shopId.slice(0, 8) : s.shopId;
 }
 
 const columns: ColumnDef<Staff>[] = [
@@ -42,12 +45,12 @@ const columns: ColumnDef<Staff>[] = [
   },
   {
     id: "shop",
-    accessorFn: (s) => s.shopId,
+    accessorFn: (s) => shopLabel(s),
     header: ({ column }) => <SortHeader column={column}>Avtoservis</SortHeader>,
     cell: ({ row }) => (
       <div className="flex items-center gap-2 text-muted-foreground">
         <Store className="size-4" />
-        <span className="font-mono text-[12.5px]">{shopLabel(row.original.shopId)}</span>
+        <span className={row.original.shopName ? "text-[13px] font-semibold text-foreground" : "font-mono text-[12.5px]"}>{shopLabel(row.original)}</span>
       </div>
     ),
   },

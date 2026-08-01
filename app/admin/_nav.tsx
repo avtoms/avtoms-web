@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, BarChart3, Target, Inbox, Users, Car, LayoutList, Plug, Tags, FolderTree, type LucideIcon,
+  LayoutDashboard, BarChart3, Target, Inbox, Users, Car, LayoutList, Plug, Tags, FolderTree, Store, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,13 @@ export const NAV_GROUPS: Group[] = [
       { href: "/admin/demo-requests", label: "Demo so'rovlari", icon: Inbox },
     ],
   },
-  { title: "Foydalanuvchilar", items: [{ href: "/admin/users", label: "Xodimlar", icon: Users }] },
+  {
+    title: "Foydalanuvchilar",
+    items: [
+      { href: "/admin/shops", label: "Servislar", icon: Store },
+      { href: "/admin/users", label: "Xodimlar", icon: Users },
+    ],
+  },
   {
     title: "Katalog",
     items: [
