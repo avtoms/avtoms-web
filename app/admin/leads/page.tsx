@@ -3,7 +3,7 @@
 // + photo, the pipeline status and the deal price actually negotiated. Add / edit / delete.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Phone, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, GripVertical, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -25,6 +25,9 @@ import { money, num } from "@/lib/format";
 import type { Lead } from "@/lib/types";
 
 const STATUSES = ["new", "contacted", "qualified", "negotiating", "won", "lost"] as const;
+// What the operator can say a lead came from. "registered" is deliberately absent: it is what
+// the platform writes on a card it created itself when a service was registered, and offering
+// it in the picker would let a hand-typed prospect claim to be a customer.
 const SOURCES = ["landing", "referral", "cold", "telegram", "instagram", "walk_in", "other"] as const;
 type StatusTone = "neutral" | "info" | "accent" | "warn" | "ok" | "danger";
 const STATUS_TONE: Record<string, StatusTone> = {
@@ -60,7 +63,9 @@ export default function AdminLeadsPage() {
   useEffect(() => { load(); }, [load]);
 
   const remove = async (l: Lead) => {
-    if (!window.confirm(t("lead_delete_confirm"))) return;
+    // Deleting the card of a live customer removes the card, not the service. Saying so is the
+    // difference between tidying the board and believing you have just closed a shop down.
+    if (!window.confirm(t(l.shopId ? "lead_delete_service_confirm" : "lead_delete_confirm"))) return;
     try { await api.deleteLead(l.id); toast.success(t("deleted")); load(); }
     catch (e) { toast.error(e instanceof ApiError ? e.message : t("error")); }
   };
@@ -108,6 +113,17 @@ export default function AdminLeadsPage() {
   );
 }
 
+// A card the platform wrote for itself the moment a service was registered. It marks a paying
+// customer among prospects, which matters because the two look identical once a card sits in
+// "won" — one is a deal somebody believes closed, the other is a service that exists and bills.
+function ServiceMark({ t }: { t: (k: string) => string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success-soft px-2 py-[3px] text-[11px] font-bold text-success">
+      <Store className="size-3" /> {t("lead_is_service")}
+    </span>
+  );
+}
+
 const OPEN_STAGES = new Set(["new", "contacted", "qualified", "negotiating"]);
 function LeadStats({ leads }: { leads: Lead[] }) {
   const { t } = useLang();
@@ -116,10 +132,14 @@ function LeadStats({ leads }: { leads: Lead[] }) {
   const wonValue = won.reduce((s, l) => s + num(l.dealPrice), 0);
   const decided = won.length + leads.filter((l) => l.status === "lost").length;
   const winRate = decided ? Math.round((won.length / decided) * 100) : 0;
+  // How many of these are services that actually exist — the figure a "won" count cannot give,
+  // since a card is dragged there by hand and a registration is not.
+  const customers = leads.filter((l) => !!l.shopId).length;
   const items = [
     { label: t("a_total_leads"), value: String(leads.length), tone: "text-foreground" },
     { label: t("a_open_pipeline"), value: money(pipeline) + " " + t("soum"), tone: "text-info" },
     { label: t("a_won"), value: money(wonValue) + " " + t("soum"), tone: "text-success" },
+    { label: t("a_lead_customers"), value: String(customers), tone: "text-success" },
     { label: t("a_conversion_t"), value: winRate + "%", tone: "text-primary-emphasis" },
   ];
   return (
@@ -144,8 +164,11 @@ function LeadList({ leads, onOpen, onRemove, t }: { leads: Lead[]; onOpen: (l: L
           <div key={l.id} className={cn("flex items-center gap-3.5 px-4 py-3 sm:px-5", i !== leads.length - 1 && "border-b border-border")}>
             <UserAvatar name={l.name || l.company || "?"} src={l.imageUrl || undefined} className="size-10" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[14.5px] font-bold text-foreground">
-                {l.name || "—"}{l.company && <span className="font-medium text-muted-foreground"> · {l.company}</span>}
+              <div className="flex items-center gap-2">
+                <span className="truncate text-[14.5px] font-bold text-foreground">
+                  {l.name || "—"}{l.company && <span className="font-medium text-muted-foreground"> · {l.company}</span>}
+                </span>
+                {l.shopId && <ServiceMark t={t} />}
               </div>
               <div className="flex flex-wrap gap-x-2 text-[12.5px] text-muted-foreground">
                 {l.phone && <span className="font-mono">{l.phone}</span>}
@@ -173,6 +196,11 @@ function LeadModal({ lead, onClose, onSaved }: { lead: Partial<Lead> | null; onC
   useEffect(() => { if (lead) setF({ ...empty, ...lead, dealPrice: lead.dealPrice ? String(num(lead.dealPrice)) : "" }); }, [lead]);
   const isEdit = !!lead?.id;
   const set = (k: keyof Lead, v: string) => setF((s) => ({ ...s, [k]: v }));
+  // A card written by the platform carries a source the picker does not offer. It is added to
+  // the list for this one lead so opening the card shows what it is instead of an empty box,
+  // and so saving cannot silently rewrite where it came from.
+  const sources: readonly string[] =
+    f.source && !(SOURCES as readonly string[]).includes(f.source) ? [...SOURCES, f.source] : SOURCES;
 
   const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = "";
@@ -200,7 +228,12 @@ function LeadModal({ lead, onClose, onSaved }: { lead: Partial<Lead> | null; onC
   return (
     <Dialog open={!!lead} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[560px]">
-        <DialogHeader><DialogTitle>{isEdit ? t("lead_edit") : t("lead_add")}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {isEdit ? t("lead_edit") : t("lead_add")}
+            {f.shopId && <ServiceMark t={t} />}
+          </DialogTitle>
+        </DialogHeader>
         <DialogBody className="flex flex-col gap-3 py-1">
           <div className="flex flex-col items-center gap-2">
             <button type="button" onClick={() => fileRef.current?.click()} aria-label={t("change_photo")} className="rounded-full">
@@ -224,7 +257,7 @@ function LeadModal({ lead, onClose, onSaved }: { lead: Partial<Lead> | null; onC
             <Field label={t("lead_source")}>
               <Select value={f.source || "landing"} onValueChange={(v) => set("source", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{SOURCES.map((s) => <SelectItem key={s} value={s}>{t("src_" + s)}</SelectItem>)}</SelectContent>
+                <SelectContent>{sources.map((s) => <SelectItem key={s} value={s}>{t("src_" + s)}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
             <Field label={t("lead_status")}>
@@ -339,6 +372,7 @@ function LeadCard({ l, busy, dragging, onOpen, onMove, onDragStart, onDragEnd, t
         </div>
         {draggable && <GripVertical className="size-4 text-muted-foreground/50" />}
       </div>
+      {l.shopId && <div className="mb-2.5"><ServiceMark t={t} /></div>}
       {(l.phone || l.city) && (
         <div className="mb-2.5 flex flex-wrap gap-x-2 text-[12px] text-muted-foreground">
           {l.phone && <span className="font-mono">{l.phone}</span>}

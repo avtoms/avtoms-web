@@ -91,12 +91,15 @@ export interface Lead {
   imageUrl?: string;
   city?: string;
   address?: string;
-  source?: string; // landing | referral | cold | telegram | instagram | walk_in | other
+  source?: string; // landing | referral | cold | telegram | instagram | walk_in | other | registered
   status: string;  // new | contacted | qualified | negotiating | won | lost
   dealPrice?: string | number; // int64 (soum); protojson serializes as string
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  // The registered service this lead became. Set when a service is registered and never by the
+  // editor, so a card carrying one is a live customer rather than a prospect.
+  shopId?: string;
 }
 
 // A saved AI-assistant chat thread + its turns (owner/super-admin history).

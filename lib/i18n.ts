@@ -456,6 +456,15 @@ export const STR: Record<string, Triple> = {
   src_instagram: ["Instagram", "Инстаграм", "Инстаграм"],
   src_walk_in: ["O'zi keldi", "Ўзи келди", "Пришёл сам"],
   src_other: ["Boshqa", "Бошқа", "Другое"],
+  // Written by the platform, not chosen by anyone: this card appeared because a service was
+  // registered. It is not offered in the source picker for that reason.
+  src_registered: ["Ro'yxatdan o'tgan", "Рўйхатдан ўтган", "Зарегистрирован"],
+  lead_is_service: ["Servis", "Сервис", "Сервис"],
+  lead_delete_service_confirm: [
+    "Bu lid kartasini o'chirasizmi? Servisning o'zi va uning hisobi o'chmaydi.",
+    "Бу лид картасини ўчирасизми? Сервиснинг ўзи ва унинг ҳисоби ўчмайди.",
+    "Удалить эту карточку лида? Сам сервис и его аккаунт останутся.",
+  ],
   confirm_delete_vehicle: ["Avtomobilni o'chirishni tasdiqlaysizmi?", "Автомобилни ўчиришни тасдиқлайсизми?", "Удалить автомобиль?"],
   warranties: ["Kafolatlar", "Кафолатлар", "Гарантии"],
   add_warranty: ["Kafolat qo'shish", "Кафолат қўшиш", "Добавить гарантию"],
@@ -973,6 +982,7 @@ export const STR: Record<string, Triple> = {
   a_staff_mix_sub: ["Rol bo'yicha taqsimot", "Рол бўйича тақсимот", "Распределение по ролям"],
   a_funnel: ["Sotuv quvuri", "Сотув қувури", "Воронка продаж"],
   a_funnel_sub: ["Bosqich bo'yicha lidlar soni", "Босқич бўйича лидлар сони", "Количество лидов по этапам"],
+  a_lead_customers: ["Servis bo'ldi", "Сервис бўлди", "Стали сервисом"],
   a_lead_sources: ["Lidlar manbasi", "Лидлар манбаси", "Источники лидов"],
   a_lead_sources_sub: ["Lidlar qayerdan kelgani", "Лидлар қаердан келгани", "Откуда приходят лиды"],
   a_top_services: ["Eng ko'p daromadli xizmatlar", "Энг кўп даромадли хизматлар", "Самые доходные услуги"],
