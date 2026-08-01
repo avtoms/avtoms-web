@@ -8,8 +8,10 @@ import { Plus, Trash2, Repeat } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Input } from "@/components/ui-kit/input";
 import { Field } from "@/components/ui-kit/label";
+import { SuggestInput } from "@/components/suggest-input";
 import { useLang } from "@/components/providers";
 import { api } from "@/lib/api";
+import { useServiceNames } from "@/lib/use-services";
 
 export type ReminderDraft = { id: string; title: string; due: string; mileage: string; repMonths: string; repKm: string };
 
@@ -17,7 +19,9 @@ let seq = 0;
 const nextId = () => `r${++seq}`;
 export const emptyReminder = (): ReminderDraft => ({ id: nextId(), title: "", due: "", mileage: "", repMonths: "", repKm: "" });
 
-// Common recurring services offered as one-tap presets, prefilled with a sensible interval.
+// Fallback one-tap presets, used only by a shop whose price list is still empty. Once there is
+// a price list, the chips below come from it instead — a shop's own services beat a guess at
+// what a shop does.
 const PRESETS: { key: string; months: string; km: string }[] = [
   { key: "preset_oil", months: "6", km: "10000" },
   { key: "preset_inspection", months: "12", km: "" },
@@ -50,9 +54,21 @@ export async function saveReminders(shopId: string, drafts: ReminderDraft[], ctx
 
 export function ReminderRows({ value, onChange }: { value: ReminderDraft[]; onChange: (v: ReminderDraft[]) => void }) {
   const { t } = useLang();
+  const services = useServiceNames();
   const set = (id: string, patch: Partial<ReminderDraft>) => onChange(value.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const add = (patch?: Partial<ReminderDraft>) => onChange([...value, { ...emptyReminder(), ...patch }]);
   const del = (id: string) => onChange(value.filter((r) => r.id !== id));
+
+  // A service off the price list carries no interval — the price list says what a job costs,
+  // not how often it comes round. Where its name is one of the presets above (most shops do
+  // call it "Moy almashtirish"), that preset's interval comes with it; otherwise the interval
+  // is left to be filled in, with its placeholders showing the usual answer.
+  const chips: { label: string; title: string; months: string; km: string }[] = services.length > 0
+    ? services.slice(0, 6).map((name) => {
+        const p = PRESETS.find((x) => t(x.key).toLowerCase() === name.toLowerCase());
+        return { label: name, title: name, months: p?.months ?? "", km: p?.km ?? "" };
+      })
+    : PRESETS.map((p) => ({ label: t(p.key), title: t(p.key), months: p.months, km: p.km }));
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -63,12 +79,12 @@ export function ReminderRows({ value, onChange }: { value: ReminderDraft[]; onCh
         </div>
         <Button variant="soft" size="sm" onClick={() => add()} className="shrink-0"><Plus /> {t("add_reminder")}</Button>
       </div>
-      {/* one-tap presets for the most common recurring services */}
+      {/* one tap per service the shop actually sells */}
       <div className="flex flex-wrap gap-1.5">
-        {PRESETS.map((p) => (
-          <Button key={p.key} type="button" variant="secondary" size="sm"
-            onClick={() => add({ title: t(p.key), repMonths: p.months, repKm: p.km })}>
-            <Plus className="size-3.5" /> {t(p.key)}
+        {chips.map((c) => (
+          <Button key={c.label} type="button" variant="secondary" size="sm"
+            onClick={() => add({ title: c.title, repMonths: c.months, repKm: c.km })}>
+            <Plus className="size-3.5" /> {c.label}
           </Button>
         ))}
       </div>
@@ -79,7 +95,8 @@ export function ReminderRows({ value, onChange }: { value: ReminderDraft[]; onCh
           <div key={r.id} className="flex flex-col gap-2 rounded-[10px] border border-border bg-secondary/30 p-2.5">
             <div className="flex items-end gap-2">
               <Field label={t("reminder_title")} className="flex-1">
-                <Input value={r.title} placeholder={t("reminder_title")} onChange={(e) => set(r.id, { title: e.target.value })} />
+                <SuggestInput value={r.title} options={services} max={20} placeholder={t("reminder_title")}
+                  onChange={(v) => set(r.id, { title: v })} />
               </Field>
               <Button variant="ghost" size="icon" onClick={() => del(r.id)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
             </div>

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { reminderStateFromProto, reminderStateToProto } from "@/lib/enums";
+import { useServiceNames } from "@/lib/use-services";
 import { PlatePreview } from "@/components/plate";
 import type { ServiceReminder, Customer, Vehicle } from "@/lib/types";
 
@@ -44,8 +45,9 @@ export default function RemindersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // What this shop actually calls its recurring jobs, newest first — the vocabulary offered
-  // when writing the next one.
+  // Anything already written on a past reminder, which is offered after the price list — a
+  // reminder can be for something this shop does not bill for, and once written it should not
+  // have to be typed again.
   const titles = useMemo(() => list.map((m) => m.title).filter(Boolean), [list]);
 
   const setState = async (m: ServiceReminder, state: "done" | "dismissed") => {
@@ -139,6 +141,7 @@ function AddModal({ open, onClose, shopId, titles, onCreated }: { open: boolean;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [busy, setBusy] = useState(false);
+  const services = useServiceNames(titles);
 
   useEffect(() => {
     if (!open) return;
@@ -186,10 +189,10 @@ function AddModal({ open, onClose, shopId, titles, onCreated }: { open: boolean;
       <DialogContent className="max-w-[480px]">
         <DialogHeader><DialogTitle>{t("add_reminder")}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-3 py-1">
-          {/* The same handful of services come round again and again — offer them rather than
-              have them spelled a new way each time. */}
-          <Field label={t("reminder_title")}>
-            <SuggestInput value={f.title} options={titles} onChange={(v) => setF({ ...f, title: v })} placeholder={t("reminder_title")} />
+          {/* The shop's own price list, so the reminder is named the way the shop names the
+              job — and so a shop that has never written a reminder is still offered something. */}
+          <Field label={t("reminder_title")} hint={services.length > 0 ? t("from_price_list") : undefined}>
+            <SuggestInput value={f.title} options={services} max={20} onChange={(v) => setF({ ...f, title: v })} placeholder={t("reminder_title")} />
           </Field>
           <Field label={t("nav_customers")}>
             <SearchSelect

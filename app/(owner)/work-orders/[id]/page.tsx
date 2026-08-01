@@ -26,6 +26,7 @@ import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { useStaffNames } from "@/lib/use-staff";
+import { useServiceNames } from "@/lib/use-services";
 import { money, num, shortDate, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
@@ -1114,6 +1115,10 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
 // Both bounds are honoured: whichever comes first is when the reminder is due. Only the date
 // can fire on its own, since the shop does not see the car's odometer in between visits — the
 // km target is what the reminder tells the customer when it does.
+//
+// The chips are the shop's own price list where there is one — this dialog opens straight
+// after a job that is on that list, so the next one almost always is too. These generic ones
+// are the fallback for a shop that has not filled its price list in yet.
 const NEXT_PRESETS: { key: string; months: number; km: number }[] = [
   { key: "preset_oil", months: 6, km: 10000 },
   { key: "preset_inspection", months: 12, km: 0 },
@@ -1130,6 +1135,7 @@ function NextServiceModal({ open, onClose, wo, shopId }: {
   const [km, setKm] = useState("10000");
   const [currentKm, setCurrentKm] = useState("");
   const [busy, setBusy] = useState(false);
+  const services = useServiceNames();
 
   useEffect(() => {
     if (!open) return;
@@ -1143,6 +1149,10 @@ function NextServiceModal({ open, onClose, wo, shopId }: {
   const m = parseInt(months, 10) || 0;
   const k = parseInt(km, 10) || 0;
   const cur = parseInt(currentKm, 10) || 0;
+  // Its own services first; the generic list only while it has none.
+  const chips: { label: string; months?: number; km?: number }[] = services.length > 0
+    ? services.slice(0, 6).map((name) => ({ label: name }))
+    : NEXT_PRESETS.map((p) => ({ label: t(p.key), months: p.months, km: p.km }));
   const due = m > 0 ? new Date(new Date().setMonth(new Date().getMonth() + m)) : null;
   const dueKm = k > 0 && cur > 0 ? cur + k : 0;
 
@@ -1186,16 +1196,22 @@ function NextServiceModal({ open, onClose, wo, shopId }: {
           <p className="text-[12.5px] leading-snug text-muted-foreground">{t("next_service_hint")}</p>
 
           <div className="flex flex-wrap gap-1.5">
-            {NEXT_PRESETS.map((p) => (
-              <Button key={p.key} type="button" variant="secondary" size="sm"
-                onClick={() => { setTitle(t(p.key)); setMonths(String(p.months)); setKm(p.km ? String(p.km) : ""); }}>
-                {t(p.key)}
+            {chips.map((c) => (
+              <Button key={c.label} type="button" variant="secondary" size="sm"
+                onClick={() => {
+                  setTitle(c.label);
+                  // A price-list service says nothing about how often it comes round, so the
+                  // interval already on screen is kept rather than blanked — it is the one
+                  // thing in this dialog that cannot be worked out from the job just done.
+                  if (c.months !== undefined) { setMonths(String(c.months)); setKm(c.km ? String(c.km) : ""); }
+                }}>
+                {c.label}
               </Button>
             ))}
           </div>
 
-          <Field label={t("reminder_title")}>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Field label={t("reminder_title")} hint={services.length > 0 ? t("from_price_list") : undefined}>
+            <SuggestInput value={title} options={services} max={20} onChange={setTitle} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("every_months")}>
