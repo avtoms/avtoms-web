@@ -253,7 +253,6 @@ export const STR: Record<string, Triple> = {
   edit_contragent: ["Kontragentni tahrirlash", "Контрагентни таҳрирлаш", "Редактировать контрагента"],
   contragent_name: ["Nomi", "Номи", "Название"],
   no_contragents: ["Hozircha kontragent yo'q", "Ҳозирча контрагент йўқ", "Пока нет контрагентов"],
-  delete_contragent_confirm: ["Bu kontragent o'chirilsinmi? Bog'langan mahsulotlar nomni saqlaydi.", "Бу контрагент ўчирилсинми? Боғланган маҳсулотлар номни сақлайди.", "Удалить этого контрагента? У связанных товаров название сохранится."],
   contragent_brand_hint: ["Ixtiyoriy. Mahsulot qo'shishda shu brend tanlansa, ro'yxatda faqat shu yetkazib beruvchilar chiqadi.", "Ихтиёрий. Маҳсулот қўшишда шу бренд танланса, рўйхатда фақат шу етказиб берувчилар чиқади.", "Необязательно. При добавлении товара с этим брендом в списке останутся только эти поставщики."],
   receive: ["Kirim", "Кирим", "Приход"],
   purchase_price: ["Zakup narxi", "Закуп нархи", "Цена закупа"],

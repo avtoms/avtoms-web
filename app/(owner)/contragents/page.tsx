@@ -4,7 +4,7 @@
 // dialog. The list drives the supplier dropdown on the product form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, Phone, MapPin, Tag, Wallet } from "lucide-react";
+import { Plus, Pencil, Phone, MapPin, Tag, Wallet } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -78,12 +78,6 @@ export default function ContragentsPage() {
     for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
     return m;
   }, [brands]);
-
-  const del = useCallback(async (c: Contragent) => {
-    if (!confirm(t("delete_contragent_confirm"))) return;
-    try { await api.deleteContragent(c.id); toast(t("save"), { icon: "check" }); load(); }
-    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
-  }, [t, toast, load]);
 
   const columns = useMemo<ColumnDef<Contragent>[]>(() => [
     {
@@ -174,11 +168,10 @@ export default function ContragentsPage() {
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setAccount(row.original); }}><Wallet /> {t("cg_account")}</Button>
           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", item: row.original }); }}><Pencil /> {t("edit")}</Button>
-          <Button variant="ghost" size="icon-sm" className="text-destructive" aria-label={t("delete")} onClick={(e) => { e.stopPropagation(); del(row.original); }}><Trash2 /></Button>
         </div>
       ),
     },
-  ], [t, del, brandLogos, balances]);
+  ], [t, brandLogos, balances]);
 
   return (
     <div className="flex flex-col gap-4">

@@ -624,8 +624,10 @@ export const api = {
     call<Contragent>("POST", "/v1/contragents", { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", brand: c.brand ?? "" }),
   updateContragent: (id: string, c: { name: string; phone?: string; address?: string; notes?: string; active?: boolean; brand?: string }) =>
     call<Contragent>("POST", `/v1/contragents/${id}`, { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true, brand: c.brand ?? "" }),
-  deleteContragent: (id: string) =>
-    call<{ ok?: boolean }>("POST", `/v1/contragents/${id}/delete`, {}),
+  // No deleteContragent here on purpose. The row is hard-deleted server-side and
+  // contragent_ledger cascades off it, so removing a supplier took their whole account with
+  // them — every purchase, every payment, and any balance still owed. Retiring one is the
+  // Active switch on the edit form: the history survives and the name stops being offered.
 
   // ── contragent accounts (debt and cash; never profit) ──
   contragentBalances: (shopId: string, from?: string, to?: string) =>
