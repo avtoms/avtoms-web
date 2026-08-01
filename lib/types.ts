@@ -10,9 +10,30 @@ export interface Staff {
   active: boolean;
   createdAt?: string;
   avatarUrl?: string;
-  canCreateOrders?: boolean; // owner-granted: this worker may create work orders
+  canCreateOrders?: boolean;
+  // The role held, if any, and its name so a staff list can render the column without also
+  // fetching the roles.
+  roleId?: string;
+  roleName?: string;
+  // Grants held directly, on top of the role — what was ticked for this person specifically.
+  permissions?: string[];
+  // Everything they may actually do: role + own grants, or the whole catalogue for an owner.
+  // This is the field to check; the two above describe how it was arrived at.
+  effectivePermissions?: string[];
   login?: string;    // the name they sign in with; empty for an account that arrives by phone
   shopName?: string; // the registered name of their shop, filled where the registry is to hand
+}
+
+// ShopRole is a named bundle of permissions a shop composed for itself. There is no fixed list
+// of roles — no two services divide the work the same way.
+export interface ShopRole {
+  id: string;
+  shopId?: string;
+  name: string;
+  permissions?: string[];
+  members?: number; // how many active staff hold it; read-only, and what makes deleting a decision
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // A registered service: the tenant every staff record, order and invoice hangs off. Until

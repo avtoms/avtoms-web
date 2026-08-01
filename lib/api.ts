@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, PublicReceipt, MaterialReturn, Shop,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -353,6 +353,29 @@ export const api = {
     call<Staff>("POST", `/v1/auth/staff/${staffId}/permissions`, { canCreateOrders }),
   // The caller's own live staff record (reflects owner-granted permissions without re-login).
   getMe: () => call<Staff>("GET", "/v1/auth/me"),
+
+  // ── roles and worker accounts ──
+  // All behind staff.manage at the gateway: the permission to decide what other people may do.
+  listRoles: (shopId: string) =>
+    call<{ roles?: ShopRole[] }>("GET", "/v1/auth/roles" + qs({ shopId })).then((r) => r.roles ?? []),
+  createRole: (name: string, permissions: string[]) =>
+    call<ShopRole>("POST", "/v1/auth/roles", { name, permissions }),
+  updateRole: (id: string, name: string, permissions: string[]) =>
+    call<ShopRole>("POST", `/v1/auth/roles/${id}`, { name, permissions }),
+  deleteRole: (id: string) => call<{ ok: boolean }>("POST", `/v1/auth/roles/${id}/delete`, {}),
+  // A worker who can sign in from the moment they are created: account, password and role in
+  // one call, because a shop that hires somebody on Monday wants them working on Monday.
+  createStaff: (s: { name: string; phone: string; login: string; password: string; roleId?: string; permissions?: string[] }) =>
+    call<Staff>("POST", "/v1/auth/staff", {
+      name: s.name, phone: s.phone, login: s.login, password: s.password,
+      roleId: s.roleId ?? "", permissions: s.permissions ?? [],
+    }),
+  setStaffAccess: (staffId: string, roleId: string, permissions: string[]) =>
+    call<Staff>("POST", `/v1/auth/staff/${staffId}/access`, { roleId, permissions }),
+  // Replaces a worker's password, and optionally renames the login. Nothing can read a password
+  // back, so this is also the answer to "they have forgotten it".
+  setWorkerPassword: (staffId: string, login: string, password: string) =>
+    call<Staff>("POST", `/v1/auth/staff/${staffId}/password`, { login, password }),
 
   // ── customers + vehicles ──
   listCustomers: (shopId: string, query?: string) =>

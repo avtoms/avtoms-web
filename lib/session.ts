@@ -11,6 +11,16 @@ export interface Session {
   refreshToken: string;
   role: Role;
   staff: { id: string; shopId: string; phone: string; name: string };
+  // What this person may do, as auth resolved it at sign-in. Kept in the session because the
+  // console has to decide what to draw before any request comes back, and a nav that appears
+  // one item at a time as permissions arrive is worse than one that is right immediately.
+  //
+  // Not a security boundary — the gateway re-resolves this on every request and will refuse
+  // anything not held, whatever a tampered cookie claims.
+  permissions?: string[];
+  // The name of the job they hold, for the console to say whose hat they are wearing. Empty
+  // for an owner, and for a worker carrying grants but no named role.
+  roleName?: string;
   // When the access token stops being accepted, as epoch ms. Knowing this lets the API layer
   // refresh *before* a request fails instead of discovering expiry by 401-ing a whole page of
   // requests at once. Undefined on sessions stored before this field existed — treated as
@@ -42,6 +52,8 @@ export function sessionFromTokenPair(tp: TokenPair): Session {
     refreshToken: tp.refreshToken,
     role: roleFromProto(tp.staff.role),
     staff: { id: tp.staff.id, shopId: tp.staff.shopId, phone: tp.staff.phone, name: tp.staff.name },
+    permissions: tp.staff.effectivePermissions ?? [],
+    roleName: tp.staff.roleName ?? "",
     expiresAt,
   };
 }

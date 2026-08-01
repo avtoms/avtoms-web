@@ -5,6 +5,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { Btn, Field, Badge, LangSwitcher, Logo, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
+import { homeFor } from "@/lib/perms";
 import { formatNational, isValidUzPhone, toE164 } from "@/lib/phone";
 
 function OtpBoxes({ value, onChange, onComplete }: { value: string; onChange: (v: string) => void; onComplete: (v: string) => void }) {
@@ -71,7 +72,7 @@ export default function LoginPage() {
     try {
       const tp = await api.signIn(loginName.trim(), password);
       const s = login(tp);
-      router.replace(s.role === "mechanic" ? "/m" : s.role === "admin" ? "/admin" : "/dashboard");
+      router.replace(homeFor(s));
     } catch (e) {
       // The server answers a wrong password and an unknown login identically, on purpose, so
       // there is nothing more specific to say here than what it said.
@@ -104,7 +105,7 @@ export default function LoginPage() {
     try {
       const tp = await api.verifyOtp(challengeId, c);
       const s = login(tp);
-      router.replace(s.role === "mechanic" ? "/m" : "/dashboard");
+      router.replace(homeFor(s));
     } catch (e) {
       // 403 means the code was right and access is the problem: the account is waiting on
       // an admin, or has been switched off. That is a dead end rather than a retry, so it
