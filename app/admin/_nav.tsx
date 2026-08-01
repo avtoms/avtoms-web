@@ -92,6 +92,9 @@ const TITLES: { match: (p: string) => boolean; title: string; sub?: string }[] =
   { match: (p) => p.startsWith("/admin/services"), title: "Xizmatlar tahlili", sub: "Barcha avtoservislar bo'yicha" },
   { match: (p) => p.startsWith("/admin/leads"), title: "Lidlar (CRM)", sub: "Sotuv quvuri va potentsial mijozlar" },
   { match: (p) => p.startsWith("/admin/demo-requests"), title: "Demo so'rovlari", sub: "Landing sahifadan kelgan so'rovlar" },
+  // Before /admin/services would ever be tried against it — startsWith is order-sensitive,
+  // and these two paths share no prefix today but read alike enough to invite one later.
+  { match: (p) => p.startsWith("/admin/shops"), title: "Servislar", sub: "Ro'yxatdan o'tgan avtoservislar" },
   { match: (p) => p.startsWith("/admin/users"), title: "Foydalanuvchilar", sub: "Barcha avtoservis xodimlari" },
   { match: (p) => p.startsWith("/admin/car-makes"), title: "Avtomobil markalari", sub: "Katalog boshqaruvi" },
   { match: (p) => p.startsWith("/admin/car-models"), title: "Avtomobil modellari", sub: "Katalog boshqaruvi" },

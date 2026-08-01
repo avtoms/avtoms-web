@@ -120,11 +120,10 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* No page heading here: the admin shell's topbar already names the page, and every
+          other screen in this area leaves it to do that. */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <div>
-          <h1 className="text-[20px] font-extrabold tracking-[-0.02em] text-foreground">Servislar</h1>
-          <p className="text-[13px] text-muted-foreground">{list.length} ta ro&apos;yxatdan o&apos;tgan servis</p>
-        </div>
+        <p className="text-[13px] text-muted-foreground">{list.length} ta ro&apos;yxatdan o&apos;tgan servis</p>
         <Button onClick={() => setRegistering(true)}><Plus /> Servis ro&apos;yxatdan o&apos;tkazish</Button>
       </div>
 
