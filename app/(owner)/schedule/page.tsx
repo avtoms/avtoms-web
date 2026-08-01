@@ -18,6 +18,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { apptStateFromProto, apptStateToProto } from "@/lib/enums";
 import { PhoneField, PlateField } from "@/components/catalog-fields";
+import { toE164 } from "@/lib/phone";
 import { PlatePreview } from "@/components/plate";
 import type { Appointment, Staff, Customer, Vehicle } from "@/lib/types";
 
@@ -151,7 +152,10 @@ function AddModal({ open, onClose, shopId, mechanics, titles, onCreated }: { ope
     if (!f.title.trim() || !f.when || busy) return;
     setBusy(true);
     const name = f.customer.trim();
-    const phone = f.phone.trim();
+    // E.164, like every other screen that creates a client. PhoneField holds the readable
+    // "+998 90 123 45 67", and storing that is what stopped these clients ever being matched
+    // to their Telegram — the bot links on an exact string, and the spaces never matched.
+    const phone = toE164(f.phone);
     try {
       // A booking for a NEW person (not picked from existing) also registers them in the
       // clients list — so a scheduled visit means the client exists, just reserved for that
