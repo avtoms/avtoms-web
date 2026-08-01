@@ -27,6 +27,7 @@ import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { useStaffNames } from "@/lib/use-staff";
 import { useServiceNames } from "@/lib/use-services";
+import { auditAction, auditDetail } from "@/lib/system-text";
 import { money, num, shortDate, vatBreakdown, orderLabel } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
@@ -403,14 +404,8 @@ export default function WorkOrderDetailPage() {
 }
 
 /* ── audit log ── */
-const AUDIT_LABEL: Record<string, string> = {
-  state: "audit_state", line_added: "audit_line_added",
-  line_removed: "audit_line_removed", mechanic_assigned: "audit_mechanic_assigned",
-  order_discount: "order_discount",
-};
-
 function AuditCard({ woId, refresh }: { woId: string; refresh: string }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const who = useStaffNames();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
 
@@ -433,7 +428,11 @@ function AuditCard({ woId, refresh }: { woId: string; refresh: string }) {
             <div className="mt-1.5 size-[7px] shrink-0 rounded-full bg-primary-emphasis" />
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-semibold text-foreground">
-                {t(AUDIT_LABEL[e.action] ?? "history")}{e.detail ? <span className="font-normal text-ink-2"> · {e.detail}</span> : null}
+                {/* Both halves are the server's words, and both are shown in the reader's
+                    language — the detail only where the server composed it, since a line
+                    item's description belongs to whoever typed it. */}
+                {auditAction(lang, e.action)}
+                {auditDetail(lang, e.action, e.detail) ? <span className="font-normal text-ink-2"> · {auditDetail(lang, e.action, e.detail)}</span> : null}
               </div>
               <div className="font-mono text-[11.5px] text-muted-foreground">
                 {new Date(e.createdAt).toLocaleString()}{who(e.actorId) ? " · " + who(e.actorId) : ""}

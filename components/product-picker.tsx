@@ -11,6 +11,7 @@
 // values and SKUs underneath it, so typing "5w30" finds the oil even though no product is
 // called that.
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { unitLabel } from "@/components/catalog-fields";
 import { ChevronLeft, ChevronRight, Check, Package, Search } from "lucide-react";
 import { Input } from "@/components/ui-kit/input";
 import { Badge } from "@/components/ui-kit/badge";
@@ -163,7 +164,7 @@ export function ProductPicker({
                     {chosen > 0 && <span className="font-semibold text-primary-emphasis"> · {chosen} ✓</span>}
                     {" · "}
                     <span className={left <= 0 ? "font-semibold text-destructive" : ""}>
-                      {left} {p.unit || t("pcs")}
+                      {left} {unitLabel(t, p.unit) || t("unit_pcs")}
                     </span>
                   </div>
                 </div>
@@ -210,7 +211,7 @@ function VariantRow({ product, variant, picked, blocked, showProductName, onClic
         <div className="truncate text-[11.5px] text-muted-foreground">
           {showProductName && label && <span>{label} · </span>}
           <span className={left <= 0 ? "font-semibold text-destructive" : ""}>
-            {t("in_stock")}: {left} {product.unit || t("pcs")}
+            {t("in_stock")}: {left} {unitLabel(t, product.unit) || t("unit_pcs")}
           </span>
         </div>
       </div>

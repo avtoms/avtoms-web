@@ -90,6 +90,21 @@ export function MoneyInput({
 export const UNITS = ["pcs", "set", "L", "ml", "kg", "g", "m", "roll"] as const;
 export type Unit = (typeof UNITS)[number];
 
+/**
+ * unitLabel renders a unit the way the reader spells it: "8 dona", "8 шт".
+ *
+ * The stored value is the symbol, which is what makes it a system value rather than the
+ * shop's own words — it was chosen from a fixed list. Only the display changes.
+ *
+ * A legacy free-typed unit ("dona", "litr", typed before the list existed) is not in that
+ * list and is returned as written, which is also the right answer for it: somebody typed it.
+ */
+export function unitLabel(t: (k: string) => string, unit?: string): string {
+  const u = (unit ?? "").trim();
+  if (!u) return "";
+  return UNITS.includes(u as Unit) ? t("unit_" + u) : u;
+}
+
 export function UnitSelect({
   value, onChange, style,
 }: {

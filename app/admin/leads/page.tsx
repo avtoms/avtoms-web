@@ -110,16 +110,17 @@ export default function AdminLeadsPage() {
 
 const OPEN_STAGES = new Set(["new", "contacted", "qualified", "negotiating"]);
 function LeadStats({ leads }: { leads: Lead[] }) {
+  const { t } = useLang();
   const pipeline = leads.filter((l) => OPEN_STAGES.has(l.status || "new")).reduce((s, l) => s + num(l.dealPrice), 0);
   const won = leads.filter((l) => (l.status || "new") === "won");
   const wonValue = won.reduce((s, l) => s + num(l.dealPrice), 0);
   const decided = won.length + leads.filter((l) => l.status === "lost").length;
   const winRate = decided ? Math.round((won.length / decided) * 100) : 0;
   const items = [
-    { label: "Jami lidlar", value: String(leads.length), tone: "text-foreground" },
-    { label: "Ochiq quvur", value: money(pipeline) + " so'm", tone: "text-info" },
-    { label: "Yutilgan", value: money(wonValue) + " so'm", tone: "text-success" },
-    { label: "Konversiya", value: winRate + "%", tone: "text-primary-emphasis" },
+    { label: t("a_total_leads"), value: String(leads.length), tone: "text-foreground" },
+    { label: t("a_open_pipeline"), value: money(pipeline) + " " + t("soum"), tone: "text-info" },
+    { label: t("a_won"), value: money(wonValue) + " " + t("soum"), tone: "text-success" },
+    { label: t("a_conversion_t"), value: winRate + "%", tone: "text-primary-emphasis" },
   ];
   return (
     <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">

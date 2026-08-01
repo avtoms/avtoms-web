@@ -11,6 +11,7 @@
 // and at /m/sales for a worker the owner trusted with the counter. The gateway enforces
 // that permission; this component assumes the caller already has it.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { unitLabel } from "@/components/catalog-fields";
 import {
   Banknote, Check, CreditCard, HandCoins, Minus, Plus, Printer, Send, Split, Trash2, Undo2, Wallet,
 } from "lucide-react";
@@ -243,7 +244,7 @@ export function SalesConsole() {
                       </button>
                     </div>
                     <div className="grid grid-cols-[1fr_1fr] gap-2">
-                      <Field label={`${t("qty")} (${l.item.product.unit || t("pcs")})`}>
+                      <Field label={`${t("qty")} (${unitLabel(t, l.item.product.unit) || t("unit_pcs")})`}>
                         <div className="flex items-center gap-1">
                           <Button variant="secondary" size="icon-sm" onClick={() => setQty(l.key, String(Math.max(0, parseQty(l.qty) - 1)))}><Minus /></Button>
                           {/* Decimal, not integer: half a litre is a real sale. */}
@@ -262,7 +263,7 @@ export function SalesConsole() {
                     </div>
                     {over && (
                       <div className="text-[12px] font-semibold text-destructive">
-                        {t("only_n_left")}: {left} {l.item.product.unit || t("pcs")}
+                        {t("only_n_left")}: {left} {unitLabel(t, l.item.product.unit) || t("unit_pcs")}
                       </div>
                     )}
                     <div className="flex items-baseline justify-between">

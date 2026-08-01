@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Wrench } from "lucide-react";
 import { useIsMobile } from "@/components/ui";
+import { useLang } from "@/components/providers";
 import { UserAvatar } from "@/components/ui-kit/avatar";
 import { Sheet, SheetContent } from "@/components/ui-kit/sheet";
 import { Button } from "@/components/ui-kit/button";
@@ -20,13 +21,14 @@ import { BUILD_VERSION } from "@/lib/version";
 import { ChatWidget } from "@/components/ai-chat";
 
 function Brand() {
+  const { t } = useLang();
   return (
     <div className="flex items-center gap-3 px-5 pb-4 pt-5">
       <div className="grid size-9 place-items-center rounded-[10px] bg-primary text-primary-foreground shadow-[var(--shadow)]">
         <Wrench className="size-[19px]" strokeWidth={2.2} />
       </div>
       <div className="min-w-0">
-        <div className="text-[15px] font-extrabold tracking-[-0.02em] text-foreground">Admin konsoli</div>
+        <div className="text-[15px] font-extrabold tracking-[-0.02em] text-foreground">{t("a_console")}</div>
         <div className="text-[11.5px] font-medium text-muted-foreground">Auto-Garaj</div>
       </div>
     </div>
@@ -49,6 +51,7 @@ function SidebarFooter({ name, phone }: { name: string; phone: string }) {
 }
 
 export function AdminShell({ name, phone, children }: { name: string; phone: string; children: React.ReactNode }) {
+  const { t } = useLang();
   const isMobile = useIsMobile();
   const [drawer, setDrawer] = useState(false);
   const pathname = usePathname();
@@ -69,7 +72,7 @@ export function AdminShell({ name, phone, children }: { name: string; phone: str
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3.5 border-b border-border bg-[color-mix(in_oklch,var(--bg),transparent_6%)] px-4 py-3 backdrop-blur-md md:px-7 md:py-3.5">
           <div className="flex min-w-0 items-center gap-3">
             {isMobile && (
-              <Button variant="secondary" size="icon" onClick={() => setDrawer(true)} aria-label="Menyu">
+              <Button variant="secondary" size="icon" onClick={() => setDrawer(true)} aria-label={t("a_menu")}>
                 <Menu />
               </Button>
             )}

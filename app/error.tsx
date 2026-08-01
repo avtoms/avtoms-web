@@ -4,9 +4,11 @@
 // (reload once); anything else gets a readable message and a retry.
 import { useEffect } from "react";
 import { isStaleBundleError, reloadOnceForStaleBundle } from "@/lib/stale-bundle";
+import { crashText } from "@/lib/crash-text";
 
 export default function RouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const stale = isStaleBundleError(error);
+  const say = crashText();
 
   useEffect(() => {
     if (stale) reloadOnceForStaleBundle();
@@ -18,22 +20,22 @@ export default function RouteError({ error, reset }: { error: Error & { digest?:
   return (
     <div style={{ display: "grid", placeItems: "center", minHeight: "60vh", padding: 24 }}>
       <div style={{ maxWidth: 420, textAlign: "center", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 17, fontWeight: 800 }}>Xatolik yuz berdi</div>
+        <div style={{ fontSize: 17, fontWeight: 800 }}>{say("error")}</div>
         <div style={{ fontSize: 13.5, color: "var(--ink-3, #71717a)", wordBreak: "break-word" }}>
-          {error.message || "Kutilmagan xatolik"}
+          {error.message || say("err_unexpected")}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 4 }}>
           <button
             onClick={reset}
             style={{ padding: "9px 16px", borderRadius: 9, border: "1px solid var(--line, #e4e4e7)", background: "transparent", fontWeight: 600, cursor: "pointer" }}
           >
-            Qayta urinish
+            {say("err_retry")}
           </button>
           <button
             onClick={() => window.location.reload()}
             style={{ padding: "9px 16px", borderRadius: 9, border: "none", background: "var(--accent, #2563eb)", color: "#fff", fontWeight: 600, cursor: "pointer" }}
           >
-            Yangilash
+            {say("err_reload")}
           </button>
         </div>
       </div>

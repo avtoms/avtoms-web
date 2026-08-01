@@ -4,6 +4,7 @@
 // product form so users pick from a shared list instead of free-typing. Brands can
 // also carry an optional logo (uploaded here) shown alongside the brand elsewhere.
 import { useRef, useState } from "react";
+import { useLang } from "@/components/providers";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Check, Trash2, ImagePlus } from "lucide-react";
@@ -18,13 +19,14 @@ import type { CatalogTerm } from "@/lib/types";
 // monogram / placeholder), and on click opens a file picker that uploads the image
 // and returns its URL through onChange.
 function LogoButton({ value, monogram, onChange }: { value: string; monogram: string; onChange: (url: string) => void }) {
+  const { t } = useLang();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const pick = async (file?: File) => {
     if (!file) return;
     setUploading(true);
     try { onChange(await api.uploadImage(file)); }
-    catch (e) { toast.error(e instanceof ApiError ? e.message : "Xatolik"); }
+    catch (e) { toast.error(e instanceof ApiError ? e.message : t("error")); }
     finally { setUploading(false); }
   };
   return (
@@ -32,7 +34,7 @@ function LogoButton({ value, monogram, onChange }: { value: string; monogram: st
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        title="Logotip yuklash"
+        title={t("a_upload_logo")}
         className="relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-[10px] border border-dashed border-input transition-colors hover:border-ring"
         style={{ background: value ? "var(--surface-2)" : "var(--accent-soft)" }}
       >
@@ -48,7 +50,10 @@ function LogoButton({ value, monogram, onChange }: { value: string; monogram: st
   );
 }
 
-export function CreateTermForm({ type, label, placeholder }: { type: "brand" | "category"; label: string; placeholder: string }) {
+// placeholder is literal (a list of brand names reads the same everywhere); placeholderKey
+// is for an example that is words rather than names.
+export function CreateTermForm({ type, labelKey, placeholder, placeholderKey }: { type: "brand" | "category"; labelKey: string; placeholder?: string; placeholderKey?: string }) {
+  const { t } = useLang();
   const router = useRouter();
   const [name, setName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -62,10 +67,10 @@ export function CreateTermForm({ type, label, placeholder }: { type: "brand" | "
       await api.createCatalogTerm(type, name.trim(), logoUrl);
       setName("");
       setLogoUrl("");
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -74,12 +79,12 @@ export function CreateTermForm({ type, label, placeholder }: { type: "brand" | "
   return (
     <Card>
       <CardContent className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">{label}</div>
+        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">{t(labelKey)}</div>
         <div className="flex items-end gap-3">
           {isBrand && <LogoButton value={logoUrl} monogram={name.trim().slice(0, 2).toUpperCase()} onChange={setLogoUrl} />}
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} onKeyDown={(e) => e.key === "Enter" && save()} />
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholderKey ? t(placeholderKey) : placeholder} onKeyDown={(e) => e.key === "Enter" && save()} />
           <Button disabled={busy || !name.trim()} onClick={save}>
-            {busy ? <Spinner /> : <><Plus /> Qo'shish</>}
+            {busy ? <Spinner /> : <><Plus /> {t("add")}</>}
           </Button>
         </div>
       </CardContent>
@@ -88,6 +93,7 @@ export function CreateTermForm({ type, label, placeholder }: { type: "brand" | "
 }
 
 export function TermRow({ term }: { term: CatalogTerm }) {
+  const { t } = useLang();
   const router = useRouter();
   const [name, setName] = useState(term.name);
   const [logoUrl, setLogoUrl] = useState(term.logoUrl ?? "");
@@ -100,24 +106,24 @@ export function TermRow({ term }: { term: CatalogTerm }) {
     setBusy(true);
     try {
       await api.updateCatalogTerm(term.id, name.trim(), term.active, logoUrl);
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
   };
 
   const del = async () => {
-    if (busy || !confirm(`"${term.name}" o'chirilsinmi?`)) return;
+    if (busy || !confirm(`"${term.name}" ${t("a_delete_confirm")}`)) return;
     setBusy(true);
     try {
       await api.deleteCatalogTerm(term.id);
-      toast.success("O'chirildi");
+      toast.success(t("deleted"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }

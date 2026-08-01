@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 // Client island for the admin header: language switcher + signed-in admin menu with sign-out.
 export function AdminTopbar() {
   const { session, logout } = useAuth();
-  const { lang, setLang } = useLang();
+  const { lang, setLang, t } = useLang();
   const router = useRouter();
-  const name = session?.staff?.name || "Administrator";
+  const name = session?.staff?.name || t("a_administrator");
   const phone = session?.staff?.phone || "";
   const cur = LANGS.find((l) => l.code === lang) || LANGS[0];
 
@@ -57,7 +57,7 @@ export function AdminTopbar() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={() => { logout(); router.replace("/login"); }}>
-            <LogOut /> Chiqish
+            <LogOut /> {t("a_logout")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -19,6 +19,7 @@
 // second overlay there would dim the receipt the cashier is checking against.
 
 import { useEffect, useRef, useState } from "react";
+import { unitLabel } from "@/components/catalog-fields";
 import { PackageOpen, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
@@ -114,7 +115,7 @@ export function MaterialReturnPanel({ materials, state }: {
                 <div className="truncate text-[13.5px] font-semibold text-foreground">{m.description}</div>
                 {/* What left the warehouse, so an amount typed over it can be judged. */}
                 <div className="font-mono text-[11.5px] text-muted-foreground">
-                  {t("mat_drawn")}: {fmt(m.drawn)}{m.unit ? ` ${m.unit}` : ""}
+                  {t("mat_drawn")}: {fmt(m.drawn)}{m.unit ? ` ${unitLabel(t, m.unit)}` : ""}
                 </div>
               </div>
               <Input

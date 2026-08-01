@@ -18,16 +18,11 @@ import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, lineS
 import { money, num, durationFmt, minutesBetween, orderLabel, vehicleTitle, shortDate, shortDateTime } from "@/lib/format";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
+import { auditAction, auditDetail } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { WorkOrder, MenuItem, AuditEntry, Vehicle, Customer } from "@/lib/types";
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e));
-
-const AUDIT_LABEL: Record<string, string> = {
-  state: "audit_state", line_added: "audit_line_added",
-  line_removed: "audit_line_removed", mechanic_assigned: "audit_mechanic_assigned",
-  order_discount: "order_discount",
-};
 
 // The state badge tone mirrors the board columns, so a status means the same colour wherever
 // the mechanic sees it.
@@ -210,7 +205,8 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
 }
 
 /* ── order history ── */
-function Timeline({ entries, t, limit }: { entries: AuditEntry[]; t: (k: string) => string; limit?: number }) {
+function Timeline({ entries, limit }: { entries: AuditEntry[]; limit?: number }) {
+  const { t, lang } = useLang();
   const shown = limit ? entries.slice(0, limit) : entries;
   if (shown.length === 0) return <div className="py-4 text-center text-[13px] text-muted-foreground">{t("no_history")}</div>;
   return (
@@ -221,8 +217,9 @@ function Timeline({ entries, t, limit }: { entries: AuditEntry[]; t: (k: string)
           <span className={cn("mt-1 size-[11px] shrink-0 rounded-full border-2", i === 0 ? "border-primary-soft bg-primary" : "border-secondary bg-ink-3")} />
           <div className="min-w-0 flex-1">
             <div className="text-[12.5px] font-bold text-foreground">
-              {t(AUDIT_LABEL[e.action] ?? "history")}
-              {e.detail && <span className="font-medium text-ink-2"> · {e.detail}</span>}
+              {auditAction(lang, e.action)}
+              {auditDetail(lang, e.action, e.detail)
+                ? <span className="font-medium text-ink-2"> · {auditDetail(lang, e.action, e.detail)}</span> : null}
             </div>
             <div className="font-mono text-[11px] text-muted-foreground">{shortDateTime(e.createdAt)}</div>
           </div>
@@ -545,7 +542,7 @@ export default function MechanicWoDetailPage() {
 
           <Card className="gap-3 px-5 py-4">
             <PanelTitle>{t("audit_log")}</PanelTitle>
-            <Timeline entries={entries} t={t} limit={4} />
+            <Timeline entries={entries} limit={4} />
           </Card>
         </div>
       </div>
@@ -573,7 +570,7 @@ export default function MechanicWoDetailPage() {
         </TabsList>
         <TabsContent value="overview">{overview}</TabsContent>
         <TabsContent value="history">
-          <Card className="px-5 py-4"><Timeline entries={entries} t={t} /></Card>
+          <Card className="px-5 py-4"><Timeline entries={entries} /></Card>
         </TabsContent>
       </Tabs>
 

@@ -15,6 +15,7 @@ import { CHECK_CSS } from "@/components/fiscal-check";
 import { QR } from "@/components/ui";
 import { useT, useLang } from "@/components/providers";
 import { LANGS, type Lang } from "@/lib/i18n";
+import { paymentFromProto, paymentLabelKey } from "@/lib/enums";
 import type { PublicReceipt } from "@/lib/types";
 
 export default function PublicCheckPage() {
@@ -137,7 +138,7 @@ function CheckPaper({ r, t }: { r: PublicReceipt; t: (k: string) => string }) {
 
         <div className="inv-foot">
           <div style={{ fontSize: 13, color: "#52525b", lineHeight: 1.8 }}>
-            {r.paymentMethod && <div>{t("payment")}: <b>{r.paymentMethod}</b></div>}
+            {paymentText(r, t) && <div>{t("payment")}: <b>{paymentText(r, t)}</b></div>}
             {r.fiscalReceipt && <div className="inv-mono" style={{ fontSize: 12 }}>{t("fiscal_receipt")}: {r.fiscalReceipt}</div>}
           </div>
           {r.checkUrl && (
@@ -169,6 +170,22 @@ function formatIssued(iso: string): string {
 // as "3.000".
 function trimQty(q: number): string {
   return String(Math.round(q * 1000) / 1000);
+}
+
+// How the bill was settled, in the language the reader picked on this page rather than the
+// one it was issued in — a customer who taps RU should get Russian, and the sentence the
+// gateway composed was written once, when the check was generated.
+//
+// A split names every method with its amount, because "Naqd" alone on a bill half of which
+// went on a card is what gets argued about at the counter a week later.
+//
+// Falls back to the composed sentence for a check issued before the parts were sent.
+function paymentText(r: PublicReceipt, t: (k: string) => string): string {
+  const parts = r.payments ?? [];
+  if (parts.length === 0) return r.paymentMethod ?? "";
+  const name = (m: string) => t(paymentLabelKey(paymentFromProto(m)));
+  if (parts.length === 1) return name(parts[0].method);
+  return parts.map((p) => `${name(p.method)} ${money(p.amount)}`).join(" · ");
 }
 
 const PAGE_CSS = `

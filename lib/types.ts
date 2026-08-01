@@ -656,7 +656,12 @@ export interface PublicReceipt {
   subtotal: number;
   discount: number;
   total: number;
+  // The sentence, already written in the language the customer chose on Telegram — used when
+  // the parts below are absent (a check composed before they existed).
   paymentMethod: string;
+  // The same settlement in parts. This page has its own language picker, so it composes the
+  // sentence itself rather than showing one that was fixed when the check was issued.
+  payments?: { method: string; amount: number }[];
   fiscalReceipt: string;
   checkUrl: string;
 }

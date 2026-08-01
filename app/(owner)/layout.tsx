@@ -55,10 +55,6 @@ const GROUPS: NavGroup[] = [
   ]},
 ];
 const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
-// Fallback labels if a group title key isn't in the dictionary yet.
-const GRP_FALLBACK: Record<string, string> = {
-  nav_grp_main: "Asosiy", nav_grp_clients: "Mijozlar", nav_grp_finance: "Moliya", nav_grp_manage: "Boshqaruv",
-};
 
 const isActive = (pathname: string, route: string) => pathname === route || pathname.startsWith(route + "/");
 
@@ -82,7 +78,7 @@ function NavList({ pathname, t, onNavigate }: { pathname: string; t: (k: string)
       {GROUPS.map((g) => (
         <div key={g.titleKey}>
           <div className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground/80">
-            {t(g.titleKey) === g.titleKey ? GRP_FALLBACK[g.titleKey] : t(g.titleKey)}
+            {t(g.titleKey)}
           </div>
           <div className="flex flex-col gap-0.5">
             {g.items.map((it) => {
@@ -203,7 +199,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
               </Link>
             );
           })}
-          <button onClick={() => setDrawer(true)} aria-label={t("menu") || "Menu"} className="flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold text-muted-foreground">
+          <button onClick={() => setDrawer(true)} aria-label={t("menu")} className="flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold text-muted-foreground">
             <MenuIcon className="size-[21px]" /> •••
           </button>
         </nav>

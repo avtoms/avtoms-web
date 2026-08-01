@@ -4,41 +4,50 @@
 import { Target, PieChart, TrendingUp, Radio } from "lucide-react";
 import { ChartCard, DonutChart, HBarChart, type Slice, type BarDatum } from "./charts";
 import { money } from "@/lib/format";
+import { useLang } from "@/components/providers";
 
 export function RolesDonut({ owner, mechanic, admin }: { owner: number; mechanic: number; admin: number }) {
+  const { t } = useLang();
   const total = owner + mechanic + admin;
   const slices: Slice[] = [
-    { key: "owner", label: "Egalari", value: owner, color: "var(--chart-1)" },
-    { key: "mechanic", label: "Ustalar", value: mechanic, color: "var(--chart-2)" },
-    { key: "admin", label: "Adminlar", value: admin, color: "var(--chart-3)" },
+    { key: "owner", label: t("a_owners"), value: owner, color: "var(--chart-1)" },
+    { key: "mechanic", label: t("a_mechanics"), value: mechanic, color: "var(--chart-2)" },
+    { key: "admin", label: t("a_admins"), value: admin, color: "var(--chart-3)" },
   ].filter((s) => s.value > 0);
   return (
-    <ChartCard title="Xodimlar tarkibi" subtitle="Rol bo'yicha taqsimot" icon={<PieChart className="size-[18px] text-muted-foreground" />}>
-      <DonutChart data={slices} centerValue={total} centerLabel="Xodim" />
+    <ChartCard title={t("a_staff_mix")} subtitle={t("a_staff_mix_sub")} icon={<PieChart className="size-[18px] text-muted-foreground" />}>
+      <DonutChart data={slices} centerValue={total} centerLabel={t("a_staff_one")} />
     </ChartCard>
   );
 }
 
 export function PipelineBars({ data }: { data: BarDatum[] }) {
+  const { t } = useLang();
+  // The bars arrive labelled with i18n keys — the page that builds them runs on the server
+  // and has no language.
+  const rows = data.map((d) => ({ ...d, label: t(d.label) }));
   return (
-    <ChartCard title="Sotuv quvuri" subtitle="Bosqich bo'yicha lidlar soni" icon={<Target className="size-[18px] text-muted-foreground" />}>
-      <HBarChart data={data} color="var(--accent)" />
+    <ChartCard title={t("a_funnel")} subtitle={t("a_funnel_sub")} icon={<Target className="size-[18px] text-muted-foreground" />}>
+      <HBarChart data={rows} color="var(--accent)" />
     </ChartCard>
   );
 }
 
 export function SourcesBars({ data }: { data: BarDatum[] }) {
+  const { t } = useLang();
+  const rows = data.map((d) => ({ ...d, label: t(d.label) }));
   return (
-    <ChartCard title="Lidlar manbasi" subtitle="Lidlar qayerdan kelgani" icon={<Radio className="size-[18px] text-muted-foreground" />}>
-      <HBarChart data={data} color="var(--info)" />
+    <ChartCard title={t("a_lead_sources")} subtitle={t("a_lead_sources_sub")} icon={<Radio className="size-[18px] text-muted-foreground" />}>
+      <HBarChart data={rows} color="var(--info)" />
     </ChartCard>
   );
 }
 
 export function RevenueBars({ data }: { data: BarDatum[] }) {
+  const { t } = useLang();
   return (
-    <ChartCard title="Eng ko'p daromadli xizmatlar" subtitle="Platforma bo'yicha, so'm" icon={<TrendingUp className="size-[18px] text-muted-foreground" />}>
-      <HBarChart data={data} color="var(--chart-1)" unit="so'm" formatter={(v) => money(v)} height={Math.max(160, data.length * 44 + 8)} />
+    <ChartCard title={t("a_top_services")} subtitle={t("a_top_services_sub")} icon={<TrendingUp className="size-[18px] text-muted-foreground" />}>
+      <HBarChart data={data} color="var(--chart-1)" unit={t("soum")} formatter={(v) => money(v)} height={Math.max(160, data.length * 44 + 8)} />
     </ChartCard>
   );
 }

@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 // dynamically imported stylesheet is not a module it can type or bundle.
 import "leaflet/dist/leaflet.css";
 import { Crosshair, MapPin, X } from "lucide-react";
+import { useLang } from "@/components/providers";
 import { cn } from "@/lib/utils";
 
 // Tashkent. Where the map opens when no pin has been placed — a world view would make the
@@ -38,6 +39,7 @@ export function LocationPicker({ lat, lng, onChange, className }: {
   onChange: (lat: number, lng: number) => void;
   className?: string;
 }) {
+  const { t } = useLang();
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<import("leaflet").Map | null>(null);
   const marker = useRef<import("leaflet").Marker | null>(null);
@@ -124,7 +126,7 @@ export function LocationPicker({ lat, lng, onChange, className }: {
   }, [lat, lng]);
 
   const locate = () => {
-    if (!navigator.geolocation) { setError("Brauzer joylashuvni qo'llab-quvvatlamaydi"); return; }
+    if (!navigator.geolocation) { setError(t("map_no_geo")); return; }
     setError("");
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
@@ -134,7 +136,7 @@ export function LocationPicker({ lat, lng, onChange, className }: {
       },
       // Denied permission is the common case and is not a failure worth a red banner, but it
       // does need saying — otherwise the button looks broken.
-      () => { setLocating(false); setError("Joylashuvni aniqlab bo'lmadi — xaritadan tanlang"); },
+      () => { setLocating(false); setError(t("map_geo_failed")); },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
@@ -152,7 +154,7 @@ export function LocationPicker({ lat, lng, onChange, className }: {
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={locate} disabled={locating}
           className="inline-flex appearance-none items-center gap-1.5 rounded-[9px] border border-border bg-card px-2.5 py-1.5 text-[12.5px] font-semibold text-foreground hover:bg-secondary disabled:opacity-60">
-          <Crosshair className="size-3.5" />{locating ? "Aniqlanmoqda…" : "Mening joylashuvim"}
+          <Crosshair className="size-3.5" />{locating ? t("map_locating") : t("map_my_location")}
         </button>
         {placed ? (
           <>
@@ -163,11 +165,11 @@ export function LocationPicker({ lat, lng, onChange, className }: {
             </span>
             <button type="button" onClick={clear}
               className="inline-flex appearance-none items-center gap-1 border-0 bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground hover:text-destructive">
-              <X className="size-3.5" />Tozalash
+              <X className="size-3.5" />{t("map_clear")}
             </button>
           </>
         ) : (
-          <span className="text-[12px] text-muted-foreground">Xaritani bosing yoki nishonni suring</span>
+          <span className="text-[12px] text-muted-foreground">{t("map_hint_click")}</span>
         )}
       </div>
       {error && <span className="text-[12px] text-destructive">{error}</span>}

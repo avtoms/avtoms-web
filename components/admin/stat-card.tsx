@@ -14,7 +14,7 @@ const TONE: Record<StatTone, string> = {
 
 export function StatCard({
   icon: Icon, tone = "neutral", value, label, sub, className,
-}: { icon: LucideIcon; tone?: StatTone; value: React.ReactNode; label: string; sub?: React.ReactNode; className?: string }) {
+}: { icon: LucideIcon; tone?: StatTone; value: React.ReactNode; label: React.ReactNode; sub?: React.ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col gap-3.5 rounded-[14px] border border-border bg-card p-4 shadow-[var(--shadow)]", className)}>
       <div className="flex items-start justify-between gap-2">

@@ -2,6 +2,7 @@
 // Super-admin integration credentials. For now: the PlayMobile SMS gateway. Secret fields
 // are write-only — the backend never returns them, so a blank password keeps the stored one.
 import React, { useCallback, useEffect, useState } from "react";
+import { useLang } from "@/components/providers";
 import { toast } from "sonner";
 import { Plug, ShieldCheck, Send, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui-kit/card";
@@ -13,13 +14,15 @@ import { Separator, Spinner } from "@/components/ui-kit/misc";
 import { cn } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
 
+// `note` is an i18n key; `label` stays as the vendor writes it (an "Endpoint" is called an
+// Endpoint in every language, and renaming it would only make the docs harder to follow).
 type FieldDef = { key: string; label: string; secret?: boolean; placeholder?: string };
 
 const PROVIDERS: { provider: string; title: string; note: string; fields: FieldDef[] }[] = [
   {
     provider: "playmobile",
     title: "PlayMobile SMS",
-    note: "SMS gateway (send.smsxabar.uz) used for OTP and customer notifications.",
+    note: "a_int_note_sms",
     fields: [
       { key: "url", label: "API URL", placeholder: "https://send.smsxabar.uz/broker-api/send" },
       { key: "login", label: "Login", placeholder: "login" },
@@ -30,7 +33,7 @@ const PROVIDERS: { provider: string; title: string; note: string; fields: FieldD
   {
     provider: "telegram",
     title: "Telegram bot",
-    note: "Bot for customer estimate approvals. Create one with @BotFather, then paste its token and username.",
+    note: "a_int_note_telegram",
     fields: [
       { key: "token", label: "Bot token", secret: true, placeholder: "123456:ABC-DEF…" },
       { key: "username", label: "Bot username", placeholder: "my_shop_bot" },
@@ -38,8 +41,8 @@ const PROVIDERS: { provider: string; title: string; note: string; fields: FieldD
   },
   {
     provider: "r2",
-    title: "Cloudflare R2 (image uploads)",
-    note: "Object storage for avatars and photos. Endpoint host only (no https://); the bucket must allow public read for images to display.",
+    title: "Cloudflare R2",
+    note: "a_int_note_r2",
     fields: [
       { key: "endpoint", label: "Endpoint", placeholder: "<account-id>.r2.cloudflarestorage.com" },
       { key: "bucket", label: "Bucket", placeholder: "avtoms-media" },
@@ -50,13 +53,13 @@ const PROVIDERS: { provider: string; title: string; note: string; fields: FieldD
   },
   {
     provider: "openai",
-    title: "OpenAI (AI yordamchi)",
-    note: "Egalar va superadmin uchun AI chat yordamchisini yoqadi. API kalitni kiriting, modelni tanlang va javob uchun token limitini belgilang. Faqat o'qish uchun — AI hech narsani o'zgartira olmaydi.",
+    title: "OpenAI",
+    note: "a_int_note_openai",
     fields: [
       { key: "api_key", label: "API Key", secret: true, placeholder: "sk-…" },
       { key: "model", label: "Model", placeholder: "gpt-4o-mini" },
-      { key: "max_tokens", label: "Javob uchun maksimal tokenlar", placeholder: "1200" },
-      { key: "base_url", label: "Base URL (ixtiyoriy)", placeholder: "https://api.openai.com/v1" },
+      { key: "max_tokens", label: "Max tokens", placeholder: "1200" },
+      { key: "base_url", label: "Base URL", placeholder: "https://api.openai.com/v1" },
     ],
   },
 ];
@@ -81,6 +84,7 @@ function ResultLine({ ok, detail }: { ok: boolean; detail: string }) {
 }
 
 function IntegrationCard({ provider, title, note, fields }: { provider: string; title: string; note: string; fields: FieldDef[] }) {
+  const { t } = useLang();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [configured, setConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -96,9 +100,9 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
     setChecking(true); setHealth(null);
     try {
       const r = await api.testIntegration(provider);
-      setHealth({ ok: !!r.ok, detail: r.detail || (r.ok ? "OK" : "Failed") });
+      setHealth({ ok: !!r.ok, detail: r.detail || (r.ok ? t("a_int_ok") : t("a_int_failed")) });
     } catch (e) {
-      setHealth({ ok: false, detail: e instanceof ApiError ? e.message : "Xatolik" });
+      setHealth({ ok: false, detail: e instanceof ApiError ? e.message : t("error") });
     } finally { setChecking(false); }
   };
 
@@ -107,9 +111,9 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
     setTesting(true); setTestResult(null);
     try {
       const r = await api.sendTestSms(testPhone.trim());
-      setTestResult({ ok: !!r.delivered, detail: r.detail || (r.delivered ? "Sent" : "Failed") });
+      setTestResult({ ok: !!r.delivered, detail: r.detail || (r.delivered ? t("a_int_sent") : t("a_int_failed")) });
     } catch (e) {
-      setTestResult({ ok: false, detail: e instanceof ApiError ? e.message : "Xatolik" });
+      setTestResult({ ok: false, detail: e instanceof ApiError ? e.message : t("error") });
     } finally { setTesting(false); }
   };
 
@@ -132,9 +136,9 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
       const got = await api.updateIntegration(provider, vals);
       setVals(got.values || {});
       setConfigured(got.configured);
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally { setBusy(false); }
   };
 
@@ -147,7 +151,7 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
           </div>
           <div>
             <div className="text-[15px] font-bold text-foreground">{title}</div>
-            <div className="mt-0.5 max-w-prose text-[12px] text-muted-foreground">{note}</div>
+            <div className="mt-0.5 max-w-prose text-[12px] text-muted-foreground">{t(note)}</div>
           </div>
         </div>
         <div className="flex items-center gap-2.5">
@@ -157,9 +161,9 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
             </span>
           )}
           <Button variant="soft" size="sm" disabled={checking} onClick={runHealthCheck}>
-            {checking ? <Spinner /> : <><ShieldCheck /> Tekshirish</>}
+            {checking ? <Spinner /> : <><ShieldCheck /> {t("a_int_check")}</>}
           </Button>
-          <Badge tone={configured ? "ok" : "neutral"} dot>{configured ? "Sozlangan" : "Sozlanmagan"}</Badge>
+          <Badge tone={configured ? "ok" : "neutral"} dot>{configured ? t("a_int_configured") : t("a_int_not_configured")}</Badge>
         </div>
       </div>
 
@@ -170,8 +174,8 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
           {fields.map((f) => (
             <Field
               key={f.key}
-              label={f.label + (f.secret ? " (yashirin)" : "")}
-              hint={f.secret && configured ? "Saqlangan — o'zgartirmaslik uchun bo'sh qoldiring" : undefined}
+              label={f.label + (f.secret ? ` (${t("a_int_secret")})` : "")}
+              hint={f.secret && configured ? t("a_int_secret_hint") : undefined}
             >
               <Input
                 value={vals[f.key] ?? ""}
@@ -182,16 +186,16 @@ function IntegrationCard({ provider, title, note, fields }: { provider: string; 
               />
             </Field>
           ))}
-          <div><Button disabled={busy} onClick={save}>{busy ? <Spinner /> : "Saqlash"}</Button></div>
+          <div><Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button></div>
 
           {provider === "playmobile" && (
             <>
               <Separator className="mt-1.5" />
               <div className="flex flex-col gap-2.5">
-                <div className="text-[12.5px] font-semibold text-muted-foreground">Sinov SMS (test)</div>
+                <div className="text-[12.5px] font-semibold text-muted-foreground">{t("a_int_test_sms")}</div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+998901234567" inputMode="tel" className="min-w-[180px] flex-1 font-mono" />
-                  <Button variant="soft" disabled={testing} onClick={sendTest}>{testing ? <Spinner /> : <><Send /> Yuborish</>}</Button>
+                  <Button variant="soft" disabled={testing} onClick={sendTest}>{testing ? <Spinner /> : <><Send /> {t("a_int_send")}</>}</Button>
                 </div>
                 {testResult && <ResultLine ok={testResult.ok} detail={testResult.detail} />}
               </div>

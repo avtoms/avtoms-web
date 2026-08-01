@@ -1,6 +1,7 @@
 // SSR analytics dashboard for the super-admin: aggregates staff, leads, demo requests and the
 // platform service report into KPI tiles, charts, a shops leaderboard and an activity feed.
 import { serverGet } from "@/lib/server-api";
+import { T } from "@/components/t";
 import type { Staff, CarMake, CarModel, Lead, DemoRequest, Report } from "@/lib/types";
 import { roleFromProto } from "@/lib/enums";
 import { money, num } from "@/lib/format";
@@ -17,11 +18,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const dynamic = "force-dynamic";
 
+// i18n keys, not words: this page renders on the server, where nobody has a language. The
+// client cards below translate them.
 const STATUS_UZ: Record<string, string> = {
-  new: "Yangi", contacted: "Bog'lanildi", qualified: "Malakali", negotiating: "Muzokara", won: "Yutildi", lost: "Yo'qotildi",
+  new: "lead_new", contacted: "lead_contacted", qualified: "lead_qualified", negotiating: "lead_negotiating", won: "lead_won", lost: "lead_lost",
 };
 const SOURCE_UZ: Record<string, string> = {
-  landing: "Landing", referral: "Tavsiya", cold: "Sovuq", telegram: "Telegram", instagram: "Instagram", walk_in: "Tashrif", other: "Boshqa",
+  landing: "src_landing", referral: "src_referral", cold: "src_cold", telegram: "src_telegram", instagram: "src_instagram", walk_in: "src_walk_in", other: "src_other",
 };
 const PIPELINE_ORDER = ["new", "contacted", "qualified", "negotiating", "won", "lost"];
 const OPEN_STAGES = new Set(["new", "contacted", "qualified", "negotiating"]);
@@ -91,11 +94,11 @@ export default async function AdminOverviewPage() {
   }).sort((a, b) => b.total - a.total).slice(0, 6);
 
   // ── activity feed (merged) ──
-  type Act = { kind: "user" | "lead" | "demo"; name: string; detail: string; when?: string };
+  type Act = { kind: "user" | "lead" | "demo"; name: string; detail: React.ReactNode; when?: string };
   const acts: Act[] = [
-    ...staff.map((s): Act => ({ kind: "user", name: s.name || "—", detail: "Yangi xodim", when: s.createdAt })),
-    ...leads.map((l): Act => ({ kind: "lead", name: l.name || l.company || "—", detail: `Lid · ${STATUS_UZ[l.status || "new"]}`, when: l.updatedAt || l.createdAt })),
-    ...requests.map((r): Act => ({ kind: "demo", name: r.name || "—", detail: `Demo · ${r.city || "—"}`, when: r.createdAt })),
+    ...staff.map((s): Act => ({ kind: "user", name: s.name || "—", detail: <T k="a_new_staff" />, when: s.createdAt })),
+    ...leads.map((l): Act => ({ kind: "lead", name: l.name || l.company || "—", detail: <><T k="a_lead" /> · <T k={STATUS_UZ[l.status || "new"]} /></>, when: l.updatedAt || l.createdAt })),
+    ...requests.map((r): Act => ({ kind: "demo", name: r.name || "—", detail: <><T k="a_demo_one" /> · {r.city || "—"}</>, when: r.createdAt })),
   ].filter((a) => a.when).sort((a, b) => (b.when || "").localeCompare(a.when || "")).slice(0, 8);
 
   const ACT_META: Record<Act["kind"], { icon: LucideIcon; tone: string }> = {
@@ -104,19 +107,19 @@ export default async function AdminOverviewPage() {
     demo: { icon: Inbox, tone: "bg-warning-soft text-warning" },
   };
 
-  const kpis: { icon: LucideIcon; tone: StatTone; value: React.ReactNode; label: string; sub?: React.ReactNode }[] = [
-    { icon: Users, tone: "primary", value: staff.length, label: "Foydalanuvchilar", sub: <><span className="text-success">{activePct}%</span> faol</> },
-    { icon: Store, tone: "neutral", value: shops.size, label: "Avtoservislar", sub: <>{makes.length} marka · {models.length} model</> },
-    { icon: Wallet, tone: "info", value: money(pipelineValue), label: "Ochiq quvur qiymati", sub: <>{leads.filter((l) => OPEN_STAGES.has(l.status || "new")).length} ta ochiq lid</> },
-    { icon: Trophy, tone: "ok", value: money(wonValue), label: "Yutilgan bitimlar", sub: <><span className="text-success">{winRate}%</span> konversiya</> },
-    { icon: Inbox, tone: "warn", value: openDemos, label: "Ochiq demo so'rovlari", sub: <>{requests.length} jami</> },
+  const kpis: { icon: LucideIcon; tone: StatTone; value: React.ReactNode; label: React.ReactNode; sub?: React.ReactNode }[] = [
+    { icon: Users, tone: "primary", value: staff.length, label: <T k="a_users" />, sub: <><span className="text-success">{activePct}%</span> <T k="a_active_low" /></> },
+    { icon: Store, tone: "neutral", value: shops.size, label: <T k="a_shops_all" />, sub: <>{makes.length} <T k="a_makes_low" /> · {models.length} <T k="a_models_low" /></> },
+    { icon: Wallet, tone: "info", value: money(pipelineValue), label: <T k="a_pipeline_value" />, sub: <>{leads.filter((l) => OPEN_STAGES.has(l.status || "new")).length} <T k="a_open_leads" /></> },
+    { icon: Trophy, tone: "ok", value: money(wonValue), label: <T k="a_won_deals" />, sub: <><span className="text-success">{winRate}%</span> <T k="a_conversion" /></> },
+    { icon: Inbox, tone: "warn", value: openDemos, label: <T k="a_open_demo" />, sub: <>{requests.length} <T k="a_total_low" /></> },
   ];
 
   return (
     <div className="flex flex-col gap-5">
       {/* KPI hero row */}
       <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]">
-        {kpis.map((k) => <StatCard key={k.label} {...k} />)}
+        {kpis.map((k, i) => <StatCard key={i} {...k} />)}
       </div>
 
       {/* Charts row 1 */}
@@ -135,19 +138,19 @@ export default async function AdminOverviewPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle><Car className="size-[18px] text-muted-foreground" /> Avtoservislar reytingi</CardTitle>
-            <span className="text-[12.5px] font-semibold text-muted-foreground">{shops.size} ta</span>
+            <CardTitle><Car className="size-[18px] text-muted-foreground" /> <T k="a_shop_ranking" /></CardTitle>
+            <span className="text-[12.5px] font-semibold text-muted-foreground">{shops.size} <T k="a_count" /></span>
           </CardHeader>
           {shopGroups.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">Ma'lumot yo'q</div>
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground"><T k="empty" /></div>
           ) : (
             <Table>
               <TableHeader className="bg-secondary/40">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Avtoservis</TableHead>
-                  <TableHead className="text-right">Xodimlar</TableHead>
-                  <TableHead className="text-right">Ustalar</TableHead>
-                  <TableHead className="text-right">Faol</TableHead>
+                  <TableHead><T k="a_shop" /></TableHead>
+                  <TableHead className="text-right"><T k="a_staff" /></TableHead>
+                  <TableHead className="text-right"><T k="a_mechanics" /></TableHead>
+                  <TableHead className="text-right"><T k="active" /></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,10 +169,10 @@ export default async function AdminOverviewPage() {
 
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle><Target className="size-[18px] text-muted-foreground" /> So'nggi harakatlar</CardTitle>
+            <CardTitle><Target className="size-[18px] text-muted-foreground" /> <T k="a_recent_activity" /></CardTitle>
           </CardHeader>
           {acts.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">Harakatlar yo'q</div>
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground"><T k="a_no_activity" /></div>
           ) : (
             <div>
               {acts.map((a, i) => {

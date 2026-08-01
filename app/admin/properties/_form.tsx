@@ -15,6 +15,7 @@ import { Input } from "@/components/ui-kit/input";
 import { Button } from "@/components/ui-kit/button";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
+import { useLang } from "@/components/providers";
 import { api, ApiError, type PropertyDefinitionInput } from "@/lib/api";
 import type { PropertyDefinition } from "@/lib/types";
 
@@ -30,11 +31,12 @@ const LANG_FIELDS: { key: keyof Tr; label: string }[] = [
   { key: "ru", label: "Русский" },
 ];
 
+// label/hint are i18n keys — this console's header has a language switcher.
 const KINDS: { value: Kind; label: string; hint: string }[] = [
-  { value: "select", label: "Ro'yxat (tanlanadigan)", hint: "Oldindan belgilangan qiymatlar ro'yxati" },
-  { value: "color", label: "Rang (palitra)", hint: "Har biri rang namunasi bilan" },
-  { value: "number", label: "Raqam (kiritiladigan)", hint: "Mijoz qiymatni o'zi yozadi (birlik bilan)" },
-  { value: "text", label: "Matn (erkin)", hint: "Mahsulotda erkin matn" },
+  { value: "select", label: "a_kind_list", hint: "a_kind_list_hint" },
+  { value: "color", label: "a_kind_color", hint: "a_kind_color_hint" },
+  { value: "number", label: "a_kind_number", hint: "a_kind_number_hint" },
+  { value: "text", label: "a_kind_text", hint: "a_kind_text_hint" },
 ];
 const hasValues = (k: Kind) => k === "select" || k === "color";
 const DEFAULT_HEX = "#888888";
@@ -60,6 +62,7 @@ function TranslationFields({ tr, onChange, placeholder }: { tr: Tr; onChange: (t
 // ValueEditor edits the predefined values for select/color kinds. Each value has a canonical
 // text (stored on products) plus optional per-language display translations.
 function ValueEditor({ kind, values, onChange }: { kind: Kind; values: ValRow[]; onChange: (v: ValRow[]) => void }) {
+  const { t } = useLang();
   const set = (i: number, patch: Partial<ValRow>) => onChange(values.map((v, j) => (j === i ? { ...v, ...patch } : v)));
   return (
     <div className="flex flex-col gap-2">
@@ -73,16 +76,16 @@ function ValueEditor({ kind, values, onChange }: { kind: Kind; values: ValRow[];
                 value={/^#[0-9a-fA-F]{6}$/.test(v.colorHex) ? v.colorHex : DEFAULT_HEX}
                 onChange={(e) => set(i, { colorHex: e.target.value })}
                 className="size-9 shrink-0 cursor-pointer rounded-[8px] border border-input bg-transparent p-0.5"
-                title="Rang"
+                title={t("a_color")}
               />
             )}
-            <Input value={v.value} onChange={(e) => set(i, { value: e.target.value })} placeholder="Qiymat (asosiy)" className="h-9" />
+            <Input value={v.value} onChange={(e) => set(i, { value: e.target.value })} placeholder={t("a_value_canonical")} className="h-9" />
             <Button variant="ghost" size="sm" onClick={() => onChange(values.filter((_, j) => j !== i))}><Trash2 /></Button>
           </div>
           <TranslationFields
             tr={{ uz: v.uz, uzc: v.uzc, ru: v.ru }}
             onChange={(t) => set(i, { uz: t.uz, uzc: t.uzc, ru: t.ru })}
-            placeholder="Tarjima (ixtiyoriy)"
+            placeholder={t("a_translation_optional")}
           />
         </div>
       ))}
@@ -111,6 +114,7 @@ function buildInput(name: string, kind: Kind, unit: string, values: ValRow[], tr
 }
 
 export function CreatePropertyForm() {
+  const { t } = useLang();
   const router = useRouter();
   const [name, setName] = useState("");
   const [kind, setKind] = useState<Kind>("select");
@@ -127,10 +131,10 @@ export function CreatePropertyForm() {
     try {
       await api.createPropertyDefinition(buildInput(name, kind, unit, values, tr));
       reset();
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -139,30 +143,30 @@ export function CreatePropertyForm() {
   return (
     <Card>
       <CardContent className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">Yangi xususiyat qo'shish</div>
+        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">{t("a_new_property")}</div>
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Nomi (asosiy)" className="flex-[2_1_200px]" hint="Mahsulotlar shu nom bilan bog'lanadi">
+          <Field label={t("a_name_canonical")} className="flex-[2_1_200px]" hint={t("a_name_canonical_hint")}>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Color, Size, Volume..." />
           </Field>
-          <Field label="Turi" className="flex-[1_1_180px]">
+          <Field label={t("a_kind")} className="flex-[1_1_180px]">
             <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                {KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{t(k.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
           {kind === "number" && (
-            <Field label="Birlik" className="flex-[1_1_120px]">
+            <Field label={t("a_unit")} className="flex-[1_1_120px]">
               <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="L, mm, kg..." />
             </Field>
           )}
         </div>
-        <TranslationFields tr={tr} onChange={setTr} placeholder="Tarjima (ixtiyoriy)" />
+        <TranslationFields tr={tr} onChange={setTr} placeholder={t("a_translation_optional")} />
         {hasValues(kind) && <ValueEditor kind={kind} values={values} onChange={setValues} />}
         <div className="flex justify-end">
           <Button disabled={busy || !name.trim()} onClick={save}>
-            {busy ? <Spinner /> : <><Plus /> Qo'shish</>}
+            {busy ? <Spinner /> : <><Plus /> {t("add")}</>}
           </Button>
         </div>
       </CardContent>
@@ -172,6 +176,7 @@ export function CreatePropertyForm() {
 
 // One editable row for an existing definition: name, kind, unit, values, active + delete.
 export function PropertyRow({ def }: { def: PropertyDefinition }) {
+  const { t } = useLang();
   const router = useRouter();
   const [name, setName] = useState(def.name);
   const [kind, setKind] = useState<Kind>(def.kind);
@@ -190,10 +195,10 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
     setBusy(true);
     try {
       await api.updatePropertyDefinition(def.id, { ...buildInput(name, kind, unit, values, tr), active });
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -204,10 +209,10 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
     setBusy(true);
     try {
       await api.deletePropertyDefinition(def.id);
-      toast.success("O'chirildi");
+      toast.success(t("deleted"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -228,30 +233,30 @@ export function PropertyRow({ def }: { def: PropertyDefinition }) {
           variant={active ? "soft" : "ghost"}
           size="sm"
           onClick={() => setActive((a) => !a)}
-          title={active ? "Faol" : "Nofaol"}
+          title={active ? t("active") : t("inactive")}
         >
-          {active ? <Check /> : <X />} {active ? "Faol" : "Nofaol"}
+          {active ? <Check /> : <X />} {active ? t("active") : t("inactive")}
         </Button>
-        <Button variant="soft" size="sm" onClick={() => setExpanded((x) => !x)}>{expanded ? "Yopish" : "Tahrirlash"}</Button>
+        <Button variant="soft" size="sm" onClick={() => setExpanded((x) => !x)}>{expanded ? t("close") : t("edit")}</Button>
       </div>
       {expanded && (
         <div className="flex flex-col gap-3 bg-secondary/30 px-4 py-3">
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Nomi (asosiy)" className="flex-[2_1_200px]" hint="Mahsulotlar shu nom bilan bog'lanadi"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-            <Field label="Turi" className="flex-[1_1_180px]">
+            <Field label={t("a_name_canonical")} className="flex-[2_1_200px]" hint={t("a_name_canonical_hint")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+            <Field label={t("a_kind")} className="flex-[1_1_180px]">
               <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{t(k.label)}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
             {kind === "number" && (
-              <Field label="Birlik" className="flex-[1_1_120px]"><Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="L, mm, kg..." /></Field>
+              <Field label={t("a_unit")} className="flex-[1_1_120px]"><Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="L, mm, kg..." /></Field>
             )}
           </div>
-          <TranslationFields tr={tr} onChange={setTr} placeholder="Tarjima (ixtiyoriy)" />
+          <TranslationFields tr={tr} onChange={setTr} placeholder={t("a_translation_optional")} />
           {hasValues(kind) && <ValueEditor kind={kind} values={values} onChange={setValues} />}
           <div className="flex justify-between">
-            <Button variant="ghost" size="sm" onClick={del} disabled={busy} className="text-destructive"><Trash2 /> O'chirish</Button>
+            <Button variant="ghost" size="sm" onClick={del} disabled={busy} className="text-destructive"><Trash2 /> {t("delete")}</Button>
             <Button size="sm" disabled={busy || !name.trim()} onClick={save}>{busy ? <Spinner /> : <><Check /> Saqlash</>}</Button>
           </div>
         </div>

@@ -3,6 +3,7 @@
 // ones (name, country, brand logo). The logo is uploaded to object storage and shown across
 // the app (CarImage) as the brand emblem, falling back to a monogram when none is set.
 import { useRef, useState } from "react";
+import { useLang } from "@/components/providers";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Check, ImagePlus } from "lucide-react";
@@ -16,6 +17,7 @@ import { invalidateCarMakeLogos } from "@/lib/car-makes";
 import type { CarMake } from "@/lib/types";
 
 export function CreateMakeForm() {
+  const { t } = useLang();
   const router = useRouter();
   const [name, setName] = useState("");
   const [country, setCountry] = useState("");
@@ -27,10 +29,10 @@ export function CreateMakeForm() {
     try {
       await api.createCarMake(name.trim(), country.trim());
       setName(""); setCountry("");
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -39,16 +41,16 @@ export function CreateMakeForm() {
   return (
     <Card>
       <CardContent className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">Yangi marka qo'shish</div>
+        <div className="text-[13.5px] font-bold tracking-[-0.01em] text-ink-2">{t("a_new_make")}</div>
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Marka nomi" className="flex-[2_1_200px]">
+          <Field label={t("a_make_name")} className="flex-[2_1_200px]">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Chevrolet" onKeyDown={(e) => e.key === "Enter" && save()} />
           </Field>
-          <Field label="Davlat" className="flex-[1_1_140px]">
+          <Field label={t("a_country")} className="flex-[1_1_140px]">
             <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="USA" onKeyDown={(e) => e.key === "Enter" && save()} />
           </Field>
           <Button disabled={busy || !name.trim()} onClick={save}>
-            {busy ? <Spinner /> : <><Plus /> Marka qo'shish</>}
+            {busy ? <Spinner /> : <><Plus /> {t("a_add_make")}</>}
           </Button>
         </div>
       </CardContent>
@@ -59,6 +61,7 @@ export function CreateMakeForm() {
 // One editable row: shows the logo (or monogram fallback), lets the admin upload/replace the
 // logo and edit name/country inline.
 export function MakeRow({ make }: { make: CarMake }) {
+  const { t } = useLang();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(make.name);
@@ -75,7 +78,7 @@ export function MakeRow({ make }: { make: CarMake }) {
     try {
       setLogoUrl(await api.uploadImage(file));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setUploading(false);
     }
@@ -87,10 +90,10 @@ export function MakeRow({ make }: { make: CarMake }) {
     try {
       await api.updateCarMake(make.id, name.trim(), country.trim(), logoUrl);
       invalidateCarMakeLogos();
-      toast.success("Saqlandi");
+      toast.success(t("saved"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -103,7 +106,7 @@ export function MakeRow({ make }: { make: CarMake }) {
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        title="Logotip yuklash"
+        title={t("a_upload_logo")}
         className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-dashed border-input transition-colors hover:border-ring"
         style={{ background: logoUrl ? "var(--surface-2)" : "var(--accent-soft)" }}
       >
@@ -122,7 +125,7 @@ export function MakeRow({ make }: { make: CarMake }) {
         <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Davlat" className="h-9" />
       </div>
       <Button variant={dirty ? "default" : "soft"} size="sm" disabled={!dirty || busy} onClick={save}>
-        {busy ? <Spinner /> : <><Check /> Saqlash</>}
+        {busy ? <Spinner /> : <><Check /> {t("save")}</>}
       </Button>
     </div>
   );

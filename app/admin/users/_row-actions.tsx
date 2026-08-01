@@ -2,6 +2,7 @@
 // Per-row mutations for a staff member: active toggle + role select. Calls the client api,
 // then router.refresh() to re-run the SSR fetch on the users page.
 import { useState } from "react";
+import { useLang } from "@/components/providers";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
@@ -13,12 +14,13 @@ import { roleFromProto, type Role } from "@/lib/enums";
 import type { Staff } from "@/lib/types";
 
 const ROLE_OPTS: { value: Role; label: string }[] = [
-  { value: "owner", label: "Egasi" },
-  { value: "mechanic", label: "Usta" },
-  { value: "admin", label: "Admin" },
+  { value: "owner", label: "a_role_owner" },
+  { value: "mechanic", label: "a_role_mechanic" },
+  { value: "admin", label: "a_role_admin" },
 ];
 
 export function RowActions({ staff }: { staff: Staff }) {
+  const { t } = useLang();
   const router = useRouter();
   const [busy, setBusy] = useState<"" | "active" | "role">("");
   const role = roleFromProto(staff.role);
@@ -28,10 +30,10 @@ export function RowActions({ staff }: { staff: Staff }) {
     setBusy("active");
     try {
       await api.setStaffActive(staff.id, !staff.active);
-      toast.success(staff.active ? "Faolsizlantirildi" : "Faollashtirildi");
+      toast.success(staff.active ? t("a_deactivated") : t("a_activated"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy("");
     }
@@ -42,10 +44,10 @@ export function RowActions({ staff }: { staff: Staff }) {
     setBusy("role");
     try {
       await api.setStaffRole(staff.id, next);
-      toast.success("Rol o'zgartirildi");
+      toast.success(t("a_role_changed"));
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy("");
     }
@@ -59,7 +61,7 @@ export function RowActions({ staff }: { staff: Staff }) {
         </SelectTrigger>
         <SelectContent align="end">
           {ROLE_OPTS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            <SelectItem key={o.value} value={o.value}>{t(o.label)}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -70,7 +72,7 @@ export function RowActions({ staff }: { staff: Staff }) {
         onClick={toggleActive}
         className="w-[132px]"
       >
-        {busy === "active" ? <Spinner /> : staff.active ? <><X /> Faolsizlantirish</> : <><Check /> Faollashtirish</>}
+        {busy === "active" ? <Spinner /> : staff.active ? <><X /> {t("a_deactivate")}</> : <><Check /> {t("a_activate")}</>}
       </Button>
     </div>
   );

@@ -19,12 +19,13 @@ import {
 } from "@/components/ui-kit/dialog";
 import { ProductForm } from "@/components/product-form";
 import { SearchSelect } from "@/components/ui-kit/search-select";
-import { MoneyInput } from "@/components/catalog-fields";
+import { MoneyInput, unitLabel } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
 import { pickLangText, type Lang } from "@/lib/i18n";
+import { stockReason } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
@@ -151,7 +152,7 @@ export default function InventoryPage() {
         return (
           <div className="flex flex-col items-start gap-1">
             <span className={cn("font-mono text-[15px] font-bold", low ? "text-destructive" : "text-foreground")}>
-              {num(totalStock(p))}{p.unit ? " " + p.unit : ""}
+              {num(totalStock(p))} {unitLabel(t, p.unit)}
             </span>
             {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
           </div>
@@ -284,7 +285,7 @@ function ManageModal({
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={cn("font-mono text-[14px] font-bold", low ? "text-destructive" : "text-foreground")}>
-                      {num(v.quantityOnHand)}{product.unit ? " " + product.unit : ""}
+                      {num(v.quantityOnHand)} {unitLabel(t, product.unit)}
                     </span>
                     {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
                     <Button variant="ghost" size="sm" onClick={() => setHistory(history === v.id ? null : v.id!)}>{t("history")}</Button>
@@ -379,7 +380,7 @@ function AdjustPanel({
         </TabsList>
       </Tabs>
       <div className="grid grid-cols-2 gap-2">
-        <Field label={t("qty") + (unit ? ` (${unit})` : "")}>
+        <Field label={t("qty") + (unit ? ` (${unitLabel(t, unit)})` : "")}>
           <Input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="0" className="font-mono" />
         </Field>
         <Field label={t("notes")}><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
@@ -394,7 +395,7 @@ function AdjustPanel({
               onChange={setSupplierId}
             />
           </Field>
-          <Field label={t("purchase_price") + (unit ? ` (${unit})` : "")}>
+          <Field label={t("purchase_price") + (unit ? ` (${unitLabel(t, unit)})` : "")}>
             <MoneyInput value={unitCost} onChange={setUnitCost} placeholder="0" hideHint />
           </Field>
         </div>
@@ -459,13 +460,15 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Badge tone={income ? "ok" : "danger"}>{income ? t("receive") : t("consume")}</Badge>
-                <span className="truncate text-muted-foreground">{m.reason}</span>
+                {/* Why it moved, in the language on screen. A reason typed by hand on an
+                    adjustment is not one the system wrote and passes through as typed. */}
+                <span className="truncate text-muted-foreground">{stockReason(lang, m.reason)}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2.5 font-mono">
                 <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>
                   {income ? "+" : ""}{num(m.delta)}
                 </span>
-                <span className="text-muted-foreground">= {num(m.balanceAfter)}{unit ? " " + unit : ""}</span>
+                <span className="text-muted-foreground">= {num(m.balanceAfter)}{unit ? " " + unitLabel(t, unit) : ""}</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground">
@@ -473,7 +476,7 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
               {receiver && <span>👤 {receiver}</span>}
               {income && cost > 0 && (
                 <span className="font-mono">
-                  {money(cost)}{unit ? "/" + unit : ""} · {t("total")} <span className="font-semibold text-foreground">{money(cost * Math.abs(num(m.delta)))}</span>
+                  {money(cost)}{unit ? "/" + unitLabel(t, unit) : ""} · {t("total")} <span className="font-semibold text-foreground">{money(cost * Math.abs(num(m.delta)))}</span>
                 </span>
               )}
               <span className="ml-auto font-mono">{fmtDate(m.createdAt)}</span>

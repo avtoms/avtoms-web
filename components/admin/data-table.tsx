@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useLang } from "@/components/providers";
 import {
   type ColumnDef, type SortingState, type VisibilityState, type ColumnFiltersState,
   flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel,
@@ -48,9 +49,13 @@ type DataTableProps<TData, TValue> = {
 };
 
 export function DataTable<TData, TValue>({
-  columns, data, searchPlaceholder = "Qidirish…", toolbar, leading, pageSize = 10, emptyText = "Ma'lumot yo'q",
+  columns, data, searchPlaceholder, toolbar, leading, pageSize = 10, emptyText,
   onRowClick, columnLabels = {}, enableColumnToggle = true,
 }: DataTableProps<TData, TValue>) {
+  const { t } = useLang();
+  // Defaults live here rather than in the signature so they follow the language on screen.
+  const search = searchPlaceholder ?? t("search") + "…";
+  const noRows = emptyText ?? t("empty");
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -85,7 +90,7 @@ export function DataTable<TData, TValue>({
           <Input
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder={searchPlaceholder}
+            placeholder={search}
             className="pl-9 pr-9"
           />
           {globalFilter && (
@@ -93,7 +98,7 @@ export function DataTable<TData, TValue>({
               type="button"
               onClick={() => setGlobalFilter("")}
               className="absolute right-2.5 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-[6px] text-muted-foreground hover:bg-secondary"
-              aria-label="Tozalash"
+              aria-label={t("tbl_clear")}
             >
               <X className="size-3.5" />
             </button>
@@ -104,11 +109,11 @@ export function DataTable<TData, TValue>({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="secondary" size="sm" className="hidden sm:inline-flex">
-                  <SlidersHorizontal /> Ustunlar
+                  <SlidersHorizontal /> {t("tbl_columns")}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Ustunlar</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("tbl_columns")}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {toggleable.map((column) => (
                   <DropdownMenuCheckboxItem
@@ -158,7 +163,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="h-32 text-center text-muted-foreground">
-                  {emptyText}
+                  {noRows}
                 </TableCell>
               </TableRow>
             )}
@@ -170,14 +175,14 @@ export function DataTable<TData, TValue>({
       {total > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
           <div className="text-[12.5px] text-muted-foreground">
-            {total} ta yozuv{pageCount > 1 && ` · ${table.getState().pagination.pageIndex + 1} / ${pageCount}`}
+            {total} {t("tbl_rows")}{pageCount > 1 && ` · ${table.getState().pagination.pageIndex + 1} / ${pageCount}`}
           </div>
           {pageCount > 1 && (
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="icon-sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} aria-label="Oldingi">
+              <Button variant="secondary" size="icon-sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} aria-label={t("tbl_prev")}>
                 <ChevronLeft />
               </Button>
-              <Button variant="secondary" size="icon-sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} aria-label="Keyingi">
+              <Button variant="secondary" size="icon-sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} aria-label={t("tbl_next")}>
                 <ChevronRight />
               </Button>
             </div>

@@ -2,6 +2,7 @@
 // One demo-lead row with a status switcher (new → contacted → closed). Calls the admin API
 // and refreshes the server component on change.
 import { useState } from "react";
+import { useLang } from "@/components/providers";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Phone, Clock } from "lucide-react";
@@ -10,9 +11,9 @@ import { api, ApiError } from "@/lib/api";
 import type { DemoRequest } from "@/lib/types";
 
 const STATUSES: { key: string; label: string; cls: string }[] = [
-  { key: "new", label: "Yangi", cls: "bg-primary-soft text-primary-emphasis" },
-  { key: "contacted", label: "Bog'lanildi", cls: "bg-warning-soft text-warning" },
-  { key: "closed", label: "Yopilgan", cls: "bg-secondary text-muted-foreground" },
+  { key: "new", label: "a_demo_new", cls: "bg-primary-soft text-primary-emphasis" },
+  { key: "contacted", label: "a_demo_contacted", cls: "bg-warning-soft text-warning" },
+  { key: "closed", label: "a_demo_closed", cls: "bg-secondary text-muted-foreground" },
 ];
 
 const LANGS: Record<string, string> = { uz: "UZ", ru: "RU", en: "EN" };
@@ -21,6 +22,7 @@ const fmtDate = (iso?: string) =>
   iso ? new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 
 export function DemoRow({ req, last }: { req: DemoRequest; last: boolean }) {
+  const { t } = useLang();
   const router = useRouter();
   const [status, setStatus] = useState(req.status || "new");
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,7 @@ export function DemoRow({ req, last }: { req: DemoRequest; last: boolean }) {
       router.refresh();
     } catch (e) {
       setStatus(prev);
-      toast.error(e instanceof ApiError ? e.message : "Xatolik");
+      toast.error(e instanceof ApiError ? e.message : t("error"));
     } finally {
       setBusy(false);
     }
@@ -82,7 +84,7 @@ export function DemoRow({ req, last }: { req: DemoRequest; last: boolean }) {
                 on ? s.cls : "text-muted-foreground hover:bg-secondary",
               )}
             >
-              {s.label}
+              {t(s.label)}
             </button>
           );
         })}

@@ -1,6 +1,7 @@
 // SSR: fetches the predefined property catalog on the server (incl. inactive) and
 // renders the create form + editable rows. Mutations happen in the client island.
 import { serverGet } from "@/lib/server-api";
+import { T } from "@/components/t";
 import type { PropertyDefinition } from "@/lib/types";
 import { Tags } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui-kit/card";
@@ -17,11 +18,11 @@ export default async function PropertiesPage() {
       <CreatePropertyForm />
       <Card className="overflow-hidden">
         <CardHeader className="bg-secondary/40">
-          <CardTitle><Tags className="size-[18px] text-muted-foreground" /> Xususiyatlar katalogi</CardTitle>
-          <span className="text-[12.5px] font-semibold text-muted-foreground">{defs.length} ta</span>
+          <CardTitle><Tags className="size-[18px] text-muted-foreground" /> <T k="a_props_catalog" /></CardTitle>
+          <span className="text-[12.5px] font-semibold text-muted-foreground">{defs.length} <T k="a_count" /></span>
         </CardHeader>
         {defs.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-muted-foreground">Ma'lumot yo'q</div>
+          <div className="px-5 py-8 text-center text-sm text-muted-foreground"><T k="empty" /></div>
         ) : (
           defs.map((d) => <PropertyRow key={d.id} def={d} />)
         )}

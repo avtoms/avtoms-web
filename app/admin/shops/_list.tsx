@@ -19,7 +19,7 @@ import { Spinner, Switch } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { SuggestInput } from "@/components/suggest-input";
 import { LocationPicker, hasPoint } from "@/components/location-picker";
-import { useToast } from "@/components/providers";
+import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import type { Shop } from "@/lib/types";
 
@@ -33,6 +33,7 @@ const SERVICE_TYPES = [
 const err = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Xatolik");
 
 export function ShopsList({ initial }: { initial: Shop[] }) {
+  const { t } = useLang();
   const { toast } = useToast();
   const [list, setList] = useState<Shop[]>(initial);
   const [registering, setRegistering] = useState(false);
@@ -54,7 +55,7 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
     {
       id: "name",
       accessorFn: (s) => `${s.name} ${s.serviceType ?? ""} ${s.location ?? ""}`,
-      header: ({ column }) => <SortHeader column={column}>Servis</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("a_shops")}</SortHeader>,
       cell: ({ row }) => {
         const s = row.original;
         return (
@@ -63,7 +64,7 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-[14px] font-semibold text-foreground">{s.name}</span>
-                {!s.active && <Badge tone="danger">Nofaol</Badge>}
+                {!s.active && <Badge tone="danger">{t("inactive")}</Badge>}
               </div>
               <div className="flex flex-wrap gap-x-3 text-[11.5px] text-muted-foreground">
                 {s.serviceType && <span className="inline-flex items-center gap-1"><Wrench className="size-3" />{s.serviceType}</span>}
@@ -74,7 +75,7 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
                   <a href={`https://www.openstreetmap.org/?mlat=${s.latitude}&mlon=${s.longitude}#map=17/${s.latitude}/${s.longitude}`}
                     target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                     className="inline-flex items-center gap-1 font-semibold text-primary-emphasis hover:underline">
-                    <MapPin className="size-3" />Xaritada
+                    <MapPin className="size-3" />{t("a_on_map")}
                   </a>
                 )}
               </div>
@@ -86,7 +87,7 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
     {
       id: "phone",
       accessorFn: (s) => s.phone ?? "",
-      header: ({ column }) => <SortHeader column={column}>Telefon</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("phone")}</SortHeader>,
       cell: ({ row }) => row.original.phone
         ? <span className="inline-flex items-center gap-1.5 font-mono text-[12.5px] text-muted-foreground"><Phone className="size-3.5" />{row.original.phone}</span>
         : <span className="text-muted-foreground">—</span>,
@@ -94,7 +95,7 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
     {
       id: "staff",
       accessorFn: (s) => s.staffCount ?? 0,
-      header: ({ column }) => <SortHeader column={column}>Ishchilar</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("a_staff_count")}</SortHeader>,
       // Two numbers that answer different questions: what the shop said about itself, and how
       // many accounts actually exist. A shop of six that has registered one is still a shop
       // of six — it just has not onboarded anybody yet, which is worth seeing.
@@ -102,36 +103,36 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Users className="size-3.5" />
           <span className="font-mono font-semibold text-foreground">{row.original.staffCount ?? 0}</span>
-          <span className="font-mono">· {row.original.members ?? 0} akkaunt</span>
+          <span className="font-mono">· {row.original.members ?? 0} {t("a_accounts")}</span>
         </div>
       ),
     },
     {
       id: "actions",
       enableHiding: false,
-      header: () => <span className="sr-only">Tahrirlash</span>,
+      header: () => <span className="sr-only">{t("edit")}</span>,
       cell: ({ row }) => (
         <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setEditing(row.original)}><Pencil /> Tahrirlash</Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(row.original)}><Pencil /> {t("edit")}</Button>
         </div>
       ),
     },
-  ], []);
+  ], [t]);
 
   return (
     <div className="flex flex-col gap-4">
       {/* No page heading here: the admin shell's topbar already names the page, and every
           other screen in this area leaves it to do that. */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <p className="text-[13px] text-muted-foreground">{list.length} ta ro&apos;yxatdan o&apos;tgan servis</p>
-        <Button onClick={() => setRegistering(true)}><Plus /> Servis ro&apos;yxatdan o&apos;tkazish</Button>
+        <p className="text-[13px] text-muted-foreground">{list.length} {t("a_registered_n")}</p>
+        <Button onClick={() => setRegistering(true)}><Plus /> {t("a_register_shop")}</Button>
       </div>
 
       <DataTable
         columns={columns}
         data={list}
-        searchPlaceholder="Qidirish"
-        emptyText="Hali birorta servis ro'yxatdan o'tmagan"
+        searchPlaceholder={t("search")}
+        emptyText={t("a_no_shops")}
         pageSize={12}
       />
 
@@ -156,6 +157,7 @@ export function ShopsList({ initial }: { initial: Shop[] }) {
 function RegisterDialog({ open, typeOptions, onClose, onDone }: {
   open: boolean; typeOptions: string[]; onClose: () => void; onDone: () => void;
 }) {
+  const { t } = useLang();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({
@@ -195,7 +197,7 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
       });
       // The credential is shown back once. It cannot be read out of the system again, so if
       // the operator did not write it down this is the last chance to see it.
-      toast(`${out.shop.name} ro'yxatdan o'tdi · login: ${out.owner.login}`, { icon: "check" });
+      toast(`${out.shop.name} · ${t("a_login")}: ${out.owner.login}`, { icon: "check" });
       onDone();
     } catch (e) {
       toast(err(e), { icon: "alert", tone: "danger" });
@@ -207,38 +209,38 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[560px]">
-        <DialogHeader><DialogTitle>Servis ro&apos;yxatdan o&apos;tkazish</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("a_register_shop")}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-5 py-1">
-          <Section icon={<Store className="size-4" />} title="Kompaniya">
-            <Field label="Servis nomi *"><Input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Avto-Garaj" autoFocus /></Field>
+          <Section icon={<Store className="size-4" />} title={t("a_company")}>
+            <Field label={`${t("a_shop_name")} *`}><Input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Avto-Garaj" autoFocus /></Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Servis turi">
-                <SuggestInput value={f.serviceType} options={typeOptions} onChange={(v) => set("serviceType", v)} placeholder="To'liq servis" />
+              <Field label={t("a_service_type")}>
+                <SuggestInput value={f.serviceType} options={typeOptions} onChange={(v) => set("serviceType", v)} placeholder={t("a_ph_service_type")} />
               </Field>
-              <Field label="Ishchilar soni">
+              <Field label={t("a_staff_count")}>
                 <Input value={f.staffCount} inputMode="numeric" onChange={(e) => set("staffCount", e.target.value.replace(/\D/g, ""))} placeholder="6" className="font-mono" />
               </Field>
             </div>
-            <Field label="Lokatsiya" hint="Mijozning chekida shu manzil chiqadi">
-              <Input value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="Toshkent, Chilonzor 12" />
+            <Field label={t("address")} hint={t("a_address_hint")}>
+              <Input value={f.location} onChange={(e) => set("location", e.target.value)} placeholder={t("a_ph_address")} />
             </Field>
             {/* The address above is the line a person reads; this is the point that can route
                 them there. Two different facts, so two different fields. */}
-            <Field label="Xaritada joylashuvi" hint="Xaritadan tanlang — mijoz shu nuqta bo'yicha yo'l topadi">
+            <Field label={t("a_map_location")} hint={t("a_map_hint")}>
               <LocationPicker lat={pt.lat} lng={pt.lng} onChange={(lat, lng) => setPt({ lat, lng })} />
             </Field>
-            <Field label="Servis telefoni" hint="Egasining shaxsiy raqami emas — bu raqam chekda chiqadi">
+            <Field label={t("a_shop_phone")} hint={t("a_shop_phone_hint")}>
               <Input value={f.phone} inputMode="tel" onChange={(e) => set("phone", e.target.value)} placeholder="+998 71 200 00 00" className="font-mono" />
             </Field>
           </Section>
 
-          <Section icon={<KeyRound className="size-4" />} title="Egasi">
+          <Section icon={<KeyRound className="size-4" />} title={t("a_owner")}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Ism *"><Input value={f.ownerName} onChange={(e) => set("ownerName", e.target.value)} placeholder="Sardor" /></Field>
-              <Field label="Telefon"><Input value={f.ownerPhone} inputMode="tel" onChange={(e) => set("ownerPhone", e.target.value)} placeholder="+998 90 123 45 67" className="font-mono" /></Field>
+              <Field label={`${t("name")} *`}><Input value={f.ownerName} onChange={(e) => set("ownerName", e.target.value)} placeholder="Sardor" /></Field>
+              <Field label={t("phone")}><Input value={f.ownerPhone} inputMode="tel" onChange={(e) => set("ownerPhone", e.target.value)} placeholder="+998 90 123 45 67" className="font-mono" /></Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Login *" hint={f.ownerLogin && !loginOk ? "3-40 ta harf, raqam, nuqta, chiziqcha" : "Shu login bilan tizimga kiradi"}>
+              <Field label={`${t("a_login")} *`} hint={f.ownerLogin && !loginOk ? t("a_login_rule") : t("a_login_hint")}>
                 {/* Lower-cased as it is typed, because that is how the server stores and
                     matches it — showing one thing and saving another is how somebody ends up
                     unable to sign in with the login they were handed. */}
@@ -246,7 +248,7 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
                   onChange={(e) => set("ownerLogin", e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
                   placeholder="sardor" className="font-mono" />
               </Field>
-              <Field label="Parol *" hint={f.ownerPassword && f.ownerPassword.length < 6 ? "Kamida 6 ta belgi" : "Kamida 6 ta belgi"}>
+              <Field label={`${t("a_password")} *`} hint={t("a_password_rule")}>
                 {/* Deliberately not a password field. The operator is typing a credential FOR
                     somebody else and has to read it back to them; masking it here protects
                     nothing and guarantees typos. */}
@@ -255,14 +257,11 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
             </div>
           </Section>
 
-          <p className="text-[12px] leading-relaxed text-muted-foreground">
-            Parol saqlangandan keyin uni qayta ko&apos;rish mumkin emas — faqat yangisiga almashtiriladi.
-            Shuning uchun egasiga hozir yetkazing.
-          </p>
+          <p className="text-[12px] leading-relaxed text-muted-foreground">{t("a_password_once")}</p>
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" disabled={busy} onClick={onClose}>Bekor qilish</Button>
-          <Button disabled={!ready || busy} onClick={submit}>{busy ? <Spinner /> : "Ro'yxatdan o'tkazish"}</Button>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={!ready || busy} onClick={submit}>{busy ? <Spinner /> : t("a_register_shop")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -272,6 +271,7 @@ function RegisterDialog({ open, typeOptions, onClose, onDone }: {
 function EditDialog({ shop, typeOptions, onClose, onDone }: {
   shop: Shop | null; typeOptions: string[]; onClose: () => void; onDone: () => void;
 }) {
+  const { t } = useLang();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ name: "", serviceType: "", staffCount: "", location: "", phone: "", active: true });
@@ -297,7 +297,7 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
         location: f.location.trim(), phone: f.phone.trim(), active: f.active,
         latitude: pt.lat, longitude: pt.lng,
       });
-      toast("Saqlandi", { icon: "check" });
+      toast(t("saved"), { icon: "check" });
       onDone();
     } catch (e) {
       toast(err(e), { icon: "alert", tone: "danger" });
@@ -311,18 +311,18 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
       <DialogContent className="max-w-[520px]">
         <DialogHeader><DialogTitle>{shop.name}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-3.5 py-1">
-          <Field label="Servis nomi *"><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label={`${t("a_shop_name")} *`}><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Servis turi">
+            <Field label={t("a_service_type")}>
               <SuggestInput value={f.serviceType} options={typeOptions} onChange={(v) => set("serviceType", v)} />
             </Field>
-            <Field label="Ishchilar soni">
+            <Field label={t("a_staff_count")}>
               <Input value={f.staffCount} inputMode="numeric" onChange={(e) => set("staffCount", e.target.value.replace(/\D/g, ""))} className="font-mono" />
             </Field>
           </div>
-          <Field label="Lokatsiya"><Input value={f.location} onChange={(e) => set("location", e.target.value)} /></Field>
-          <Field label="Servis telefoni"><Input value={f.phone} inputMode="tel" onChange={(e) => set("phone", e.target.value)} className="font-mono" /></Field>
-          <Field label="Xaritada joylashuvi">
+          <Field label={t("address")}><Input value={f.location} onChange={(e) => set("location", e.target.value)} /></Field>
+          <Field label={t("a_shop_phone")}><Input value={f.phone} inputMode="tel" onChange={(e) => set("phone", e.target.value)} className="font-mono" /></Field>
+          <Field label={t("a_map_location")}>
             {/* Keyed on the shop so switching rows rebuilds the map on the new point rather
                 than leaving Leaflet holding the previous shop's pin. */}
             <LocationPicker key={shop.id} lat={pt.lat} lng={pt.lng} onChange={(lat, lng) => setPt({ lat, lng })} />
@@ -330,13 +330,13 @@ function EditDialog({ shop, typeOptions, onClose, onDone }: {
           {/* Switching a service off stops it being usable without destroying anything it
               has recorded — the same reason contragents are retired rather than deleted. */}
           <div className="flex items-center justify-between rounded-[11px] border border-border px-3.5 py-2.5">
-            <span className="text-[14px] font-semibold text-foreground">Faol</span>
+            <span className="text-[14px] font-semibold text-foreground">{t("active")}</span>
             <Switch checked={f.active} onCheckedChange={(v: boolean) => set("active", v)} />
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" disabled={busy} onClick={onClose}>Bekor qilish</Button>
-          <Button disabled={!f.name.trim() || busy} onClick={save}>{busy ? <Spinner /> : "Saqlash"}</Button>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>{t("cancel")}</Button>
+          <Button disabled={!f.name.trim() || busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
