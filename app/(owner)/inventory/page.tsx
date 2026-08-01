@@ -3,6 +3,7 @@
 // value combinations define variants. This screen lists products, opens a manage
 // dialog to view/adjust each variant's stock, and hosts the create/edit form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { QRCodeSVG } from "qrcode.react";
 import { Plus } from "lucide-react";
@@ -438,6 +439,11 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
     return () => { alive = false; };
   }, [variantId]);
 
+  // Where a movement's document lives. A sale has no page of its own — the sales screen is a
+  // list of today's takings, not a per-sale route — so its number is shown without a link
+  // rather than linking somewhere that cannot show it.
+  const doc = (m: StockMovement) => (m.sourceKind === "work_order" && m.sourceId ? `/work-orders/${m.sourceId}` : null);
+
   const supplierName = (id?: string) => contragents.find((c) => c.id === id)?.name;
   const staffName = (id?: string) => staff.find((s) => s.id === id)?.name;
 
@@ -458,11 +464,19 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
         return (
           <div key={m.id} className="flex flex-col gap-1 rounded-[8px] bg-secondary/30 px-2.5 py-2 text-[12.5px]">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
                 <Badge tone={income ? "ok" : "danger"}>{income ? t("receive") : t("consume")}</Badge>
                 {/* Why it moved, in the language on screen. A reason typed by hand on an
                     adjustment is not one the system wrote and passes through as typed. */}
-                <span className="truncate text-muted-foreground">{stockReason(lang, m.reason)}</span>
+                <span className="truncate text-muted-foreground">{stockReason(lang, m.reason, !m.sourceNo)}</span>
+                {/* And WHICH document moved it — the whole point of a ledger. A shop chasing a
+                    count that no longer matches opens the job from here instead of guessing at
+                    it from the timestamp. Absent on opening stock, on a hand-made adjustment,
+                    and on work-order movements recorded before this was kept. */}
+                {m.sourceNo && (doc(m)
+                  ? <Link href={doc(m)!} onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 font-mono text-[12px] font-bold text-primary-emphasis hover:underline">{m.sourceNo}</Link>
+                  : <span className="shrink-0 font-mono text-[12px] font-bold text-foreground">{m.sourceNo}</span>)}
               </div>
               <div className="flex shrink-0 items-center gap-2.5 font-mono">
                 <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>

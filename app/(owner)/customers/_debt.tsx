@@ -9,6 +9,7 @@
 // Taking a repayment is not income, and the sheet says so out loud: the revenue was counted
 // when the goods went out. Recording money here must never look like the shop just earned it.
 import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowDownLeft, Banknote, CreditCard, HandCoins, Trash2, Wallet } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui-kit/sheet";
 import { Button } from "@/components/ui-kit/button";
@@ -200,14 +201,31 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                 // A charge that came from a sale or an order is not deletable: the goods left
                 // the shop, so the debt goes away by voiding the sale, not by tidying the row.
                 const fromTrade = !!e.saleId || !!e.workOrderId;
-                const source = e.saleId ? t("cl_from_sale") : e.workOrderId ? t("cl_from_order") : "";
+                // Name the document, not just its kind: "from an order" tells a client who is
+                // owed money nothing they can check, and "Z-0013" is the thing they can be
+                // shown. Falls back to naming the kind for a row written before the number was
+                // resolved on read.
+                const doc = e.sourceNo || (e.saleId ? t("cl_from_sale") : e.workOrderId ? t("cl_from_order") : "");
+                // The charge's own description is usually the document number already, since
+                // that is what the server snapshotted — and the badge to its left already names
+                // the kind. So the description is shown only when it says something neither of
+                // them does, rather than printing the same words three times across one row.
+                const title = e.description && e.description !== e.sourceNo ? e.description : "";
                 return (
                   <div key={e.id} className="flex items-start gap-3 border-b border-border py-2.5 last:border-b-0">
                     <Badge tone={k.tone} className="mt-0.5 shrink-0">{k.icon}{t(k.labelKey)}</Badge>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-semibold text-foreground">{e.description || t(k.labelKey)}</div>
+                      <div className="flex items-center gap-1.5">
+                        {title && <span className="truncate text-[13px] font-semibold text-foreground">{title}</span>}
+                        {/* The order behind a charge opens from here. A counter sale has no
+                            page of its own, so its number is named but not linked. */}
+                        {doc && (e.workOrderId
+                          ? <Link href={`/work-orders/${e.workOrderId}`} onClick={(ev) => ev.stopPropagation()}
+                              className="shrink-0 font-mono text-[11.5px] font-bold text-primary-emphasis hover:underline">{doc}</Link>
+                          : <span className="shrink-0 font-mono text-[11.5px] font-bold text-ink-2">{doc}</span>)}
+                      </div>
                       <div className="font-mono text-[11.5px] text-muted-foreground">
-                        {shortDateTime(e.occurredAt)}{who(e.staffId) ? " · " + who(e.staffId) : ""}{source ? " · " + source : ""}{e.note ? " · " + e.note : ""}
+                        {shortDateTime(e.occurredAt)}{who(e.staffId) ? " · " + who(e.staffId) : ""}{e.note ? " · " + e.note : ""}
                       </div>
                     </div>
                     <span className={cn("shrink-0 font-mono text-[13.5px] font-bold", k.sign > 0 ? "text-destructive" : "text-success")}>

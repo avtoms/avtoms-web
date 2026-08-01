@@ -11,6 +11,7 @@
 // afterwards — right here, inline — because the honest moment to take one is when the car is
 // in front of you, which is rarely when someone is filling in a form.
 import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Gauge, Wrench, Calendar, Check, Pencil, User } from "lucide-react";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -109,9 +110,12 @@ function Visit({ entry, onSaved }: { entry: ServiceBookEntry; onSaved: () => voi
         <span className="font-mono text-[13px] font-bold text-foreground">
           {entry.occurredAt ? shortDate(entry.occurredAt) : "—"}
         </span>
-        <span className="font-mono text-[12px] text-muted-foreground">
+        {/* The visit's order opens from here. A service book that names the job without a way
+            to reach it makes the reader search the board for it by date. */}
+        <Link href={`/work-orders/${entry.workOrderId}`}
+          className="font-mono text-[12px] font-semibold text-primary-emphasis hover:underline">
           Z-{String(num(entry.orderNo) || 0).padStart(4, "0")}
-        </span>
+        </Link>
         {state !== "closed" && (
           <Badge tone={state === "canceled" ? "neutral" : "accent"}>{t(STATE_LABEL[state])}</Badge>
         )}

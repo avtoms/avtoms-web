@@ -428,6 +428,11 @@ export interface StockMovement {
   staffId?: string;       // who recorded it (resolve name from the staff list)
   contragentId?: string;  // supplier who delivered (resolve name from contragents)
   unitCost?: string;      // purchase price per unit for this receipt, tiyin
+  // Which document moved the stock. Empty when there is none — opening stock, a hand-made
+  // adjustment — and on work-order movements recorded before this was kept.
+  sourceKind?: string;    // "work_order" | "sale" | ""
+  sourceId?: string;      // for opening it
+  sourceNo?: string;      // what it is called on screen: "Z-0013", "S-0003"
 }
 
 // A counter sale: warehouse stock sold with no work order, vehicle or customer.
@@ -558,6 +563,7 @@ export interface CustomerLedgerEntry {
   description?: string;
   saleId?: string;      // set when the charge came from a counter sale; those cannot be deleted
   workOrderId?: string; // set when it came from closing an order on credit; likewise
+  sourceNo?: string;    // what that sale or order is called on screen: "S-0042", "Z-0013"
   invoiceId?: string;
   method?: string;
   staffId?: string;

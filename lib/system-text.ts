@@ -46,22 +46,29 @@ const SALE_VOID = /^sale_void:([A-Za-z]-?\d+)$/;
 /**
  * stockReason renders why stock moved.
  *
+ * `numbered` is false when the caller shows the movement's document separately — the sale
+ * number is inside the reason for rows written before the source column existed, and
+ * printing it in both places gives "Sotuv S-0003 · S-0003".
+ *
  * Anything unrecognised is returned as written — that is how a hand-typed adjustment reason
  * survives, and how a movement kind added later fails softly (the shop sees a token instead
  * of a sentence, rather than an empty cell that reads like missing data).
  */
-export function stockReason(lang: Lang, raw?: string): string {
+export function stockReason(lang: Lang, raw?: string, numbered = true): string {
   const s = (raw ?? "").trim();
   if (!s) return "";
 
   const key = REASON_KEY[s] ?? REASON_KEY[s.toLowerCase()];
   if (key) return translate(lang, key);
 
+  const withNo = (key: string, no: string) =>
+    numbered ? `${translate(lang, key)} ${no}` : translate(lang, key);
+
   const void_ = SALE_VOID.exec(s);
-  if (void_) return `${translate(lang, "reason_sale_void")} ${void_[1]}`;
+  if (void_) return withNo("reason_sale_void", void_[1]);
 
   const sale = SALE.exec(s);
-  if (sale) return `${translate(lang, sale[2] ? "reason_sale_void" : "reason_sale")} ${sale[1]}`;
+  if (sale) return withNo(sale[2] ? "reason_sale_void" : "reason_sale", sale[1]);
 
   return s;
 }
