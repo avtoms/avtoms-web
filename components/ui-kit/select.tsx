@@ -17,6 +17,8 @@ function SelectTrigger({
       className={cn(
         "flex w-full items-center justify-between gap-2 rounded-[9px] border border-input bg-card px-3 text-sm text-foreground shadow-[var(--shadow)] outline-none transition-[color,box-shadow,border-color]",
         "data-[size=default]:h-10 data-[size=sm]:h-8 data-[size=sm]:text-[13px]",
+        // A dropdown is a tap target and a text field at once; on a phone it needs to be both.
+        "touch:text-base touch:data-[size=default]:h-11 touch:data-[size=sm]:h-11 touch:data-[size=sm]:text-base",
         "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25",
         "disabled:cursor-not-allowed disabled:opacity-60 data-[placeholder]:text-muted-foreground/70",
         "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg:not([class*='text-'])]:text-muted-foreground",

@@ -54,7 +54,7 @@ export function SearchSelect({
       <button
         type="button"
         onClick={() => setOpen((x) => !x)}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-[9px] border border-input bg-card px-3 text-left text-[14px] text-foreground outline-none"
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-[9px] border border-input bg-card px-3 text-left text-[14px] text-foreground outline-none touch:h-11 touch:text-base"
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <OptionIcon src={selected?.icon} />

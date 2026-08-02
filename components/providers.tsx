@@ -127,7 +127,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 function ToastHost({ toasts }: { toasts: Toast[] }) {
   return (
-    <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 400, display: "flex", flexDirection: "column", gap: 8, alignItems: "center", pointerEvents: "none" }}>
+    // Positioned by class rather than inline, so it can sit above the phone's tab bar instead
+    // of on top of it — a toast confirming a save should not cover the way out of the screen.
+    <div className="an-toast-host" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", zIndex: 400, display: "flex", flexDirection: "column", gap: 8, alignItems: "center", pointerEvents: "none" }}>
       {toasts.map((it) => (
         <div key={it.id} className="an-toast-in" style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", background: "var(--ink)", color: "var(--bg)", borderRadius: 999, boxShadow: "var(--shadow-lg)", fontSize: "calc(14px * var(--scale))", fontWeight: 600, maxWidth: "90vw" }}>
           {it.msg}

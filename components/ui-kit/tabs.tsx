@@ -19,6 +19,8 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
     <TabsPrimitive.Trigger
       className={cn(
         "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px] px-3.5 py-1.5 text-[13.5px] font-semibold text-muted-foreground transition-all outline-none",
+        // Tabs are how a phone moves between views, so they get the full 44px.
+        "touch:min-h-11 touch:px-4 touch:text-[14.5px]",
         "focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:pointer-events-none disabled:opacity-50",
         "data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-[var(--shadow)]",
         className,

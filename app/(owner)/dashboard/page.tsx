@@ -143,7 +143,7 @@ export default function DashboardPage() {
           orders and counter sales feed every figure here. */}
       <Card className="p-5">
         <SecTitle right={
-          <Link href="/finances" className="text-[13px] font-semibold text-primary-emphasis hover:underline">{t("nav_finances")} →</Link>
+          <Link href="/finances" className="-mr-2 inline-flex min-h-11 items-center px-2 text-[13px] font-semibold text-primary-emphasis hover:underline sm:m-0 sm:min-h-0 sm:p-0">{t("nav_finances")} →</Link>
         }>{t("today_money")}</SecTitle>
         <div className="mt-1 grid gap-3.5 sm:grid-cols-3">
           <MoneyTile label={t("revenue")} value={num(pl?.revenue)} tone="ok" />
@@ -164,7 +164,7 @@ export default function DashboardPage() {
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>{t("nav_workorders")}</CardTitle>
-            <Link href="/work-orders" className="text-[13px] font-semibold text-primary-emphasis hover:underline">{t("view_all")} →</Link>
+            <Link href="/work-orders" className="-mr-2 inline-flex min-h-11 items-center px-2 text-[13px] font-semibold text-primary-emphasis hover:underline sm:m-0 sm:min-h-0 sm:p-0">{t("view_all")} →</Link>
           </CardHeader>
           {recent.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted-foreground">{t("empty")}</div> : recent.map((w) => <WORow key={w.id} wo={w} />)}
         </Card>

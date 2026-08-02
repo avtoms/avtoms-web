@@ -200,9 +200,11 @@ export function SalesConsole() {
         <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">{t("sales_hint")}</div>
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">
+      {/* min-w-0 on the columns: a grid track will not shrink below its content by default,
+          so one long product name pushed the whole till a centimetre off the side of a phone. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         {/* ── what's on the shelf ── */}
-        <Card className="gap-3 px-5 py-4">
+        <Card className="min-w-0 gap-3 px-4 py-4 sm:px-5">
           <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("nav_inventory")}</h2>
 
           {products === null ? (
@@ -220,7 +222,7 @@ export function SalesConsole() {
         </Card>
 
         {/* ── the basket ── */}
-        <Card className="gap-3 px-5 py-4">
+        <Card className="min-w-0 gap-3 px-4 py-4 sm:px-5">
           <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("sale_basket")}</h2>
 
           {lines.length === 0 ? (
@@ -325,7 +327,7 @@ export function SalesConsole() {
       </div>
 
       {/* ── what has been sold ── */}
-      <Card className="gap-3 px-5 py-4">
+      <Card className="min-w-0 gap-3 px-4 py-4 sm:px-5">
         <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("sales_history")}</h2>
         {sales === null ? (
           <SkeletonRows rows={4} avatar={false} />

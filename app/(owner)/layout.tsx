@@ -103,7 +103,7 @@ function NavList({ pathname, t, groups, onNavigate }: { pathname: string; t: (k:
               return (
                 <Link key={it.key} href={it.route} onClick={onNavigate}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold tracking-[-0.01em] transition-colors",
+                    "group relative flex min-h-11 items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold tracking-[-0.01em] transition-colors",
                     on ? "bg-primary-soft text-primary-emphasis" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}>
                   {on && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
@@ -124,7 +124,7 @@ function LangMenu({ lang, setLang }: { lang: string; setLang: (l: any) => void }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-border bg-card px-2.5 text-[13px] font-semibold text-foreground shadow-[var(--shadow)] outline-none transition-colors hover:bg-secondary">
+        <button className="inline-flex h-9 touch:h-11 touch:px-3 items-center gap-1.5 rounded-[9px] border border-border bg-card px-2.5 text-[13px] font-semibold text-foreground shadow-[var(--shadow)] outline-none transition-colors hover:bg-secondary">
           <Globe className="size-4 text-muted-foreground" />
           <span className="hidden sm:inline">{cur.short}</span>
           <ChevronDown className="size-3.5 text-muted-foreground" />
@@ -178,7 +178,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const userMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="inline-flex h-9 items-center gap-2 rounded-[9px] border border-border bg-card pl-1 pr-2.5 shadow-[var(--shadow)] outline-none transition-colors hover:bg-secondary">
+        <button className="inline-flex h-9 touch:h-11 items-center gap-2 rounded-[9px] border border-border bg-card pl-1 pr-2.5 shadow-[var(--shadow)] outline-none transition-colors hover:bg-secondary">
           <UserAvatar name={user.name} className="size-7" />
           <span className="hidden max-w-[130px] truncate text-[13px] font-semibold text-foreground md:inline">{user.name}</span>
           <ChevronDown className="size-3.5 text-muted-foreground" />
@@ -215,12 +215,12 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             const on = isActive(pathname, it.route);
             const Icon = it.icon;
             return (
-              <Link key={it.key} href={it.route} className={cn("flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold", on ? "text-primary-emphasis" : "text-muted-foreground")}>
+              <Link key={it.key} href={it.route} className={cn("flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold", on ? "text-primary-emphasis" : "text-muted-foreground")}>
                 <Icon className="size-[21px]" /> {t(it.labelKey).split(" ")[0]}
               </Link>
             );
           })}
-          <button onClick={() => setDrawer(true)} aria-label={t("menu")} className="flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold text-muted-foreground">
+          <button onClick={() => setDrawer(true)} aria-label={t("menu")} className="flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold text-muted-foreground">
             <MenuIcon className="size-[21px]" /> •••
           </button>
         </nav>
@@ -230,7 +230,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             <Brand t={t} subtitle={subtitle} />
             <NavList pathname={pathname} t={t} groups={groups} onNavigate={() => setDrawer(false)} />
             <div className="border-t border-border p-3">
-              <button onClick={signOut} className="flex w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold text-destructive hover:bg-destructive-soft">
+              <button onClick={signOut} className="flex min-h-11 w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-[14px] font-semibold text-destructive hover:bg-destructive-soft">
                 <LogOut className="size-[18px]" /> {t("sign_out")}
               </button>
             </div>

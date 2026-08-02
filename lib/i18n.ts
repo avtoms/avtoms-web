@@ -1252,6 +1252,9 @@ export const STR: Record<string, Triple> = {
   // the shared data table's own chrome
   tbl_columns: ["Ustunlar", "Устунлар", "Столбцы"],
   tbl_clear: ["Tozalash", "Тозалаш", "Очистить"],
+  // On a phone the rows are cards, so the column headings that used to carry the sort are gone
+  // and it moves into a menu of its own.
+  tbl_sort: ["Saralash", "Саралаш", "Сортировка"],
   tbl_prev: ["Oldingi", "Олдинги", "Назад"],
   tbl_next: ["Keyingi", "Кейинги", "Вперёд"],
   tbl_rows: ["ta yozuv", "та ёзув", "записей"],

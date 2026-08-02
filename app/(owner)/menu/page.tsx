@@ -262,9 +262,11 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
           )}
 
           {/* materials editor — sourced from the warehouse */}
-          <div className="mt-1 flex items-center justify-between gap-2">
+          {/* Two full-width buttons on a phone; a heading with its actions beside it on a desktop.
+              Side by side at 390px they ran a centimetre past the edge of the drawer. */}
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[12.5px] font-semibold text-muted-foreground">{t("materials_needed")}</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
               <Button variant="ghost" size="sm" onClick={() => setCreating(true)}><Plus /> {t("new_product")}</Button>
               <Button variant="soft" size="sm" onClick={addMat}><Plus /> {t("add_material")}</Button>
             </div>

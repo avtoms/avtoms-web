@@ -18,12 +18,14 @@ const buttonVariants = cva(
         dark: "bg-foreground text-background hover:brightness-110",
         link: "text-primary-emphasis underline-offset-4 hover:underline",
       },
+      // Every size grows to 44px on a phone. A "small" button is small because the screen is
+      // dense, not because the person pressing it has a smaller finger.
       size: {
-        sm: "h-8 px-3 text-[13px] [&_svg:not([class*='size-'])]:size-3.5",
-        default: "h-10 px-4",
+        sm: "h-8 px-3 text-[13px] touch:h-11 touch:px-4 touch:text-[14px] [&_svg:not([class*='size-'])]:size-3.5 touch:[&_svg:not([class*='size-'])]:size-4",
+        default: "h-10 px-4 touch:h-11",
         lg: "h-11 px-5 text-[15px]",
-        icon: "size-9",
-        "icon-sm": "size-8 [&_svg:not([class*='size-'])]:size-3.5",
+        icon: "size-9 touch:size-11",
+        "icon-sm": "size-8 touch:size-11 [&_svg:not([class*='size-'])]:size-3.5 touch:[&_svg:not([class*='size-'])]:size-4",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

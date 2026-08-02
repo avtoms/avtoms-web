@@ -53,6 +53,12 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
         "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-transparent transition-colors outline-none",
         "focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50",
         "data-[state=checked]:bg-primary data-[state=unchecked]:bg-secondary",
+        // A switch reads as a 24px track and has to be tapped as a 44px one. The extra height
+        // is an invisible ::after rather than padding: padding would either square off the
+        // pill or push the row taller, and the track is the whole point of a switch looking
+        // like a switch. Pointer events land on the pseudo-element, so the target is 44px
+        // while nothing about the drawing changes.
+        "touch:relative touch:after:absolute touch:after:-inset-y-2.5 touch:after:-inset-x-1 touch:after:content-['']",
         className,
       )}
       {...props}

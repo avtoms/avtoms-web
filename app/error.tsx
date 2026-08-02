@@ -27,13 +27,13 @@ export default function RouteError({ error, reset }: { error: Error & { digest?:
         <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 4 }}>
           <button
             onClick={reset}
-            style={{ padding: "9px 16px", borderRadius: 9, border: "1px solid var(--line, #e4e4e7)", background: "transparent", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "11px 18px", minHeight: 44, borderRadius: 9, border: "1px solid var(--line, #e4e4e7)", background: "transparent", fontWeight: 600, cursor: "pointer" }}
           >
             {say("err_retry")}
           </button>
           <button
             onClick={() => window.location.reload()}
-            style={{ padding: "9px 16px", borderRadius: 9, border: "none", background: "var(--accent, #2563eb)", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "11px 18px", minHeight: 44, borderRadius: 9, border: "none", background: "var(--accent, #2563eb)", color: "#fff", fontWeight: 600, cursor: "pointer" }}
           >
             {say("err_reload")}
           </button>

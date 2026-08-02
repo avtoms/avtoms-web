@@ -20,9 +20,25 @@ html, body { margin: 0; padding: 0; }
 html:not(:has(.lp)) { scrollbar-gutter: stable; }
 /* Mobile browsers auto-zoom the page when a focused input's font-size is under 16px, which
    reads as the UI "minimizing/maximizing". Force 16px on touch devices (stylesheet !important
-   beats the inline 14.5px style). */
+   beats the inline 14.5px style).
+
+   Every field, not only the legacy .an-input ones: the console's newer screens use the kit's
+   Input/Select/Textarea at 13–14px, and those zoom exactly the same way. Boxes and switches are
+   left out — they carry no text, so nothing zooms, and forcing a size on them only distorts. */
 @media (pointer: coarse) {
-  input.an-input, select.an-input, textarea.an-input { font-size: 16px !important; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select, textarea { font-size: 16px !important; }
+}
+/* Safari inflates text when a phone is turned sideways unless told not to. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* The legacy inline-styled button. Its padding was chosen for a mouse; a finger needs 44px. */
+@media (max-width: 860px) {
+  button.an-btn { min-height: 44px; }
+}
+/* Toasts clear the phone's bottom tab bar (72px + inset) rather than landing on it. */
+.an-toast-host { bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); }
+@media (max-width: 860px) {
+  .an-toast-host { bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); }
 }
 body {
   font-family: var(--font-sans); background: var(--bg); color: var(--ink);

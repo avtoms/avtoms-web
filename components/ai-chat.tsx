@@ -322,7 +322,12 @@ export function ChatWidget() {
     ? [t("ai_sug_platform"), t("ai_sug_leads"), t("ai_sug_shops")]
     : [t("ai_sug_today"), t("ai_sug_profit"), t("ai_sug_reminders")];
 
-  const btnBottom = "calc(env(safe-area-inset-bottom, 0px) + 20px)";
+  // On a phone the console's tab bar owns the bottom of the screen, and the launcher was
+  // landing squarely on the "•••" tab that opens the menu — the one nav control a phone cannot
+  // reach any other way. Clear the bar rather than fight it for the same 56 pixels.
+  const btnBottom = isMobile
+    ? "calc(env(safe-area-inset-bottom, 0px) + 88px)"
+    : "calc(env(safe-area-inset-bottom, 0px) + 20px)";
 
   // Draggable launcher: the user can move the button anywhere so it stops covering
   // things. Position (top-left, px) is remembered in localStorage; null = default

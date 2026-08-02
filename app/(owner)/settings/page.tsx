@@ -165,7 +165,7 @@ export default function SettingsPage() {
                   <button key={s} disabled={savingFlow}
                     onClick={() => { const n = new Set(flow); if (on) n.delete(s); else n.add(s); void saveFlow(n); }}
                     className={cn(
-                      "flex items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
+                      "flex min-h-11 items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
                       on ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
                     )}>
                     <span className={cn("text-[14.5px] font-semibold", on ? "text-primary-emphasis" : "text-foreground")}>
@@ -199,7 +199,7 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-2">
           {LANGS.map((l) => (
             <button key={l.code} onClick={() => setLang(l.code)} className={cn(
-              "flex items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
+              "flex min-h-11 items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
               l.code === lang ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
             )}>
               <span className={cn("text-[14.5px] font-semibold", l.code === lang ? "text-primary-emphasis" : "text-foreground")}>{l.label}</span>
@@ -280,8 +280,8 @@ function PaymentCardsCard() {
                 {c.label && <div className="truncate text-[13.5px] font-semibold">{c.label}</div>}
                 <div className="truncate font-mono text-[13px] text-muted-foreground">{c.cardNumber}{c.holder ? " · " + c.holder : ""}</div>
               </div>
-              <button className="text-muted-foreground hover:text-foreground" onClick={() => setEditing(c)}><Pencil className="size-4" /></button>
-              <button className="text-muted-foreground hover:text-destructive" onClick={() => remove(c)}><Trash2 className="size-4" /></button>
+              <button aria-label={t("edit")} className="grid size-9 touch:size-11 shrink-0 place-items-center rounded-[8px] text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setEditing(c)}><Pencil className="size-4" /></button>
+              <button aria-label={t("delete")} className="grid size-9 touch:size-11 shrink-0 place-items-center rounded-[8px] text-muted-foreground hover:bg-destructive-soft hover:text-destructive" onClick={() => remove(c)}><Trash2 className="size-4" /></button>
             </div>
           ))}
         </div>

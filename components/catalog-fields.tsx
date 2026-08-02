@@ -59,7 +59,7 @@ export function MoneyInput({
           inputMode="numeric"
           placeholder={placeholder ?? "0"}
           onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS))}
-          style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums", paddingRight: 44, ...(fontSize ? { fontSize } : {}), ...style }}
+          style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums", paddingRight: 54, ...(fontSize ? { fontSize } : {}), ...style }}
         />
         {/* "000" quick key: one tap = ×1000 ("ming") — typing millions takes 2 taps, not 6 zeros */}
         <button
@@ -71,7 +71,9 @@ export function MoneyInput({
           title="×1000"
           style={{
             position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)",
-            padding: "3px 7px", borderRadius: 7, border: "1px solid var(--line)",
+            // Wide enough for a thumb on a phone, where this key saves six taps and is
+            // therefore worth hitting first time.
+            padding: "3px 7px", minWidth: 44, borderRadius: 7, border: "1px solid var(--line)",
             background: "var(--surface-2)", color: canAppend ? "var(--ink-2)" : "var(--ink-3)",
             fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 700, cursor: canAppend ? "pointer" : "default",
             opacity: canAppend ? 1 : 0.45, lineHeight: 1.2,

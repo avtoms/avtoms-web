@@ -24,10 +24,10 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
                 {error.message || say("err_unexpected")}
               </div>
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 4 }}>
-                <button onClick={reset} style={{ padding: "9px 16px", borderRadius: 9, border: "1px solid #e4e4e7", background: "transparent", fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={reset} style={{ padding: "11px 18px", minHeight: 44, borderRadius: 9, border: "1px solid #e4e4e7", background: "transparent", fontWeight: 600, cursor: "pointer" }}>
                   {say("err_retry")}
                 </button>
-                <button onClick={() => window.location.reload()} style={{ padding: "9px 16px", borderRadius: 9, border: "none", background: "#2563eb", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={() => window.location.reload()} style={{ padding: "11px 18px", minHeight: 44, borderRadius: 9, border: "none", background: "#2563eb", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
                   {say("err_reload")}
                 </button>
               </div>

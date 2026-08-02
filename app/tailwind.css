@@ -17,6 +17,13 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* `touch:` — the phone. Deliberately the same 860px the console uses to switch to its mobile
+   layout (useIsMobile), so a control never grows into a finger-sized target on a screen that
+   is still laid out for a cursor, or stay cursor-sized on one that is not.
+   Everything under it is sized for a fingertip: roughly 44px, which is what Apple and Google
+   both landed on independently and what this console was missing nearly everywhere. */
+@custom-variant touch (@media (max-width: 860px));
+
 @theme inline {
   /* Surfaces & text */
   --color-background: var(--bg);

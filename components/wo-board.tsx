@@ -242,7 +242,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
                 key={c.key}
                 onClick={() => setCol(c.key)}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-2 rounded-[10px] px-3 py-2 text-[13px] font-bold outline-none transition-colors",
+                  "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[10px] px-3.5 py-2 text-[13px] font-bold outline-none transition-colors",
                   on ? "" : "border border-border bg-card text-muted-foreground",
                 )}
                 style={on ? { background: c.soft, color: c.accent } : undefined}

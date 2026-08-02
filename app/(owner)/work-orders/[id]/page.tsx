@@ -311,7 +311,7 @@ export default function WorkOrderDetailPage() {
               )}
               <Row label={t("total")} value={money(total) + " " + t("soum")} mono strong />
               {editable && (
-                <button onClick={() => setDiscount(true)} className="mt-2 text-[12.5px] font-semibold text-primary-emphasis hover:underline">
+                <button onClick={() => setDiscount(true)} className="mt-2 inline-flex min-h-11 items-center text-[12.5px] font-semibold text-primary-emphasis hover:underline sm:min-h-0">
                   {orderDiscount > 0 ? t("edit_discount") : `+ ${t("add_discount")}`}
                 </button>
               )}
@@ -331,7 +331,7 @@ export default function WorkOrderDetailPage() {
         {/* side column */}
         <div className="flex flex-col gap-3.5">
           <Card className="p-4">
-            <SecTitle right={state !== "closed" && state !== "canceled" ? <button onClick={() => setAssigning(true)} className="text-[13px] font-semibold text-primary-emphasis hover:underline">{t("assign")}</button> : undefined}>{t("mechanic")}</SecTitle>
+            <SecTitle right={state !== "closed" && state !== "canceled" ? <button onClick={() => setAssigning(true)} className="-my-2 inline-flex min-h-11 items-center px-1 text-[13px] font-semibold text-primary-emphasis hover:underline sm:my-0 sm:min-h-0 sm:px-0">{t("assign")}</button> : undefined}>{t("mechanic")}</SecTitle>
             {mech ? (
               <div className="flex items-center gap-2.5">
                 <UserAvatar name={mech.name} className="size-9" />
@@ -885,7 +885,7 @@ function NotesCard({ wo, onSaved }: { wo: WorkOrder; onSaved: (w: WorkOrder) => 
     return (
       <Card className="p-4">
         <button onClick={() => { setDraft(""); setEditing(true); }}
-          className="flex w-full items-center gap-2 text-left text-[13.5px] font-semibold text-muted-foreground hover:text-foreground">
+          className="flex min-h-11 w-full items-center gap-2 text-left text-[13.5px] font-semibold text-muted-foreground hover:text-foreground sm:min-h-0">
           <Plus className="size-4" /> {t("add_note")}
         </button>
       </Card>
@@ -1287,7 +1287,7 @@ function OdometerField({ wo, onSaved }: { wo: WorkOrder; onSaved: (wo: WorkOrder
   return (
     <button
       onClick={() => { setValue(odo > 0 ? String(odo) : ""); setEditing(true); }}
-      className="inline-flex items-center gap-1.5 rounded-[7px] px-1 py-0.5 text-[12.5px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-[7px] px-2 py-0.5 text-[12.5px] text-muted-foreground hover:bg-secondary hover:text-foreground sm:min-h-0 sm:px-1"
     >
       <Gauge className="size-3.5" />
       {odo > 0
