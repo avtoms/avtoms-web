@@ -9,6 +9,21 @@ export function money(v: string | number): string {
   return Math.round(num(v)).toLocaleString("ru-RU").replace(/,/g, " ");
 }
 
+// countVariants renders "3 ta variant" / "3 варианта" — a number and the word for it, in the
+// form the number demands.
+//
+// Uzbek uses one form whatever the count. Russian uses three, chosen by the last digit, except
+// in the eleven-to-fourteen band where every number takes the plural however it ends. Getting
+// this wrong is small and constant: "1 вариантов" is the sort of thing that makes a screen read
+// as though nobody who speaks the language ever looked at it.
+export function countVariants(n: number, t: (k: string) => string): string {
+  const d10 = n % 10, d100 = n % 100;
+  const key = d10 === 1 && d100 !== 11 ? "wh_variant_one"
+    : d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14) ? "wh_variant_few"
+    : "wh_variant_many";
+  return `${n} ${t(key)}`;
+}
+
 // orderLabel renders a work order's human-friendly number ("Z-0001"), falling back to a
 // short id for any legacy order without a sequence number.
 export function orderLabel(wo: { orderNo?: string | number; id: string }): string {

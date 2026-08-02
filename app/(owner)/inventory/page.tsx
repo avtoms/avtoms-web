@@ -24,16 +24,33 @@ import { MoneyInput, unitLabel } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { money, num } from "@/lib/format";
+import { countVariants, money, num } from "@/lib/format";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { stockReason } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
+import { StatCard } from "../_shared";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
 const anyLow = (p: Product) => (p.variants ?? []).some((v) => num(v.quantityOnHand) <= num(v.reorderLevel));
+
+// What a product's stock on hand is worth, both ways round: what it would bring in at the
+// shelf price, and what the shop paid to have it sitting there.
+//
+// Only stock actually on hand counts. A variant at zero is worth nothing however it is priced,
+// and a negative count is a correction waiting to happen, not stock the shop can sell.
+const productValue = (p: Product) => {
+  let sell = 0, cost = 0;
+  for (const v of p.variants ?? []) {
+    const qty = num(v.quantityOnHand);
+    if (qty <= 0) continue;
+    sell += Math.round(qty * num(v.unitPrice));
+    cost += Math.round(qty * num(v.unitCost));
+  }
+  return { sell, cost };
+};
 const variantLabel = (v: ProductVariant) =>
   (v.attributes ?? []).map((a) => a.value).join(" · ") || (v.sku ?? "");
 
@@ -101,6 +118,30 @@ export default function InventoryPage() {
     return m;
   }, [brands]);
 
+  // What the whole warehouse is worth. Summed here from the same rows the table shows, so the
+  // figure above the list and the list itself can never disagree.
+  //
+  // Missing prices are counted rather than assumed. A variant with stock and no cost recorded
+  // makes the cost total understate — quietly, and by exactly the amount nobody would notice —
+  // so the screen says how many, instead of presenting a short number as the whole truth.
+  const wh = useMemo(() => {
+    let sell = 0, cost = 0, positions = 0, noCost = 0, noPrice = 0;
+    for (const p of list) {
+      for (const v of p.variants ?? []) {
+        const qty = num(v.quantityOnHand);
+        if (qty <= 0) continue;
+        positions++;
+        sell += Math.round(qty * num(v.unitPrice));
+        cost += Math.round(qty * num(v.unitCost));
+        if (num(v.unitCost) <= 0) noCost++;
+        if (num(v.unitPrice) <= 0) noPrice++;
+      }
+    }
+    return { sell, cost, margin: sell - cost, positions, noCost, noPrice };
+  }, [list]);
+  // Margin against the sell price, which is the number a shop prices against.
+  const marginPct = wh.sell > 0 ? Math.round((wh.margin / wh.sell) * 1000) / 10 : 0;
+
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
@@ -161,6 +202,23 @@ export default function InventoryPage() {
       },
     },
     {
+      id: "value",
+      accessorFn: (p) => productValue(p).sell,
+      header: ({ column }) => <SortHeader column={column}>{t("wh_value_col")}</SortHeader>,
+      // Sell price above, what it cost below — the pair that makes the totals at the top
+      // explicable, and sortable so "where is the money sitting" is one click away.
+      cell: ({ row }) => {
+        const { sell, cost } = productValue(row.original);
+        if (sell <= 0 && cost <= 0) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div className="flex flex-col items-start">
+            <span className="font-mono text-[13.5px] font-semibold text-foreground">{money(sell)}</span>
+            {cost > 0 && <span className="font-mono text-[11.5px] text-muted-foreground">{money(cost)}</span>}
+          </div>
+        );
+      },
+    },
+    {
       id: "actions",
       enableHiding: false,
       header: () => <span className="sr-only">{t("adjust_stock")}</span>,
@@ -175,6 +233,30 @@ export default function InventoryPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {list.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
+            <StatCard label={t("wh_sell_value")} value={money(wh.sell)} sub={t("wh_if_all_sold")} icon="money" tone="accent" big />
+            <StatCard label={t("wh_cost_value")} value={money(wh.cost)} sub={t("wh_paid_for_goods")} icon="list" tone="warn" />
+            <StatCard
+              label={t("wh_margin")}
+              value={money(wh.margin)}
+              sub={marginPct + "% " + t("margin")}
+              icon="chart"
+              tone={wh.margin >= 0 ? "ok" : "danger"}
+            />
+            <StatCard label={t("wh_positions")} value={wh.positions} sub={t("wh_in_stock_now")} icon="clipboard" tone="neutral" />
+          </div>
+          {/* Say what the totals are missing rather than let a short number pass for the whole
+              shelf. Only shown when there is something to say. */}
+          {(wh.noCost > 0 || wh.noPrice > 0) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-[12px] text-muted-foreground">
+              {wh.noCost > 0 && <span>⚠ {countVariants(wh.noCost, t)} {t("wh_no_cost")}</span>}
+              {wh.noPrice > 0 && <span>⚠ {countVariants(wh.noPrice, t)} {t("wh_no_price")}</span>}
+            </div>
+          )}
+        </div>
+      )}
       {loading && list.length === 0 ? (
         <Card className="gap-2.5 p-5">{Array.from({ length: 7 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
       ) : (
@@ -185,7 +267,7 @@ export default function InventoryPage() {
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
           toolbar={<Button onClick={() => setEditing({ mode: "new", product: null })}><Plus /> {t("add_part")}</Button>}
-          columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock") }}
+          columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock"), value: t("wh_value_col") }}
           pageSize={12}
         />
       )}
@@ -279,9 +361,23 @@ function ManageModal({
                         );
                       }) : (variantLabel(v) || t("variant"))}
                     </div>
+                    {/* Bought for → sells for, then what this variant's stock is worth on the
+                        shelf. The same arithmetic as the totals at the top of the screen, shown
+                        where somebody is actually deciding whether to reorder. */}
                     <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
                       {v.sku && <span className="font-mono">{v.sku}</span>}
-                      {num(v.unitPrice) > 0 && <span>· {money(v.unitPrice!)}</span>}
+                      {num(v.unitPrice) > 0 && (
+                        <span className="font-mono">
+                          · {num(v.unitCost) > 0 && <>{money(v.unitCost!)} → </>}{money(v.unitPrice!)}
+                        </span>
+                      )}
+                      {num(v.quantityOnHand) > 0 && num(v.unitPrice) > 0 && (
+                        <span className="font-mono">
+                          · {t("wh_value_col").toLowerCase()} <span className="font-semibold text-foreground">
+                            {money(Math.round(num(v.quantityOnHand) * num(v.unitPrice)))}
+                          </span>
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

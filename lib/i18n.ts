@@ -261,6 +261,33 @@ export const STR: Record<string, Triple> = {
   paid_invoices: ["to'langan hisoblar", "тўланган ҳисоблар", "оплаченные счета"],
   stock_value: ["Ombor qiymati", "Омбор қиймати", "Стоимость склада"],
   right_now: ["hozirgi holat", "ҳозирги ҳолат", "на текущий момент"],
+  // What the shelf is worth, read two ways: what it would bring in if it all sold, and what
+  // the shop actually paid for it.
+  wh_sell_value: ["Sotuv qiymati", "Сотув қиймати", "Стоимость в продаже"],
+  wh_cost_value: ["Tannarxi", "Таннархи", "Себестоимость"],
+  wh_margin: ["Kutilayotgan foyda", "Кутилаётган фойда", "Ожидаемая прибыль"],
+  wh_positions: ["Zaxiradagi turlar", "Захирадаги турлар", "Позиции в запасе"],
+  wh_if_all_sold: ["hammasi sotilsa", "ҳаммаси сотилса", "если продать всё"],
+  wh_paid_for_goods: ["molga to'langan pul", "молга тўланган пул", "уплачено за товар"],
+  wh_in_stock_now: ["hozir omborda bor", "ҳозир омборда бор", "сейчас есть на складе"],
+  // Both are prefixed at the call site with a counted "N ta variant" / "N варианта", which is
+  // why the noun is not part of the sentence: Russian makes it agree with the number.
+  wh_no_cost: [
+    "tannarxsiz — tannarx summasi to'liq emas",
+    "таннархсиз — таннарх суммаси тўлиқ эмас",
+    "без себестоимости — сумма себестоимости неполная",
+  ],
+  wh_no_price: [
+    "sotuv narxisiz — sotuv qiymati to'liq emas",
+    "сотув нархисиз — сотув қиймати тўлиқ эмас",
+    "без цены продажи — стоимость в продаже неполная",
+  ],
+  // Russian needs three forms of the same word depending on the number in front of it; Uzbek
+  // needs one. countVariants() in lib/format.ts picks between them.
+  wh_variant_one: ["ta variant", "та вариант", "вариант"],
+  wh_variant_few: ["ta variant", "та вариант", "варианта"],
+  wh_variant_many: ["ta variant", "та вариант", "вариантов"],
+  wh_value_col: ["Qiymati", "Қиймати", "Стоимость"],
   variants_n: ["ta variant", "та вариант", "вариантов"],
   sold_and_fitted: ["sotilgan va o'rnatilgan", "сотилган ва ўрнатилган", "проданы и установлены"],
   on_closed_orders: ["yopilgan buyurtmalarda", "ёпилган буюртмаларда", "по закрытым заказам"],
