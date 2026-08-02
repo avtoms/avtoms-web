@@ -20,17 +20,15 @@ import { PeriodPicker, usePeriod, monthRange, lastNMonths } from "../_period";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { money, num } from "@/lib/format";
+import { expenseCategory } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
+import { formatLongDate } from "@/lib/i18n";
 import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
+import { DaySheet } from "@/components/day-sheet";
 import { Row, StatCard } from "../_shared";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
-const PREDEFINED = new Set<string>(CATS);
-
-function catLabel(c: string, t: (k: string) => string): string {
-  return PREDEFINED.has(c) ? t("cat_" + c) : c;
-}
 
 const dateStr = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
@@ -38,7 +36,7 @@ const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / who
 export default function FinancesPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
 
   // The period control is shared with Statistics: the two pages show overlapping figures, and
@@ -138,13 +136,24 @@ export default function FinancesPage() {
               <Separator className="my-1.5" />
               <PLRow label={t("gross_margin")} value={gross} pct={pct(gross, revenue)} strong />
               {(pl?.byCategory ?? []).map((b) => (
-                <PLRow key={b.category} label={catLabel(b.category, t)} value={-num(b.amount)} pct={-pct(num(b.amount), revenue)} muted />
+                <PLRow key={b.category} label={expenseCategory(lang, b.category)} value={-num(b.amount)} pct={-pct(num(b.amount), revenue)} muted />
               ))}
               <PLRow label={t("overhead")} value={-overhead} pct={-pct(overhead, revenue)} />
               <Separator className="my-1.5" />
               <PLRow label={t("net_profit")} value={net} pct={pct(net, revenue)} strong tone={net >= 0 ? "ok" : "danger"} />
             </div>
           </Card>
+
+          {/* One chosen day, document by document. Only on the day window: over a month this
+              would be hundreds of rows and would answer nothing the cards above do not. */}
+          {period.gran === "day" && (
+            <div className="flex flex-col gap-2">
+              <div className="px-1 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
+                {t("day_detail")} · <span className="font-mono normal-case tracking-normal">{formatLongDate(lang, period.day)}</span>
+              </div>
+              <DaySheet shopId={shopId} from={range.from} to={range.to} />
+            </div>
+          )}
 
           {/* income by payment method (cash / card — which card / other) */}
           <Card className="p-5">
@@ -162,7 +171,7 @@ export default function FinancesPage() {
           {!!pl?.byCategory?.length && (
             <Card className="p-5">
               <div className="mb-3 text-[15px] font-bold text-foreground">{t("expenses_by_category")}</div>
-              <CategoryBars data={pl.byCategory.map((b) => ({ label: catLabel(b.category, t), amount: num(b.amount) }))} />
+              <CategoryBars data={pl.byCategory.map((b) => ({ label: expenseCategory(lang, b.category), amount: num(b.amount) }))} />
             </Card>
           )}
         </> : <>
@@ -176,7 +185,7 @@ export default function FinancesPage() {
                   return (
                   <button key={e.id} onClick={() => setDetail(e)} className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-secondary/60 sm:px-5">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[14px] font-semibold text-foreground">{catLabel(e.category, t)}{receiver ? <span className="font-normal text-muted-foreground"> · {receiver}</span> : null}{e.note ? <span className="font-normal text-muted-foreground"> · {e.note}</span> : null}</div>
+                      <div className="text-[14px] font-semibold text-foreground">{expenseCategory(lang, e.category)}{receiver ? <span className="font-normal text-muted-foreground"> · {receiver}</span> : null}{e.note ? <span className="font-normal text-muted-foreground"> · {e.note}</span> : null}</div>
                       <div className="font-mono text-[12px] text-muted-foreground">{dateStr(e.incurredOn)}</div>
                     </div>
                     <div className="font-mono text-[14px] font-bold text-foreground">{money(num(e.amount))}</div>
@@ -240,7 +249,7 @@ function CategoryBars({ data }: { data: { label: string; amount: number }[] }) {
 }
 
 function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted }: { expense: ShopExpense | null; receiver: string; paidByName: string; onClose: () => void; onDeleted: () => void }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -259,13 +268,13 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
   return (
     <Dialog open={!!expense} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[420px]">
-        <DialogHeader><DialogTitle>{e ? catLabel(e.category, t) : ""}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{e ? expenseCategory(lang, e.category) : ""}</DialogTitle></DialogHeader>
         <DialogBody className="py-1">
           {e && (
             <div className="rounded-[12px] bg-secondary/60 p-4">
               <Row label={t("amount")} value={money(num(e.amount)) + " " + t("soum")} strong mono />
               <Separator className="my-2" />
-              <Row label={t("category")} value={catLabel(e.category, t)} />
+              <Row label={t("category")} value={expenseCategory(lang, e.category)} />
               <Row label={t("date")} value={fullDate(e.incurredOn)} />
               {receiver && <Row label={t("receiver")} value={receiver} />}
               {paidByName && <Row label={t("paid_by")} value={paidByName} />}
@@ -309,7 +318,7 @@ function PLRow({ label, value, pct, strong, tone, muted, onClick }: { label: str
 const CUSTOM = "__custom__";
 
 function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }: { open: boolean; onClose: () => void; shopId: string; staff: Staff[]; knownCats: string[]; payees: string[]; onCreated: () => void }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   const blank = { category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "", payee: "", paidBy: "" };
@@ -347,7 +356,7 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }
               <Select value={f.category} onValueChange={(v) => setF({ ...f, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {knownCats.map((c) => <SelectItem key={c} value={c}>{catLabel(c, t)}</SelectItem>)}
+                  {knownCats.map((c) => <SelectItem key={c} value={c}>{expenseCategory(lang, c)}</SelectItem>)}
                   <SelectItem value={CUSTOM}>+ {t("custom_category")}</SelectItem>
                 </SelectContent>
               </Select>

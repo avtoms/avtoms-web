@@ -127,3 +127,12 @@ export function auditDetail(lang: Lang, action?: string, detail?: string): strin
   }
   return d;
 }
+
+// The six expense categories the platform ships with. A shop may also type its own — "Chelak
+// va latta" — and that is its own words, so it falls through exactly as typed, which is the
+// rule this whole file exists to keep.
+const EXPENSE_CATS = new Set(["rent", "salary", "utilities", "supplies", "tax", "other"]);
+export function expenseCategory(lang: Lang, raw?: string): string {
+  const c = (raw ?? "").trim();
+  return EXPENSE_CATS.has(c) ? translate(lang, "cat_" + c) : c;
+}

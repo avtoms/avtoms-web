@@ -350,10 +350,35 @@ export const STR: Record<string, Triple> = {
   net_profit: ["Sof foyda", "Соф фойда", "Чистая прибыль"],
   income_statement: ["Foyda-zarar hisoboti", "Фойда-зарар ҳисоботи", "Отчёт о прибылях и убытках"],
   statistics: ["Statistika", "Статистика", "Статистика"],
+  per_gran_day: ["Kun", "Кун", "День"],
   per_month: ["Oy", "Ой", "Месяц"],
   per_quarter: ["Chorak", "Чорак", "Квартал"],
   per_year: ["Yil", "Йил", "Год"],
   per_custom: ["Davr", "Давр", "Период"],
+  per_prev_day: ["Oldingi kun", "Олдинги кун", "Предыдущий день"],
+  per_next_day: ["Keyingi kun", "Кейинги кун", "Следующий день"],
+  per_today: ["Bugun", "Бугун", "Сегодня"],
+  // The day sheet: one chosen day, named document by document.
+  day_detail: ["Kun tafsiloti", "Кун тафсилоти", "Детали дня"],
+  day_orders: ["Ish buyurtmalari", "Иш буюртмалари", "Заказ-наряды"],
+  day_sales: ["Kassa sotuvlari", "Касса сотувлари", "Продажи с кассы"],
+  day_expenses: ["Xarajatlar", "Харажатлар", "Расходы"],
+  day_counted_revenue: [
+    "daromadga kirgani",
+    "даромадга киргани",
+    "вошло в выручку",
+  ],
+  day_paid_out: ["to'langan", "тўланган", "выплачено"],
+  day_items: ["mahsulot", "маҳсулот", "поз."],
+  day_no_orders: ["Bu kuni buyurtma ochilmagan", "Бу куни буюртма очилмаган", "В этот день заказов не открывали"],
+  day_no_sales: ["Bu kuni kassadan sotuv bo'lmagan", "Бу куни кассадан сотув бўлмаган", "В этот день продаж с кассы не было"],
+  day_no_expenses: ["Bu kuni xarajat yozilmagan", "Бу куни харажат ёзилмаган", "В этот день расходов не записывали"],
+  day_nothing: ["Bu kun bo'sh", "Бу кун бўш", "Этот день пуст"],
+  day_nothing_hint: [
+    "Bu sanada na buyurtma, na sotuv, na xarajat yozilgan.",
+    "Бу санада на буюртма, на сотув, на харажат ёзилган.",
+    "На эту дату нет ни заказов, ни продаж, ни расходов.",
+  ],
   trend_12m: ["12 oylik dinamika", "12 ойлик динамика", "Динамика за 12 месяцев"],
   expenses_by_category: ["Toifa bo'yicha xarajatlar", "Тоифа бўйича харажатлар", "Расходы по категориям"],
   of_revenue: ["daromaddan", "даромаддан", "от выручки"],
@@ -1409,4 +1434,35 @@ export function translateProp(lang: Lang, name: string): string {
 export function pickLangText(lang: Lang, uz: string | undefined, uzc: string | undefined, ru: string | undefined, fallback: string): string {
   const picked = lang === "ru" ? ru : lang === "uzc" ? uzc : uz;
   return picked?.trim() || fallback;
+}
+
+// Month and weekday names, kept here rather than left to Intl.
+//
+// `toLocaleDateString("uz-UZ", { month: "long" })` returns "M08" in Chromium — ICU has no
+// long-form Uzbek — and there is no locale at all for Cyrillic Uzbek. A date is the one thing
+// on a finance screen that must never look machine-generated, so the words are ours.
+const MONTHS: Triple[] = [
+  ["yanvar", "январ", "января"], ["fevral", "феврал", "февраля"], ["mart", "март", "марта"],
+  ["aprel", "апрел", "апреля"], ["may", "май", "мая"], ["iyun", "июн", "июня"],
+  ["iyul", "июл", "июля"], ["avgust", "август", "августа"], ["sentabr", "сентабр", "сентября"],
+  ["oktabr", "октабр", "октября"], ["noyabr", "ноябр", "ноября"], ["dekabr", "декабр", "декабря"],
+];
+// Sunday first, to index straight off Date#getUTCDay().
+const WEEKDAYS: Triple[] = [
+  ["yakshanba", "якшанба", "воскресенье"], ["dushanba", "душанба", "понедельник"],
+  ["seshanba", "сешанба", "вторник"], ["chorshanba", "чоршанба", "среда"],
+  ["payshanba", "пайшанба", "четверг"], ["juma", "жума", "пятница"], ["shanba", "шанба", "суббота"],
+];
+
+// A yyyy-mm-dd written the way the language writes it: "2-avgust, yakshanba" in Uzbek,
+// "2 августа, воскресенье" in Russian. Read as UTC, which is how every window here is bounded.
+export function formatLongDate(lang: Lang, ymd: string): string {
+  const d = new Date(ymd + "T12:00:00Z");
+  if (isNaN(d.getTime())) return ymd;
+  const i = LANG_INDEX[lang];
+  const month = MONTHS[d.getUTCMonth()][i];
+  const weekday = WEEKDAYS[d.getUTCDay()][i];
+  const day = d.getUTCDate();
+  const head = lang === "ru" ? `${day} ${month}` : `${day}-${month}`;
+  return `${head} ${d.getUTCFullYear()}, ${weekday}`;
 }
