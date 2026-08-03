@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
+import { ServicePicker } from "@/components/service-options";
 import { ProductPicker, variantLabel } from "@/components/product-picker";
 import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
@@ -75,7 +76,7 @@ function menuName(m: MenuItem, lang: string): string {
 
 type LineItemInput = {
   kind: LineItemKind; description: string; unitPrice: number; quantity: number;
-  cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number;
+  cost?: number; menuItemId?: string; menuOptionId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number;
 };
 
 export default function WorkOrderDetailPage() {
@@ -608,7 +609,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [qty, setQty] = useState("1");
-  const [from, setFrom] = useState<{ menuItemId: string; defaultPrice: number }>({ menuItemId: "", defaultPrice: 0 });
+  const [from, setFrom] = useState<{ menuItemId: string; menuOptionId: string; defaultPrice: number }>({ menuItemId: "", menuOptionId: "", defaultPrice: 0 });
   const [fromVariant, setFromVariant] = useState(""); // warehouse variant to consume, if picked from stock
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [parts, setParts] = useState<PickVariant[]>([]);
@@ -627,7 +628,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [creating, setCreating] = useState(false);
   const variantOptions = parts.map((p) => ({ value: p.id, label: p.name }));
 
-  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
+  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
 
   const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => { setProducts(ps); setParts(flattenVariants(ps)); }).catch(() => {}); }, [shopId]);
   const loadContragents = useCallback(() => { api.listContragents().then(setContragents).catch(() => {}); }, []);
@@ -650,16 +651,23 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     setExtra(i, { variantId: v.id, name: v.unit ? `${v.name} (${v.unit})` : v.name, unit: v.unit || "pcs", cost: String(num(v.unitCost)), price: String(num(v.unitPrice)) });
   };
 
-  const pickMenu = (m: MenuItem) => {
-    setPicked(true); setKind("service"); setDesc(menuName(m, lang));
-    setPrice(String(num(m.defaultPrice))); setCost(String(num(m.defaultCost)));
-    setFrom({ menuItemId: m.id, defaultPrice: num(m.defaultPrice) }); setFromVariant("");
+  // A service with options is added as one of them: the line reads "Moy almashtirish ·
+  // Krossover", it is priced at that option, and it carries the option's id so the order still
+  // says which one was sold after the price list has moved on.
+  const pickMenu = (m: MenuItem, option?: import("@/lib/types").MenuItemOption) => {
+    const price = option ? num(option.price) : num(m.defaultPrice);
+    const cost = option ? num(option.cost) : num(m.defaultCost);
+    setPicked(true); setKind("service");
+    setDesc(option ? `${menuName(m, lang)} · ${option.name}` : menuName(m, lang));
+    setPrice(String(price)); setCost(String(cost));
+    setFrom({ menuItemId: m.id, menuOptionId: option?.id ?? "", defaultPrice: price });
+    setFromVariant("");
     setMats((m.materials ?? []).map((mat) => ({ on: true, mat }))); setExtras([]); setMode("custom");
   };
   const pickPart = (p: PickVariant) => {
     setPicked(true); setKind("material"); setDesc(p.unit ? `${p.name} (${p.unit})` : p.name);
     setPrice(String(num(p.unitPrice))); setCost(String(num(p.unitCost)));
-    setFrom({ menuItemId: "", defaultPrice: num(p.unitPrice) }); setFromVariant(p.id); setMats([]); setExtras([]); setMode("custom");
+    setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: num(p.unitPrice) }); setFromVariant(p.id); setMats([]); setExtras([]); setMode("custom");
   };
   const matLine = (mat: import("@/lib/types").MenuMaterial): LineItemInput => {
     const q = mat.quantity || 1;
@@ -682,7 +690,8 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     const items: LineItemInput[] = [{
       kind, description: desc.trim(),
       unitPrice: parseInt(price, 10) || 0, quantity: q, cost: parseInt(cost, 10) || 0,
-      menuItemId: from.menuItemId || undefined, defaultPrice: from.defaultPrice || undefined,
+      menuItemId: from.menuItemId || undefined, menuOptionId: from.menuOptionId || undefined,
+      defaultPrice: from.defaultPrice || undefined,
       variantId: kind === "material" && fromVariant ? fromVariant : undefined,
       consumedQty: kind === "material" && fromVariant ? q : undefined,
     }];
@@ -720,14 +729,9 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                 <TabsList className="w-full"><TabsTrigger value="services" className="flex-1">{t("services")}</TabsTrigger><TabsTrigger value="materials" className="flex-1">{t("materials")}</TabsTrigger></TabsList>
               </Tabs>
               {catalog === "services" ? (
-                <div className="flex max-h-[340px] flex-col gap-1.5 overflow-y-auto">
-                  {menu.length === 0 ? <Empty icon="list" text={t("empty")} /> :
-                  menu.map((m) => (
-                    <button key={m.id} disabled={busy} onClick={() => pickMenu(m)} className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3.5 py-3 text-left transition-colors hover:bg-secondary">
-                      <span className="text-[14.5px] font-semibold text-foreground">{menuName(m, lang)}</span>
-                      <span className="font-mono text-[14px] font-bold text-ink-2">{money(m.defaultPrice)}</span>
-                    </button>
-                  ))}
+                <div className="max-h-[340px] overflow-y-auto">
+                  {menu.length === 0 ? <Empty icon="list" text={t("empty")} />
+                    : <ServicePicker items={menu} nameOf={(m) => menuName(m, lang)} disabled={busy} onPick={pickMenu} />}
                 </div>
               ) : (
                   /* Products first, variants on tap: a flat list of every variant of every

@@ -24,6 +24,7 @@ import { api, ApiError } from "@/lib/api";
 import { money, num, durationFmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { MenuItem, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
+import { activeOptions, priceLabel } from "@/components/service-options";
 
 // A pickable warehouse variant, flattened with its product context, for material rows.
 type PickVar = { id: string; label: string; unit: string; cost: number; price: number };
@@ -101,10 +102,21 @@ export default function MenuPage() {
       },
     },
     {
+      id: "options",
+      accessorFn: (m) => activeOptions(m).length,
+      header: ({ column }) => <SortHeader column={column}>{t("opt_options")}</SortHeader>,
+      cell: ({ row }) => {
+        const opts = activeOptions(row.original);
+        if (opts.length === 0) return <span className="text-muted-foreground">—</span>;
+        const label = opts.map((o) => o.name).join(", ");
+        return <span className="block max-w-[220px] truncate text-[12.5px] text-muted-foreground" title={label}>{label}</span>;
+      },
+    },
+    {
       id: "price",
       accessorFn: (m) => num(m.defaultPrice),
       header: ({ column }) => <SortHeader column={column}>{t("price")}</SortHeader>,
-      cell: ({ row }) => <div className="font-mono text-[14px] font-bold text-foreground">{money(row.original.defaultPrice)}</div>,
+      cell: ({ row }) => <div className="font-mono text-[14px] font-bold text-foreground">{priceLabel(row.original, t)}</div>,
     },
     {
       id: "status",
@@ -138,7 +150,7 @@ export default function MenuPage() {
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
           toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
-          columnLabels={{ name: t("service_name"), category: t("category"), time: t("est_time"), materials: t("materials_needed"), price: t("price"), status: t("status") }}
+          columnLabels={{ name: t("service_name"), category: t("category"), time: t("est_time"), materials: t("materials_needed"), options: t("opt_options"), price: t("price"), status: t("status") }}
           onRowClick={(m) => setEditing(m)}
           pageSize={12}
         />
@@ -150,6 +162,11 @@ export default function MenuPage() {
 }
 
 type MatRow = { name: string; qty: string; unit: string; cost: string; price: string; variantId: string };
+// An option row keeps the id it came back with: the server upserts by it, and a line item
+// already sold under this option points at it. A row with no id is one the shop just added.
+type OptRow = { id?: string; name: string; price: string; cost: string; minutes: string };
+
+
 const emptyForm = { name: "", category: "", minutes: "", price: "", cost: "" };
 
 function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; onClose: () => void; shopId: string; item?: MenuItem | null; onSaved: () => void }) {
@@ -160,6 +177,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
   const [f, setF] = useState(emptyForm);
   const [active, setActive] = useState(true);
   const [materials, setMaterials] = useState<MatRow[]>([]);
+  const [options, setOptions] = useState<OptRow[]>([]);
   const [history, setHistory] = useState<MenuPriceChange[] | null>(null);
   const [busy, setBusy] = useState(false);
   // Warehouse catalog: materials are picked from (or created in) the warehouse.
@@ -186,12 +204,24 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
       setF({ name: menuName(item, lang), category: item.category ?? "", minutes: item.estimatedMinutes ? String(item.estimatedMinutes) : "", price: String(num(item.defaultPrice)), cost: item.defaultCost ? String(num(item.defaultCost)) : "" });
       setActive(item.active);
       setMaterials((item.materials ?? []).map((x) => ({ name: x.name, qty: String(x.quantity), unit: x.unit ?? "pcs", cost: x.unitCost ? String(num(x.unitCost)) : "", price: x.unitPrice ? String(num(x.unitPrice)) : "", variantId: x.variantId ?? "" })));
+      setOptions((item.options ?? []).filter((o) => o.active !== false).map((o) => ({
+        id: o.id, name: o.name, price: String(num(o.price)),
+        cost: o.cost ? String(num(o.cost)) : "", minutes: o.estimatedMinutes ? String(o.estimatedMinutes) : "",
+      })));
       setHistory(null);
       api.listMenuPriceHistory(item.id).then(setHistory).catch(() => setHistory([]));
     } else {
-      setF(emptyForm); setActive(true); setMaterials([]); setHistory(null);
+      setF(emptyForm); setActive(true); setMaterials([]); setOptions([]); setHistory(null);
     }
   }, [open, item, lang, loadProducts, loadContragents]);
+
+  const setOpt = (i: number, patch: Partial<OptRow>) => setOptions((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addOpt = () => setOptions((rows) => [...rows, { name: "", price: "", cost: "", minutes: "" }]);
+  const delOpt = (i: number) => setOptions((rows) => rows.filter((_, j) => j !== i));
+  // Options are the prices when there are any, so the service's own price stops being asked
+  // for and becomes the cheapest of them — the "from" figure the price list shows.
+  const namedOpts = options.filter((o) => o.name.trim());
+  const hasOpts = namedOpts.length > 0;
 
   const setMat = (i: number, patch: Partial<MatRow>) => setMaterials((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const addMat = () => setMaterials((rows) => [...rows, { name: "", qty: "1", unit: "pcs", cost: "", price: "", variantId: "" }]);
@@ -205,11 +235,26 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
   };
 
   const save = async () => {
-    if (!f.name.trim() || !f.price || busy) return;
+    if (!f.name.trim() || busy) return;
+    // Either a price, or options that carry the prices instead.
+    if (!hasOpts && !f.price) return;
     setBusy(true);
+    const optionRows = namedOpts.map((o) => ({
+      id: o.id, name: o.name.trim(), price: parseInt(o.price, 10) || 0,
+      cost: parseInt(o.cost, 10) || 0, estimatedMinutes: parseInt(o.minutes, 10) || 0,
+    }));
     const payload = {
       name: f.name.trim(),
-      defaultPrice: parseInt(f.price, 10) || 0,
+      // The "from" price the list shows. Priced options only: a row somebody has named but not
+      // yet given a price to would otherwise drag the whole service down to zero — which reads
+      // on the price list as a service the shop gives away.
+      defaultPrice: hasOpts
+        ? (() => {
+            const priced = optionRows.map((o) => o.price).filter((n) => n > 0);
+            return priced.length > 0 ? Math.min(...priced) : 0;
+          })()
+        : parseInt(f.price, 10) || 0,
+      options: optionRows,
       defaultCost: parseInt(f.cost, 10) || 0,
       category: f.category.trim(),
       estimatedMinutes: parseInt(f.minutes, 10) || 0,
@@ -249,7 +294,39 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
             <Field label={t("category")}><SearchSelect value={f.category} options={categoryOptions} placeholder={t("category")} onChange={(v) => setF({ ...f, category: v })} /></Field>
             <Field label={t("est_time")}>{numInput(f.minutes, (s) => setF({ ...f, minutes: s }))}</Field>
           </div>
-          <Field label={t("sell_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
+          {/* With options the options carry the prices, so asking for one more here would be
+              asking which of them is the real one. */}
+          {!hasOpts && (
+            <Field label={t("sell_price") + " (" + t("soum") + ")"}><MoneyInput value={f.price} onChange={(v) => setF({ ...f, price: v })} /></Field>
+          )}
+
+          {/* options editor — the same job done several ways, at several prices */}
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-semibold text-muted-foreground">{t("opt_options")}</div>
+              <div className="text-[11.5px] text-muted-foreground/80">{t("opt_hint")}</div>
+            </div>
+            <Button variant="soft" size="sm" className="sm:shrink-0" onClick={addOpt}><Plus /> {t("opt_add")}</Button>
+          </div>
+          {options.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              {options.map((o, i) => (
+                <div key={i} className="flex flex-col gap-2.5 rounded-[10px] border border-border bg-secondary/30 p-2.5">
+                  <div className="flex items-end gap-2">
+                    <Field label={t("opt_name")} className="flex-1">
+                      <Input value={o.name} onChange={(e) => setOpt(i, { name: e.target.value })} placeholder={t("opt_name_ph")} />
+                    </Field>
+                    <Button variant="ghost" size="icon" aria-label={t("delete")} onClick={() => delOpt(i)}><Trash2 /></Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <Field label={t("sell_price")}><MoneyInput value={o.price} onChange={(v) => setOpt(i, { price: v })} hideHint /></Field>
+                    <Field label={t("est_time")}>{numInput(o.minutes, (v) => setOpt(i, { minutes: v }))}</Field>
+                  </div>
+                </div>
+              ))}
+              <div className="px-1 text-[11.5px] text-muted-foreground">{t("opt_from_note")}</div>
+            </div>
+          )}
 
           {isEdit && (
             <div className="flex items-center justify-between rounded-[9px] border border-border bg-card px-3.5 py-2.5">

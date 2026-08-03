@@ -1280,6 +1280,21 @@ export const STR: Record<string, Triple> = {
   // On a phone the rows are cards, so the column headings that used to carry the sort are gone
   // and it moves into a menu of its own.
   tbl_sort: ["Saralash", "Саралаш", "Сортировка"],
+  // A price-list service that can be performed several ways, at several prices.
+  opt_options: ["Variantlar", "Вариантлар", "Варианты"],
+  opt_add: ["Variant qo'shish", "Вариант қўшиш", "Добавить вариант"],
+  opt_name: ["Variant nomi", "Вариант номи", "Название варианта"],
+  opt_name_ph: ["Yengil avto, Krossover, Jip…", "Енгил авто, Кроссовер, Жип…", "Легковой, Кроссовер, Джип…"],
+  opt_hint: [
+    "Bitta xizmat, bir nechta narx — masalan avto turiga qarab",
+    "Битта хизмат, бир нечта нарх — масалан авто турига қараб",
+    "Одна услуга, несколько цен — например по типу авто",
+  ],
+  opt_from_note: [
+    "Variantlar bo'lsa, narx ro'yxatida eng arzoni ko'rsatiladi va buyurtmaga qo'shishda variant tanlanadi.",
+    "Вариантлар бўлса, нарх рўйхатида энг арзони кўрсатилади ва буюртмага қўшишда вариант танланади.",
+    "Когда есть варианты, в прайсе показывается самый дешёвый, а при добавлении в заказ выбирается вариант.",
+  ],
   tbl_prev: ["Oldingi", "Олдинги", "Назад"],
   tbl_next: ["Keyingi", "Кейинги", "Вперёд"],
   tbl_rows: ["ta yozuv", "та ёзув", "записей"],

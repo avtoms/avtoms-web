@@ -243,6 +243,21 @@ export interface MenuPriceChange {
   changedBy?: string;
 }
 
+// One named way to perform a service, at its own price: "Yengil avto", "Krossover", "Jip".
+// A service with no options is simply one price, which is most of them.
+//
+// The name is one free-text field, not the three the service itself carries: it is the shop's
+// own words about its own price list, like a product name or a supplier.
+export interface MenuItemOption {
+  id?: string;      // absent on a new option; the server mints one and returns it
+  name: string;
+  price: string;    // tiyin
+  cost?: string;    // tiyin
+  estimatedMinutes?: number; // 0 = same as the service
+  position?: number;
+  active?: boolean;
+}
+
 export interface MenuItem {
   id: string;
   shopId: string;
@@ -255,6 +270,7 @@ export interface MenuItem {
   category?: string;
   estimatedMinutes?: number;
   materials?: MenuMaterial[]; // parts/materials this service is expected to need
+  options?: MenuItemOption[]; // named ways to perform it, each priced (empty for most)
 }
 
 export interface Appointment {

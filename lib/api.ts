@@ -275,6 +275,15 @@ const productBody = (p: ProductInput) => ({
 export type MenuMaterialInput = {
   name: string; quantity: number; unit: string; unitCost: number; unitPrice: number; variantId?: string;
 };
+export type MenuOptionInput = {
+  id?: string; name: string; price: number; cost?: number; estimatedMinutes?: number;
+};
+// An existing option keeps its id: the server upserts by it, and a line item already sold
+// under that option points at it. Sending it back without one would mint a duplicate.
+const menuOptionBody = (o: MenuOptionInput) => ({
+  id: o.id ?? "", name: o.name, price: String(o.price),
+  cost: String(o.cost ?? 0), estimatedMinutes: o.estimatedMinutes ?? 0,
+});
 const menuMaterialBody = (x: MenuMaterialInput) => ({
   name: x.name, quantity: x.quantity, unit: x.unit,
   unitCost: String(x.unitCost), unitPrice: String(x.unitPrice), variantId: x.variantId ?? "",
@@ -435,7 +444,7 @@ export const api = {
   // with their copy. An empty string clears it.
   setNotes: (woId: string, notes: string) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/notes`, { notes }),
-  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number }) =>
+  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; menuOptionId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number }) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items`, {
       lineItem: {
         kind: kindToProto(item.kind),
@@ -444,6 +453,7 @@ export const api = {
         quantity: item.quantity,
         cost: String(item.cost ?? 0),
         menuItemId: item.menuItemId ?? "",
+        menuOptionId: item.menuOptionId ?? "",
         defaultPrice: String(item.defaultPrice ?? 0),
         variantId: item.variantId ?? "",
         consumedQty: item.consumedQty ?? 0,
@@ -527,6 +537,7 @@ export const api = {
     name: string; defaultPrice: number; defaultCost?: number;
     category?: string; estimatedMinutes?: number;
     materials?: MenuMaterialInput[];
+    options?: MenuOptionInput[];
   }) =>
     call<MenuItem>("POST", "/v1/menu-items", {
       shopId,
@@ -535,17 +546,20 @@ export const api = {
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
       category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
       materials: (m.materials ?? []).map(menuMaterialBody),
+      options: (m.options ?? []).map(menuOptionBody),
     }),
   updateMenuItem: (id: string, m: {
     name: string; defaultPrice: number; defaultCost?: number; active: boolean;
     category?: string; estimatedMinutes?: number;
     materials?: MenuMaterialInput[];
+    options?: MenuOptionInput[];
   }) =>
     call<MenuItem>("POST", `/v1/menu-items/${id}`, {
       nameUzLatn: m.name, nameUzCyrl: m.name, nameRu: m.name,
       defaultPrice: String(m.defaultPrice), defaultCost: String(m.defaultCost ?? 0),
       active: m.active, category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
       materials: (m.materials ?? []).map(menuMaterialBody),
+      options: (m.options ?? []).map(menuOptionBody),
     }),
   listMenuPriceHistory: (id: string) =>
     call<{ changes?: import("@/lib/types").MenuPriceChange[] }>("GET", `/v1/menu-items/${id}/price-history`)
