@@ -1280,6 +1280,19 @@ export const STR: Record<string, Triple> = {
   // On a phone the rows are cards, so the column headings that used to carry the sort are gone
   // and it moves into a menu of its own.
   tbl_sort: ["Saralash", "Саралаш", "Сортировка"],
+  // Which orders am I looking at — a window over the board and the list, by when each came in.
+  flt_all: ["Hammasi", "Ҳаммаси", "Все"],
+  flt_today: ["Bugun", "Бугун", "Сегодня"],
+  flt_yesterday: ["Kecha", "Кеча", "Вчера"],
+  flt_week: ["7 kun", "7 кун", "7 дней"],
+  flt_month: ["Shu oy", "Шу ой", "Этот месяц"],
+  flt_custom: ["Davr", "Давр", "Период"],
+  flt_clear: ["Filtrni olib tashlash", "Филтрни олиб ташлаш", "Сбросить фильтр"],
+  flt_none: [
+    "Bu davrda buyurtma ochilmagan",
+    "Бу даврда буюртма очилмаган",
+    "За этот период заказов не открывали",
+  ],
   // A price-list service that can be performed several ways, at several prices.
   opt_options: ["Variantlar", "Вариантлар", "Варианты"],
   opt_add: ["Variant qo'shish", "Вариант қўшиш", "Добавить вариант"],

@@ -10,51 +10,20 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Input } from "@/components/ui-kit/input";
 import { Button } from "@/components/ui-kit/button";
 import { useLang } from "@/components/providers";
+import {
+  monthRange, dayRange, currentMonth, lastNMonths, todayYMD, shiftDay, type Range,
+} from "@/lib/range";
 
 export type Gran = "day" | "month" | "quarter" | "year" | "custom";
-export type Range = { from: string; to: string };
+export type { Range };
+
+// The windows themselves live in lib/range.ts, shared with every other screen that reads one.
+// Re-exported here because these were this file's exports before and callers still ask for
+// them by this path.
+export { monthRange, dayRange, currentMonth, lastNMonths, todayYMD, shiftDay };
 
 const isoFrom = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 0, 0, 0)).toISOString();
 const isoTo = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 23, 59, 59)).toISOString();
-
-export function monthRange(ym: string): Range {
-  const [y, m] = ym.split("-").map((n) => parseInt(n, 10));
-  return { from: isoFrom(y, m - 1, 1), to: isoTo(y, m, 0) };
-}
-
-// One day, on the same UTC boundaries every other window here uses. That matters more than it
-// looks: it is what makes thirty-one single days add up to exactly the month above them, so a
-// shop checking Tuesday against August never finds a som that belongs to neither.
-export function dayRange(ymd: string): Range {
-  const [y, m, d] = ymd.split("-").map((n) => parseInt(n, 10));
-  return { from: isoFrom(y, m - 1, d), to: isoTo(y, m - 1, d) };
-}
-export function todayYMD(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-// Step a yyyy-mm-dd by whole days, across month and year ends.
-export function shiftDay(ymd: string, by: number): string {
-  const [y, m, d] = ymd.split("-").map((n) => parseInt(n, 10));
-  const t = new Date(Date.UTC(y, m - 1, d + by));
-  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
-}
-export function currentMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-export function lastNMonths(n: number): { ym: string; label: string }[] {
-  const out: { ym: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - i, 1));
-    out.push({
-      ym: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
-      label: String(d.getUTCMonth() + 1).padStart(2, "0"),
-    });
-  }
-  return out;
-}
 
 // usePeriod owns the selection and derives the window from it. Callers render <PeriodPicker>
 // with the returned state and pass `range` to the API.

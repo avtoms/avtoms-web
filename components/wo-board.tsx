@@ -63,6 +63,11 @@ function StatusMenu({ currentCol, targets, onMove, disabled }: {
         className={cn(
           "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold whitespace-nowrap outline-none",
           dead ? "cursor-default" : "cursor-pointer hover:brightness-[0.97]",
+          // A status pill is a badge as much as a button, so it keeps its shape and takes its
+          // 44px from an invisible ::after — padding here would turn every card's badge into a
+          // slab. Not applied when it is dead: there is nothing to press.
+          // The pill itself is 23px, so it takes 12 either side to clear 44.
+          !dead && "touch:relative touch:after:absolute touch:after:-inset-y-3 touch:after:inset-x-0 touch:after:content-['']",
         )}
         style={{ background: currentCol.soft, color: currentCol.accent }}
       >
@@ -176,7 +181,7 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
         )}
         <button
           onClick={onOpen}
-          className="inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-bold text-primary-emphasis outline-none hover:underline"
+          className="-my-2 inline-flex min-h-11 shrink-0 items-center gap-0.5 px-1 text-[12.5px] font-bold text-primary-emphasis outline-none hover:underline sm:my-0 sm:min-h-0 sm:px-0"
         >
           {t("open")} <ChevronRight className="size-3.5" />
         </button>
@@ -230,7 +235,16 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
 
   // ── mobile: column switcher + stacked cards ──
   if (isMobile) {
-    const active = cols.find((c) => c.key === col) ? col : cols[0]?.key;
+    // One column is visible at a time here, so landing on an empty one is a dead end: the
+    // screen says "no orders" while the orders sit a tap away in a column nobody can see. So
+    // the chosen column holds only while it has something, and otherwise the first that does.
+    //
+    // The trade-off is deliberate — somebody staring at an empty column on purpose gets moved
+    // — and it is the right way round now that the board can be filtered to a day, which
+    // regularly leaves the column they were last looking at empty.
+    const chosen = cols.find((c) => c.key === col) ? col : cols[0]?.key;
+    const firstWithWork = cols.find((c) => byState(c.key).length > 0)?.key;
+    const active = byState(chosen).length > 0 || !firstWithWork ? chosen : firstWithWork;
     const items = byState(active);
     return (
       <div className="flex flex-col gap-3.5">

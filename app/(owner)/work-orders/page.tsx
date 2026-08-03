@@ -22,6 +22,8 @@ import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { MaterialReturn, WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type ColDef } from "@/components/wo-board";
 import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
+import { DateRangeFilter, useDateFilter } from "@/components/date-range-filter";
+import { inRange } from "@/lib/range";
 import { MoneyTile, SecTitle } from "../_shared";
 import { CarImage } from "@/components/car-image";
 
@@ -50,6 +52,9 @@ export default function WorkOrdersPage() {
   const [view, setView] = useState<"board" | "list">("board");
   const [filter, setFilter] = useState<"all" | WoState>("all");
   const [list, setList] = useState<WorkOrder[] | null>(null);
+  // When the order came in. Everything by default: the board is a live queue, and a car in the
+  // shop since last week must not disappear because somebody once looked at today.
+  const dates = useDateFilter();
   const [busyId, setBusyId] = useState<string | null>(null);
   // The order a drag into the cancelled column is waiting on, with the stock it drew.
   const [cancelling, setCancelling] = useState<{ wo: WorkOrder; materials: ReturnableMaterial[] } | null>(null);
@@ -105,12 +110,20 @@ export default function WorkOrdersPage() {
     }
   };
 
+  // The orders the window leaves. Everything below reads this rather than the raw list, so the
+  // board, the table and the money strip always describe the same set — a summary that counted
+  // orders the board is not showing would be worse than no summary.
+  const visible = useMemo(
+    () => (list ?? []).filter((w) => inRange(w.createdAt, dates.range)),
+    [list, dates.range],
+  );
+
   // Show the shop's statuses, plus any status that still holds an order — a card must never
   // disappear just because its status was switched off after the order landed there.
   const shown = useMemo(() => {
-    const present = (list ?? []).map((w) => woStateFromProto(w.state));
+    const present = visible.map((w) => woStateFromProto(w.state));
     return visibleStates(enabled, present);
-  }, [enabled, list]);
+  }, [enabled, visible]);
   const cols = PIPELINE.filter((c) => shown.has(c.key)).map((c) => ({ ...c, label: t(c.label) }));
 
   const columns = useMemo<ColumnDef<WorkOrder>[]>(() => [
@@ -167,7 +180,7 @@ export default function WorkOrdersPage() {
   // filtered to one status. Money that has been earned is separated from money still in the
   // shop: an order becomes income when it is invoiced, and before that it is a promise.
   const totals = useMemo(() => {
-    const ws = list ?? [];
+    const ws = visible;
     let openValue = 0, income = 0, outcome = 0, open = 0;
     for (const w of ws) {
       const st = woStateFromProto(w.state);
@@ -181,7 +194,7 @@ export default function WorkOrdersPage() {
       }
     }
     return { count: ws.length, open, openValue, income, outcome, profit: income - outcome };
-  }, [list]);
+  }, [visible]);
 
   const columnLabels = useMemo(
     () => ({ order: t("work_order"), vehicle: t("vehicle"), total: t("total"), status: t("status") }),
@@ -196,6 +209,10 @@ export default function WorkOrdersPage() {
           <TabsTrigger value="list">{t("view_list")}</TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {list !== null && (
+        <DateRangeFilter f={dates} total={list.length} shown={visible.length} />
+      )}
 
       {list !== null && (
         <Card className="p-5">
@@ -216,7 +233,7 @@ export default function WorkOrdersPage() {
         <Card className="overflow-hidden"><SkeletonRows rows={7} avatar={false} /></Card>
       ) : view === "board" ? (
         <WorkOrderBoard
-          orders={list}
+          orders={visible}
           cols={cols}
           busyId={busyId}
           onMove={(id, s) => void moveTo(id, s)}
@@ -228,7 +245,7 @@ export default function WorkOrdersPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={list}
+          data={visible}
           searchPlaceholder={t("search")}
           columnLabels={columnLabels}
           emptyText={t("no_orders_col")}
