@@ -613,11 +613,17 @@ export const api = {
   // ── shop expenses + P&L ──
   listExpenses: (shopId: string, from?: string, to?: string) =>
     call<{ expenses?: ShopExpense[] }>("GET", "/v1/expenses" + qs({ shopId, from, to })).then((r) => r.expenses ?? []),
-  createExpense: (shopId: string, e: { category: string; amount: number; incurredOn?: string; note?: string; staffId?: string; payee?: string; paidBy?: string }) =>
+  createExpense: (shopId: string, e: {
+    category: string; amount: number; incurredOn?: string; note?: string;
+    staffId?: string; payee?: string; paidBy?: string; parts?: PaymentPart[];
+  }) =>
     call<ShopExpense>("POST", "/v1/expenses", {
       shopId, category: e.category, amount: String(e.amount),
       incurredOn: e.incurredOn ?? "", note: e.note ?? "", staffId: e.staffId ?? "",
       payee: e.payee ?? "", paidBy: e.paidBy ?? "",
+      // Always parts, even for one method: the server derives the row's own method from the
+      // first of them, so there is one way in rather than two that can disagree.
+      parts: (e.parts ?? []).map(partToWire),
     }),
   deleteExpense: (id: string) => call<{ deleted?: boolean }>("DELETE", `/v1/expenses/${id}`),
   getProfitLoss: (shopId: string, from?: string, to?: string) =>
@@ -680,11 +686,13 @@ export const api = {
   // A purchase is not accepted here — goods arrive by receiving stock, which writes it.
   recordContragentEntry: (id: string, e: {
     kind: Exclude<ContragentEntryKind, "CONTRAGENT_ENTRY_KIND_PURCHASE">;
-    amount: number; method?: PaymentMethod; note?: string; description?: string; occurredAt?: string;
+    amount: number; method?: PaymentMethod; parts?: PaymentPart[];
+    note?: string; description?: string; occurredAt?: string;
   }) =>
     call<ContragentLedgerEntry>("POST", `/v1/contragents/${id}/entries`, {
       kind: e.kind, amount: String(e.amount),
       method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
+      parts: (e.parts ?? []).map(partToWire),
       note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
     }),
   deleteContragentEntry: (entryId: string) =>
@@ -702,12 +710,13 @@ export const api = {
   // a paper book — but not one against an order: that is raised by closing the order on
   // credit, and the gateway drops any order id sent here.
   recordCustomerEntry: (id: string, e: {
-    kind: CustomerEntryKind; amount: number; method?: PaymentMethod;
+    kind: CustomerEntryKind; amount: number; method?: PaymentMethod; parts?: PaymentPart[];
     note?: string; description?: string; occurredAt?: string;
   }) =>
     call<CustomerLedgerEntry>("POST", `/v1/customers/${id}/entries`, {
       kind: e.kind, amount: String(e.amount),
       method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
+      parts: (e.parts ?? []).map(partToWire),
       note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
     }),
   deleteCustomerEntry: (entryId: string) =>

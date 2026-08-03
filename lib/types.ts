@@ -314,6 +314,22 @@ export interface ShopExpense {
   staffId?: string; // optional worker this expense is for (e.g. whose salary)
   payee?: string; // optional receiver/recipient of the payment
   paidBy?: string; // optional staff id of the paying person
+  // How the money left. An expense recorded before this existed has neither, which is shown
+  // as nothing at all rather than guessed at.
+  method?: string;
+  cardId?: string;
+  cardNumber?: string;
+  parts?: PaymentPartOut[];
+}
+
+// One part of a payment as the server returns it — amounts arrive as strings. The row it
+// hangs off also carries the first part flattened onto it, so a movement paid one way can be
+// displayed without looking at the array.
+export interface PaymentPartOut {
+  amount: string;
+  method?: string;
+  cardId?: string;
+  cardNumber?: string;
 }
 
 export interface ExpenseBucket {
@@ -568,7 +584,10 @@ export interface ContragentLedgerEntry {
   amount: string;
   description?: string;
   movementId?: string;   // set when it came from a stock receipt; those cannot be deleted
-  method?: string;
+  method?: string;       // the first part; read `parts` for the whole story
+  cardId?: string;
+  cardNumber?: string;
+  parts?: PaymentPartOut[];
   staffId?: string;
   note?: string;
   occurredAt?: string;
@@ -605,7 +624,10 @@ export interface CustomerLedgerEntry {
   workOrderId?: string; // set when it came from closing an order on credit; likewise
   sourceNo?: string;    // what that sale or order is called on screen: "S-0042", "Z-0013"
   invoiceId?: string;
-  method?: string;
+  method?: string;       // the first part; read `parts` for the whole story
+  cardId?: string;
+  cardNumber?: string;
+  parts?: PaymentPartOut[];
   staffId?: string;
   note?: string;
   occurredAt?: string;

@@ -29,6 +29,7 @@ import { useLang } from "@/components/providers";
 import { api } from "@/lib/api";
 import { money, num, orderLabel } from "@/lib/format";
 import { expenseCategory } from "@/lib/system-text";
+import { PaidBadge } from "@/components/payment-picker";
 import { woStateFromProto, paymentFromProto, paymentLabelKey } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import type { WorkOrder, Sale, ShopExpense } from "@/lib/types";
@@ -189,6 +190,8 @@ export function DaySheet({ shopId, from, to }: { shopId: string; from: string; t
               {(e.payee || e.note) && (
                 <div className="truncate text-[12px] text-muted-foreground">{[e.payee, e.note].filter(Boolean).join(" · ")}</div>
               )}
+              {/* Counting a day's till means knowing which of these came out of it. */}
+              <PaidBadge paid={e} className="mt-1" />
             </div>
             <span className="shrink-0 font-mono text-[13.5px] font-bold text-destructive">−{money(num(e.amount))}</span>
           </div>

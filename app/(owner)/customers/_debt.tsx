@@ -10,7 +10,7 @@
 // when the goods went out. Recording money here must never look like the shop just earned it.
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowDownLeft, Banknote, CreditCard, HandCoins, Trash2, Wallet } from "lucide-react";
+import { ArrowDownLeft, HandCoins, Trash2 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui-kit/sheet";
 import { Button } from "@/components/ui-kit/button";
 import { Badge } from "@/components/ui-kit/badge";
@@ -19,10 +19,10 @@ import { Field } from "@/components/ui-kit/label";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { MoneyInput } from "@/components/catalog-fields";
-import { useLang, useToast } from "@/components/providers";
+import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
-import { paymentLabelKey, type PaymentMethod } from "@/lib/enums";
+import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
 import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
 import type { CustomerBalance, CustomerEntryKind, CustomerLedgerEntry } from "@/lib/types";
@@ -60,7 +60,9 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
 }) {
   const { t } = useLang();
   const { toast } = useToast();
+  const { session } = useAuth();
   const who = useStaffNames();
+  const cards = useShopCards(session?.staff.shopId);
   const [entries, setEntries] = useState<CustomerLedgerEntry[] | null>(null);
   const [summary, setSummary] = useState<CustomerBalance | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,8 +71,8 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
   // charge by hand exists only for an opening balance carried over from a paper book.
   const [kind, setKind] = useState<CustomerEntryKind>("CUSTOMER_ENTRY_KIND_PAYMENT_IN");
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
   const [note, setNote] = useState("");
+  const { payment, setPayment, reset } = usePayment();
 
   const id = customer?.id;
   const load = useCallback(async () => {
@@ -87,7 +89,7 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
 
   useEffect(() => {
     if (!id) { setEntries(null); setSummary(null); return; }
-    setAmount(""); setNote(""); setKind("CUSTOMER_ENTRY_KIND_PAYMENT_IN");
+    setAmount(""); setNote(""); setKind("CUSTOMER_ENTRY_KIND_PAYMENT_IN"); reset();
     void load();
   }, [id, load]);
 
@@ -96,13 +98,17 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
   // How much of the typed amount is more than the client actually owes.
   const over = taking ? Math.max(0, (parseInt(amount, 10) || 0) - Math.max(0, balance)) : 0;
 
+  // A charge added by hand is a debt taken on, not money changing hands, so it is the one
+  // entry here with nothing to pay it with.
+  const sum = parseInt(amount, 10) || 0;
+  const parts = taking ? toParts(payment, sum) : null;
+
   const record = async () => {
-    const a = parseInt(amount, 10) || 0;
-    if (!id || a <= 0 || busy) return;
+    if (!id || sum <= 0 || busy || (taking && !parts)) return;
     setBusy(true);
     try {
-      await api.recordCustomerEntry(id, { kind, amount: a, method, note: note.trim() });
-      setAmount(""); setNote("");
+      await api.recordCustomerEntry(id, { kind, amount: sum, parts: parts ?? undefined, note: note.trim() });
+      setAmount(""); setNote(""); reset();
       toast(t("save"), { icon: "money" });
       await load();
       onChanged();
@@ -155,7 +161,7 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                   <TabsTrigger value="CUSTOMER_ENTRY_KIND_CHARGE" className="flex-1">{t("cl_add_charge")}</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="flex flex-col gap-2.5">
                 <Field label={t("amount")}>
                   <MoneyInput value={amount} onChange={setAmount} />
                   {/* One tap to settle up, which is the usual case and the easiest to mistype. */}
@@ -174,19 +180,14 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                     </p>
                   )}
                 </Field>
-                <Field label={t("payment_method")}>
-                  <div className="flex gap-1">
-                    {(["cash", "card", "other"] as PaymentMethod[]).map((m) => (
-                      <Button key={m} type="button" variant={method === m ? "soft" : "secondary"} size="sm" className="flex-1 px-0"
-                        onClick={() => setMethod(m)} aria-label={t(paymentLabelKey(m))}>
-                        {m === "cash" ? <Banknote /> : m === "card" ? <CreditCard /> : <Wallet />}
-                      </Button>
-                    ))}
-                  </div>
-                </Field>
+                {taking && (
+                  <Field label={t("payment_method")}>
+                    <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy} />
+                  </Field>
+                )}
               </div>
               <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("note")} className="h-9 text-[13px]" />
-              <Button disabled={busy || !(parseInt(amount, 10) > 0)} onClick={() => void record()}>
+              <Button disabled={busy || sum <= 0 || (taking && !parts)} onClick={() => void record()}>
                 {busy ? <Spinner /> : null}{t("save")}
               </Button>
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">{t("cl_not_income")}</p>
@@ -227,6 +228,9 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                       <div className="font-mono text-[11.5px] text-muted-foreground">
                         {shortDateTime(e.occurredAt)}{who(e.staffId) ? " · " + who(e.staffId) : ""}{e.note ? " · " + e.note : ""}
                       </div>
+                      {/* How the repayment arrived. A charge has no payment and shows none. */}
+                      <PaidBadge paid={e} className="mt-1" />
+                      {(e.parts?.length ?? 0) > 1 && <div className="mt-1 max-w-[220px]"><PaidParts paid={e} /></div>}
                     </div>
                     <span className={cn("shrink-0 font-mono text-[13.5px] font-bold", k.sign > 0 ? "text-destructive" : "text-success")}>
                       {k.sign > 0 ? "+" : "−"}{money(e.amount)}

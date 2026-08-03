@@ -723,6 +723,23 @@ export const STR: Record<string, Triple> = {
     "Бир қисми нақд, бир қисми карта — ёки қолгани насияга.",
     "Часть наличными, часть картой — или остаток в долг.",
   ],
+  // "Aralash" rather than "bo'lib to'lash": on a form the word has to fit a chip beside
+  // Naqd and Karta, and what it means there is "more than one of these at once".
+  pay_split: ["Aralash", "Аралаш", "Смешанно"],
+  // A movement whose payment method was never recorded. Said out loud on the summary, because
+  // a shop that sees it can start recording, where a silent gap just makes the total wrong.
+  pay_unstated: ["Ko'rsatilmagan", "Кўрсатилмаган", "Не указано"],
+  // Why the save button is not lit. A card payment that does not say which card is money the
+  // shop cannot later find, so it is refused — but silently refusing reads as a broken form.
+  pay_which_card: ["Qaysi kartaga tushganini ko'rsating", "Қайси картага тушганини кўрсатинг", "Укажите, на какую карту"],
+  // "What went out, by how it went out" — the mirror of the income breakdown already on the
+  // finance screen.
+  out_by_method: ["To'lov usuli bo'yicha chiqim", "Тўлов усули бўйича чиқим", "Расход по способу оплаты"],
+  out_hint: [
+    "Faqat shu davrdagi xarajatlar. Yetkazib beruvchilarga to'lovlar bu yerga kirmaydi — ular foyda-zarar hisobiga tushmaydi.",
+    "Фақат шу даврдаги харажатлар. Етказиб берувчиларга тўловлар бу ерга кирмайди — улар фойда-зарар ҳисобига тушмайди.",
+    "Только расходы за период. Платежи поставщикам сюда не входят — они не участвуют в прибыли и убытках.",
+  ],
   split_add_part: ["Yana bir usul", "Яна бир усул", "Ещё способ"],
   split_rest: ["Qolgani", "Қолгани", "Остаток"],
   split_over: [

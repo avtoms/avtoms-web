@@ -8,7 +8,7 @@
 // counted against profit when it is fitted to a car or sold, not when it is bought or paid
 // for. Recording a payment here must never look like it made the shop poorer.
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Banknote, CreditCard, Package, Trash2, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Package, Trash2 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui-kit/sheet";
 import { Button } from "@/components/ui-kit/button";
 import { Badge } from "@/components/ui-kit/badge";
@@ -20,8 +20,9 @@ import { MoneyInput } from "@/components/catalog-fields";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
-import { paymentLabelKey, type PaymentMethod } from "@/lib/enums";
+import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
 import { useStaffNames } from "@/lib/use-staff";
+import { useAuth } from "@/components/providers";
 import { cn } from "@/lib/utils";
 import type { Contragent, ContragentBalance, ContragentEntryKind, ContragentLedgerEntry } from "@/lib/types";
 
@@ -57,6 +58,8 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
 }) {
   const { t } = useLang();
   const { toast } = useToast();
+  const { session } = useAuth();
+  const shopId = session?.staff.shopId;
   const who = useStaffNames();
   const [entries, setEntries] = useState<ContragentLedgerEntry[] | null>(null);
   const [summary, setSummary] = useState<ContragentBalance | null>(null);
@@ -66,8 +69,13 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
   // for nine times in ten.
   const [kind, setKind] = useState<Exclude<ContragentEntryKind, "CONTRAGENT_ENTRY_KIND_PURCHASE">>("CONTRAGENT_ENTRY_KIND_PAYMENT_OUT");
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
   const [note, setNote] = useState("");
+  const { payment, setPayment, reset } = usePayment();
+  const cards = useShopCards(shopId);
+  // A charge is goods or work handed over, not money — there is nothing to pay it with.
+  const moves = kind !== "CONTRAGENT_ENTRY_KIND_CHARGE";
+  const sum = parseInt(amount, 10) || 0;
+  const parts = moves ? toParts(payment, sum) : null;
 
   const id = contragent?.id;
   const load = useCallback(async () => {
@@ -84,19 +92,18 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
 
   useEffect(() => {
     if (!id) { setEntries(null); setSummary(null); return; }
-    setAmount(""); setNote(""); setKind("CONTRAGENT_ENTRY_KIND_PAYMENT_OUT");
+    setAmount(""); setNote(""); setKind("CONTRAGENT_ENTRY_KIND_PAYMENT_OUT"); reset();
     void load();
   }, [id, load]);
 
   const balance = num(summary?.balance);
 
   const record = async () => {
-    const a = parseInt(amount, 10) || 0;
-    if (!id || a <= 0 || busy) return;
+    if (!id || sum <= 0 || busy || (moves && !parts)) return;
     setBusy(true);
     try {
-      await api.recordContragentEntry(id, { kind, amount: a, method, note: note.trim() });
-      setAmount(""); setNote("");
+      await api.recordContragentEntry(id, { kind, amount: sum, parts: parts ?? undefined, note: note.trim() });
+      setAmount(""); setNote(""); reset();
       toast(t("save"), { icon: "money" });
       await load();
       onChanged();
@@ -150,21 +157,14 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
                   <TabsTrigger value="CONTRAGENT_ENTRY_KIND_CHARGE" className="flex-1">{t("cg_charge")}</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="grid grid-cols-2 gap-2.5">
-                <Field label={t("amount")}><MoneyInput value={amount} onChange={setAmount} /></Field>
+              <Field label={t("amount")}><MoneyInput value={amount} onChange={setAmount} /></Field>
+              {moves && (
                 <Field label={t("payment_method")}>
-                  <div className="flex gap-1">
-                    {(["cash", "card", "other"] as PaymentMethod[]).map((m) => (
-                      <Button key={m} type="button" variant={method === m ? "soft" : "secondary"} size="sm" className="flex-1 px-0"
-                        onClick={() => setMethod(m)} aria-label={t(paymentLabelKey(m))}>
-                        {m === "cash" ? <Banknote /> : m === "card" ? <CreditCard /> : <Wallet />}
-                      </Button>
-                    ))}
-                  </div>
+                  <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy} />
                 </Field>
-              </div>
+              )}
               <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("note")} className="h-9 text-[13px]" />
-              <Button disabled={busy || !(parseInt(amount, 10) > 0)} onClick={() => void record()}>
+              <Button disabled={busy || sum <= 0 || (moves && !parts)} onClick={() => void record()}>
                 {busy ? <Spinner /> : null}{t("save")}
               </Button>
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">{t("cg_not_expense")}</p>
@@ -185,6 +185,10 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
                       <div className="font-mono text-[11.5px] text-muted-foreground">
                         {shortDateTime(e.occurredAt)}{who(e.staffId) ? " · " + who(e.staffId) : ""}{e.note ? " · " + e.note : ""}
                       </div>
+                      {/* Cash or card, and which card. Without it a statement says money moved
+                          and leaves the shop to remember how — which nobody does. */}
+                      <PaidBadge paid={e} className="mt-1" />
+                      {(e.parts?.length ?? 0) > 1 && <div className="mt-1 max-w-[220px]"><PaidParts paid={e} /></div>}
                     </div>
                     <span className={cn("shrink-0 font-mono text-[13.5px] font-bold", k.sign > 0 ? "text-destructive" : "text-success")}>
                       {k.sign > 0 ? "+" : "−"}{money(e.amount)}

@@ -15,6 +15,7 @@ import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
 import { SuggestInput } from "@/components/suggest-input";
+import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { PeriodPicker, usePeriod, monthRange, lastNMonths } from "../_period";
 import { api, ApiError } from "@/lib/api";
@@ -178,15 +179,23 @@ export default function FinancesPage() {
           {/* expense ledger */}
           <div className="flex flex-col gap-2">
             <div className="px-1 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{t("expenses")}</div>
+            {expenses.length > 0 && <OutByMethod expenses={expenses} />}
             {expenses.length === 0 ? <Card className="p-6"><Empty icon="money" text={t("no_expenses")} /></Card>
               : <Card className="overflow-hidden">
                 {expenses.map((e) => {
                   const receiver = staffName(e.staffId) || e.payee || "";
+                  const payer = staffName(e.paidBy);
                   return (
                   <button key={e.id} onClick={() => setDetail(e)} className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-secondary/60 sm:px-5">
                     <div className="min-w-0 flex-1">
                       <div className="text-[14px] font-semibold text-foreground">{expenseCategory(lang, e.category)}{receiver ? <span className="font-normal text-muted-foreground"> · {receiver}</span> : null}{e.note ? <span className="font-normal text-muted-foreground"> · {e.note}</span> : null}</div>
-                      <div className="font-mono text-[12px] text-muted-foreground">{dateStr(e.incurredOn)}</div>
+                      {/* Date, then how it was paid and by whom — the three things somebody
+                          checking the till against the book needs off one line. */}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-mono text-[12px] text-muted-foreground">{dateStr(e.incurredOn)}</span>
+                        <PaidBadge paid={e} />
+                        {payer && <span className="text-[12px] text-muted-foreground">{payer}</span>}
+                      </div>
                     </div>
                     <div className="font-mono text-[14px] font-bold text-foreground">{money(num(e.amount))}</div>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -196,7 +205,7 @@ export default function FinancesPage() {
               </Card>}
           </div>
         </>}
-      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} payees={payees} onCreated={reload} />
+      <AddModal open={adding} onClose={() => setAdding(false)} shopId={shopId} staff={staff} knownCats={knownCats} payees={payees} me={session!.staff.id} onCreated={reload} />
       <ExpenseDetailModal expense={detail} receiver={staffName(detail?.staffId) || detail?.payee || ""} paidByName={staffName(detail?.paidBy)} onClose={() => setDetail(null)} onDeleted={() => { setDetail(null); reload(); }} />
       <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={range.from} to={range.to} title={t("income_title")} />
     </div>
@@ -248,6 +257,57 @@ function CategoryBars({ data }: { data: { label: string; amount: number }[] }) {
   );
 }
 
+// What left the shop in this window, by how it left. The mirror of the income breakdown
+// above, and the reason recording the method is worth the extra tap: a shop can now check
+// the till against the book instead of taking the total on trust.
+//
+// Expenses only. Paying a supplier is real money leaving too, but it is not an expense —
+// a part's cost reaches profit when it is fitted, not when it is bought — so mixing the two
+// here would put the same money in two places. The line under the bars says so.
+function OutByMethod({ expenses }: { expenses: ShopExpense[] }) {
+  const { t } = useLang();
+  const rows = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const e of expenses) {
+      const parts = e.parts ?? [];
+      if (parts.length === 0) {
+        by.set("", (by.get("") ?? 0) + num(e.amount));
+        continue;
+      }
+      for (const p of parts) {
+        const k = String(p.method ?? "");
+        by.set(k, (by.get(k) ?? 0) + num(p.amount));
+      }
+    }
+    const label = (k: string) =>
+      k === "PAYMENT_METHOD_CARD" ? t("pay_card")
+        : k === "PAYMENT_METHOD_OTHER" ? t("pay_other")
+        : k === "PAYMENT_METHOD_CASH" ? t("pay_cash")
+        : t("pay_unstated");
+    return Array.from(by, ([k, amount]) => ({ key: k, label: label(k), amount, unstated: !k }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [expenses, t]);
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  if (total <= 0) return null;
+  return (
+    <Card className="p-5">
+      <div className="mb-3 text-[15px] font-bold text-foreground">{t("out_by_method")}</div>
+      <div className="flex flex-col gap-2.5">
+        {rows.map((r) => (
+          <div key={r.key || "none"} className="flex items-center gap-2.5">
+            <div className={cn("w-28 shrink-0 truncate text-[12.5px]", r.unstated ? "text-muted-foreground italic" : "text-ink-2")}>{r.label}</div>
+            <div className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary">
+              <div className={cn("h-full rounded-full", r.unstated ? "bg-border" : "bg-[var(--warn)]")} style={{ width: `${(r.amount / total) * 100}%` }} />
+            </div>
+            <div className="w-24 text-right font-mono text-[12.5px] font-bold text-foreground">{money(r.amount)}</div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">{t("out_hint")}</p>
+    </Card>
+  );
+}
+
 function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted }: { expense: ShopExpense | null; receiver: string; paidByName: string; onClose: () => void; onDeleted: () => void }) {
   const { t, lang } = useLang();
   const { toast } = useToast();
@@ -278,6 +338,14 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
               <Row label={t("date")} value={fullDate(e.incurredOn)} />
               {receiver && <Row label={t("receiver")} value={receiver} />}
               {paidByName && <Row label={t("paid_by")} value={paidByName} />}
+              {(e.method || e.parts?.length) && (
+                <div className="flex items-baseline justify-between gap-3 py-[3px]">
+                  <span className="text-[13px] text-ink-2">{t("payment_method")}</span>
+                  <PaidBadge paid={e} />
+                </div>
+              )}
+              {/* A split is worth spelling out: "cash + card" says which, not how much of each. */}
+              {(e.parts?.length ?? 0) > 1 && <div className="mt-1 rounded-[9px] bg-card px-3 py-2"><PaidParts paid={e} /></div>}
               {e.note && <Row label={t("notes")} value={e.note} />}
               <Row label={t("created")} value={recorded} mono />
             </div>
@@ -317,21 +385,25 @@ function PLRow({ label, value, pct, strong, tone, muted, onClick }: { label: str
 
 const CUSTOM = "__custom__";
 
-function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }: { open: boolean; onClose: () => void; shopId: string; staff: Staff[]; knownCats: string[]; payees: string[]; onCreated: () => void }) {
+function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreated }: { open: boolean; onClose: () => void; shopId: string; staff: Staff[]; knownCats: string[]; payees: string[]; me: string; onCreated: () => void }) {
   const { t, lang } = useLang();
   const { toast } = useToast();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const blank = { category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "", payee: "", paidBy: "" };
+  const blank = { category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "", payee: "", paidBy: me };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF(blank); }, [open]);
+  // How it was paid. The same control the supplier account and the client account use.
+  const { payment, setPayment, reset } = usePayment();
+  const cards = useShopCards(shopId);
+  useEffect(() => { if (open) { setF(blank); reset(); } }, [open]);
 
   const isSalary = f.category === "salary";
   const resolvedCat = f.category === CUSTOM ? f.customCat.trim() : f.category;
+  const amount = parseInt(f.amount, 10) || 0;
+  const parts = toParts(payment, amount);
 
   const save = async () => {
-    const amount = parseInt(f.amount, 10) || 0;
-    if (amount <= 0 || !resolvedCat || busy) return;
+    if (amount <= 0 || !resolvedCat || !parts || busy) return;
     setBusy(true);
     try {
       await api.createExpense(shopId, {
@@ -340,6 +412,7 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }
         staffId: isSalary ? f.staffId : "",
         payee: isSalary ? "" : f.payee.trim(),
         paidBy: f.paidBy,
+        parts,
       });
       toast(t("save"), { icon: "check" }); onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
@@ -383,6 +456,11 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }
             </Field>
           )}
           <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
+          {/* How it left the shop. Asked here rather than nowhere, because "5 000 000 on rent"
+              and "5 000 000 in cash on rent" are different facts when the till is counted. */}
+          <Field label={t("payment_method")}>
+            <PaymentPicker value={payment} onChange={setPayment} total={amount} cards={cards} disabled={busy} />
+          </Field>
           <Field label={t("paid_by")}>
             <Select value={f.paidBy} onValueChange={(v) => setF({ ...f, paidBy: v })}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
@@ -393,7 +471,7 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, onCreated }
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+          <Button disabled={busy || !parts} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
