@@ -20,7 +20,7 @@ import {
 } from "@/components/ui-kit/dialog";
 import { ProductForm } from "@/components/product-form";
 import { SearchSelect } from "@/components/ui-kit/search-select";
-import { MoneyInput, unitLabel } from "@/components/catalog-fields";
+import { MoneyInput, unitLabel, qtyUnit } from "@/components/catalog-fields";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
@@ -194,7 +194,7 @@ export default function InventoryPage() {
         return (
           <div className="flex flex-col items-start gap-1">
             <span className={cn("font-mono text-[15px] font-bold", low ? "text-destructive" : "text-foreground")}>
-              {num(totalStock(p))} {unitLabel(t, p.unit)}
+              {qtyUnit(t, totalStock(p), p.unit)}
             </span>
             {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
           </div>
@@ -382,7 +382,7 @@ function ManageModal({
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={cn("font-mono text-[14px] font-bold", low ? "text-destructive" : "text-foreground")}>
-                      {num(v.quantityOnHand)} {unitLabel(t, product.unit)}
+                      {qtyUnit(t, v.quantityOnHand, product.unit)}
                     </span>
                     {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
                     <Button variant="ghost" size="sm" onClick={() => setHistory(history === v.id ? null : v.id!)}>{t("history")}</Button>
@@ -576,9 +576,9 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
               </div>
               <div className="flex shrink-0 items-center gap-2.5 font-mono">
                 <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>
-                  {income ? "+" : ""}{num(m.delta)}
+                  {income ? "+" : ""}{qtyUnit(t, m.delta)}
                 </span>
-                <span className="text-muted-foreground">= {num(m.balanceAfter)}{unit ? " " + unitLabel(t, unit) : ""}</span>
+                <span className="text-muted-foreground">= {qtyUnit(t, m.balanceAfter, unit)}</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground">

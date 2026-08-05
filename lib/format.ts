@@ -9,6 +9,26 @@ export function money(v: string | number): string {
   return Math.round(num(v)).toLocaleString("ru-RU").replace(/,/g, " ");
 }
 
+/**
+ * qty renders an amount of something: 46, 3.5, 0.25.
+ *
+ * Quantities are real numbers — half a litre of oil, a quarter kilo of grease — so they are
+ * held as doubles, and a double that has been through a few dozen additions is
+ * 2438.4255000000003. Nobody typed that. It is the binary floating point the arithmetic was
+ * done in, printed in full, and it overflows whatever column it lands in.
+ *
+ * Two decimals is finer than anything a workshop measures to, so the digits below that are
+ * noise by definition. Trailing zeros are dropped, because a whole number of filters should
+ * read "46" and not "46.00".
+ */
+export function qty(v: string | number | undefined | null): string {
+  const n = num(v);
+  // Guard the rounding itself: 1e21 and beyond print in exponent form, which is not a
+  // stock level either. Nothing real gets near it, so this only ever catches corruption.
+  if (!Number.isFinite(n) || Math.abs(n) >= 1e15) return String(n);
+  return String(Math.round(n * 100) / 100);
+}
+
 // countVariants renders "3 ta variant" / "3 варианта" — a number and the word for it, in the
 // form the number demands.
 //

@@ -119,7 +119,7 @@ function CheckPaper({ r, t }: { r: PublicReceipt; t: (k: string) => string }) {
             {r.lines.map((ln, i) => (
               <tr key={i}>
                 <td>{ln.description}</td>
-                <td className="r inv-mono">{qtyUnit(t, trimQty(ln.quantity), ln.unit)}</td>
+                <td className="r inv-mono">{qtyUnit(t, ln.quantity, ln.unit)}</td>
                 <td className="r inv-mono">{money(ln.unitPrice)}</td>
                 <td className="r inv-mono">{money(ln.total)}</td>
               </tr>
@@ -169,10 +169,6 @@ function formatIssued(iso: string): string {
 
 // 2 stays "2"; 3.5 stays "3.5". Quantities are fractional but a whole one should not read
 // as "3.000".
-function trimQty(q: number): string {
-  return String(Math.round(q * 1000) / 1000);
-}
-
 // How the bill was settled, in the language the reader picked on this page rather than the
 // one it was issued in — a customer who taps RU should get Russian, and the sentence the
 // gateway composed was written once, when the check was generated.

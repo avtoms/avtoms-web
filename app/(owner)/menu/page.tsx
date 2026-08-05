@@ -15,13 +15,13 @@ import { Spinner, Switch } from "@/components/ui-kit/misc";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
-import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { MoneyInput, UnitSelect, qtyUnit } from "@/components/catalog-fields";
 import { useStaffNames } from "@/lib/use-staff";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money, num, durationFmt } from "@/lib/format";
+import { money, num, qty, durationFmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { MenuItem, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
 import { activeOptions, priceLabel } from "@/components/service-options";
@@ -97,7 +97,7 @@ export default function MenuPage() {
       cell: ({ row }) => {
         const mats = row.original.materials ?? [];
         if (mats.length === 0) return <span className="text-muted-foreground">—</span>;
-        const label = mats.map((x) => x.name + (x.unit ? ` · ${x.quantity} ${x.unit}` : x.quantity > 1 ? " ×" + x.quantity : "")).join(", ");
+        const label = mats.map((x) => x.name + (x.unit ? ` · ${qtyUnit(t, x.quantity, x.unit)}` : x.quantity > 1 ? " ×" + qty(x.quantity) : "")).join(", ");
         return <span className="block max-w-[260px] truncate text-[12.5px] text-muted-foreground" title={label}>{label}</span>;
       },
     },

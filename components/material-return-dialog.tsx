@@ -19,7 +19,8 @@
 // second overlay there would dim the receipt the cashier is checking against.
 
 import { useEffect, useRef, useState } from "react";
-import { unitLabel } from "@/components/catalog-fields";
+import { qtyUnit } from "@/components/catalog-fields";
+import { qty as fmt } from "@/lib/format";
 import { PackageOpen, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
@@ -37,8 +38,7 @@ export type ReturnableMaterial = {
   unit?: string;
 };
 
-// Trailing zeros would make "4.50" out of four and a half litres, which reads like a price.
-const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
+
 
 // The materials an order actually drew from the warehouse — the only things that can come
 // back if it is called off. Shared, because an order can be cancelled from the detail screen
@@ -115,7 +115,7 @@ export function MaterialReturnPanel({ materials, state }: {
                 <div className="truncate text-[13.5px] font-semibold text-foreground">{m.description}</div>
                 {/* What left the warehouse, so an amount typed over it can be judged. */}
                 <div className="font-mono text-[11.5px] text-muted-foreground">
-                  {t("mat_drawn")}: {fmt(m.drawn)}{m.unit ? ` ${unitLabel(t, m.unit)}` : ""}
+                  {t("mat_drawn")}: {qtyUnit(t, m.drawn, m.unit)}
                 </div>
               </div>
               <Input

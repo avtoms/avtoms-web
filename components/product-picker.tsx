@@ -16,7 +16,7 @@ import { ChevronLeft, ChevronRight, Check, Package, Search } from "lucide-react"
 import { Input } from "@/components/ui-kit/input";
 import { Badge } from "@/components/ui-kit/badge";
 import { useLang } from "@/components/providers";
-import { money, num } from "@/lib/format";
+import { money, num, qty } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant } from "@/lib/types";
 
@@ -164,7 +164,7 @@ export function ProductPicker({
                     {chosen > 0 && <span className="font-semibold text-primary-emphasis"> · {chosen} ✓</span>}
                     {" · "}
                     <span className={left <= 0 ? "font-semibold text-destructive" : ""}>
-                      {left} {unitLabel(t, p.unit) || t("unit_pcs")}
+                      {qty(left)} {unitLabel(t, p.unit) || t("unit_pcs")}
                     </span>
                   </div>
                 </div>
@@ -211,7 +211,7 @@ function VariantRow({ product, variant, picked, blocked, showProductName, onClic
         <div className="truncate text-[11.5px] text-muted-foreground">
           {showProductName && label && <span>{label} · </span>}
           <span className={left <= 0 ? "font-semibold text-destructive" : ""}>
-            {t("in_stock")}: {left} {unitLabel(t, product.unit) || t("unit_pcs")}
+            {t("in_stock")}: {qty(left)} {unitLabel(t, product.unit) || t("unit_pcs")}
           </span>
         </div>
       </div>

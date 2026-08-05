@@ -31,7 +31,7 @@ import { MaterialReturnPanel, useMaterialReturn, type ReturnableMaterial } from 
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
-import { money, num, shortDateTime } from "@/lib/format";
+import { money, num, qty, shortDateTime } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
 import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
@@ -265,7 +265,7 @@ export function SalesConsole() {
                     </div>
                     {over && (
                       <div className="text-[12px] font-semibold text-destructive">
-                        {t("only_n_left")}: {left} {unitLabel(t, l.item.product.unit) || t("unit_pcs")}
+                        {t("only_n_left")}: {qty(left)} {unitLabel(t, l.item.product.unit) || t("unit_pcs")}
                       </div>
                     )}
                     <div className="flex items-baseline justify-between">
@@ -571,7 +571,7 @@ function SaleDetailDialog({ sale, onClose, onVoid }: {
               <div key={it.id || i} className="flex items-center gap-3 border-b border-border py-2 first:pt-0 last:border-b-0 last:pb-0">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-semibold text-foreground">{it.description}</div>
-                  <div className="font-mono text-[11.5px] text-muted-foreground">{money(it.unitPrice)} × {it.quantity}</div>
+                  <div className="font-mono text-[11.5px] text-muted-foreground">{money(it.unitPrice)} × {qty(it.quantity)}</div>
                 </div>
                 <span className="shrink-0 font-mono text-[13px] font-bold">{money(Math.round(num(it.unitPrice) * (it.quantity || 0)))}</span>
               </div>

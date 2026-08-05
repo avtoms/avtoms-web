@@ -7,6 +7,7 @@ import type { CarMake, CarModel } from "@/lib/types";
 import { isValidPlateFor, formatPlateFor, sanitizePlateInput, platePlaceholder } from "@/lib/plate";
 import { isValidUzPhone, formatPhone, PHONE_HINT } from "@/lib/phone";
 import { useLang } from "./providers";
+import { qty } from "@/lib/format";
 import { PlatePreview } from "./plate";
 import type { PlateType } from "@/lib/enums";
 
@@ -116,9 +117,10 @@ export function unitLabel(t: (k: string) => string, unit?: string): string {
  *
  * With no unit recorded the number is shown alone, rather than assuming pieces.
  */
-export function qtyUnit(t: (k: string) => string, qty: number | string, unit?: string): string {
+export function qtyUnit(t: (k: string) => string, amount: number | string, unit?: string): string {
+  const n = qty(amount);
   const u = unitLabel(t, unit);
-  return u ? `${qty} ${u}` : String(qty);
+  return u ? `${n} ${u}` : n;
 }
 
 export function UnitSelect({
