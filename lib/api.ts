@@ -444,11 +444,13 @@ export const api = {
   // with their copy. An empty string clears it.
   setNotes: (woId: string, notes: string) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/notes`, { notes }),
-  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; menuOptionId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number }) =>
+  addLineItem: (woId: string, item: { kind: LineItemKind; description: string; unitPrice: number; quantity: number; cost?: number; menuItemId?: string; menuOptionId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number; unit?: string }) =>
     call<WorkOrder>("POST", `/v1/work-orders/${woId}/line-items`, {
       lineItem: {
         kind: kindToProto(item.kind),
         description: item.description,
+        // The unit travels beside the name, never inside it — see LineItem in lib/types.ts.
+        unit: item.unit ?? "",
         unitPrice: String(item.unitPrice),
         quantity: item.quantity,
         cost: String(item.cost ?? 0),

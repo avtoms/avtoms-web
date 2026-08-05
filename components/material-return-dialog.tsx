@@ -47,7 +47,7 @@ const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 export function returnableMaterials(wo: { lineItems?: LineItem[] }): ReturnableMaterial[] {
   return (wo.lineItems ?? []).flatMap((it) =>
     it.id && it.variantId && (it.consumedQty ?? 0) > 0
-      ? [{ lineId: it.id, description: it.description, drawn: it.consumedQty as number }]
+      ? [{ lineId: it.id, description: it.description, drawn: it.consumedQty as number, unit: it.unit }]
       : []);
 }
 

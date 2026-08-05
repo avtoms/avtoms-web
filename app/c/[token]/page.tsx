@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { money } from "@/lib/format";
 import { CHECK_CSS } from "@/components/fiscal-check";
 import { QR } from "@/components/ui";
+import { qtyUnit } from "@/components/catalog-fields";
 import { useT, useLang } from "@/components/providers";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { paymentFromProto, paymentLabelKey } from "@/lib/enums";
@@ -118,7 +119,7 @@ function CheckPaper({ r, t }: { r: PublicReceipt; t: (k: string) => string }) {
             {r.lines.map((ln, i) => (
               <tr key={i}>
                 <td>{ln.description}</td>
-                <td className="r inv-mono">{trimQty(ln.quantity)}</td>
+                <td className="r inv-mono">{qtyUnit(t, trimQty(ln.quantity), ln.unit)}</td>
                 <td className="r inv-mono">{money(ln.unitPrice)}</td>
                 <td className="r inv-mono">{money(ln.total)}</td>
               </tr>

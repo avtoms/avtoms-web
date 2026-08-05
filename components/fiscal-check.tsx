@@ -9,6 +9,7 @@
 import React from "react";
 import { money, num, orderLabel } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, fiscalFromProto } from "@/lib/enums";
+import { qtyUnit } from "@/components/catalog-fields";
 import { useLang, useAuth } from "@/components/providers";
 import { PlatePreview } from "@/components/plate";
 import { QR } from "@/components/ui";
@@ -134,7 +135,7 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
             ) : rows.map((r, i) => (
               <tr key={r.it.id || i}>
                 <td>{r.it.description}</td>
-                <td className="r inv-mono">{r.qty}</td>
+                <td className="r inv-mono">{qtyUnit(t, r.qty, r.it.unit)}</td>
                 <td className="r inv-mono">
                   {money(r.actualUnit)}
                   {r.disc > 0 && <div className="inv-strike inv-mono">{money(r.listUnit)}</div>}

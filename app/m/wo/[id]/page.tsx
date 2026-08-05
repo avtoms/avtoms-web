@@ -11,7 +11,7 @@ import { Button } from "@/components/ui-kit/button";
 import { Badge } from "@/components/ui-kit/badge";
 import { Skeleton } from "@/components/ui-kit/misc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui-kit/tabs";
-import { MoneyInput } from "@/components/catalog-fields";
+import { MoneyInput, qtyUnit } from "@/components/catalog-fields";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError } from "@/lib/api";
 import { woStateFromProto, kindFromProto, kindIsMaterial, LINE_ITEM_KINDS, lineStatusFromProto, lineStatusToProto, STATE_LABEL, type WoState, type LineItemKind, type LineItemStatus } from "@/lib/enums";
@@ -481,7 +481,7 @@ export default function MechanicWoDetailPage() {
                   </Badge>
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-bold text-foreground">{it.description}</div>
-                    <div className="font-mono text-[11.5px] font-semibold text-muted-foreground">{money(it.unitPrice)} × {it.quantity}</div>
+                    <div className="font-mono text-[11.5px] font-semibold text-muted-foreground">{money(it.unitPrice)} × {qtyUnit(t, it.quantity, it.unit)}</div>
                   </div>
                   <span className="shrink-0 font-mono text-[14px] font-extrabold text-foreground">{money(num(it.unitPrice) * (it.quantity || 0))}</span>
                   {!material && it.id && (

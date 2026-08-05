@@ -178,6 +178,10 @@ export interface LineItem {
   status?: string; // LINE_ITEM_STATUS_PENDING | _IN_PROGRESS | _DONE
   variantId?: string; // warehouse variant this material was drawn from
   consumedQty?: number; // exact stock amount drawn (may be fractional), independent of quantity
+  // Unit of measure as a symbol ("pcs", "L"), snapshot at add time. It is NOT part of the
+  // description: the description is read in three languages and a unit has to be spelled the
+  // reader's way, which is what unitLabel() does. Empty means it was never recorded.
+  unit?: string;
 }
 
 export interface TimeEntry {
@@ -662,6 +666,7 @@ export interface ServiceBookItem {
   quantity: number;
   unitPrice: string;
   total: string;
+  unit?: string; // unit of measure symbol; see LineItem.unit
 }
 
 export interface ServiceBookEntry {
@@ -720,7 +725,9 @@ export interface PublicReceipt {
   isSale: boolean;
   customerName: string;
   vehicle: string;
-  lines: { description: string; quantity: number; unitPrice: number; total: number }[];
+  // unit is the symbol ("L", "pcs"); this page has its own language picker, so it spells the
+  // unit itself rather than showing one that was fixed when the check was issued.
+  lines: { description: string; quantity: number; unitPrice: number; total: number; unit?: string }[];
   subtotal: number;
   discount: number;
   total: number;

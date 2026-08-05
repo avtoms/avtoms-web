@@ -24,6 +24,7 @@ import { money, num, shortDate } from "@/lib/format";
 import { STATE_LABEL, woStateFromProto } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import type { ServiceBook, ServiceBookEntry } from "@/lib/types";
+import { qtyUnit } from "@/components/catalog-fields";
 
 // Kilometres read better grouped: 82 000, not 82000. The narrow no-break space keeps the
 // number from wrapping mid-figure on a phone.
@@ -168,7 +169,7 @@ function Visit({ entry, onSaved }: { entry: ServiceBookEntry; onSaved: () => voi
               <Wrench className="size-3 shrink-0 translate-y-0.5 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-foreground">{it.description}</span>
               {it.quantity !== 1 && (
-                <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground">×{it.quantity}</span>
+                <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground">×{qtyUnit(t, it.quantity, it.unit)}</span>
               )}
               <span className="shrink-0 font-mono text-muted-foreground">{money(it.total)}</span>
             </div>

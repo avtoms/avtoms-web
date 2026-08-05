@@ -59,7 +59,7 @@ function flattenVariants(products: Product[]): PickVariant[] {
   }
   return out;
 }
-import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { MoneyInput, UnitSelect, qtyUnit, unitLabel } from "@/components/catalog-fields";
 import { SuggestInput } from "@/components/suggest-input";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
@@ -77,6 +77,9 @@ function menuName(m: MenuItem, lang: string): string {
 type LineItemInput = {
   kind: LineItemKind; description: string; unitPrice: number; quantity: number;
   cost?: number; menuItemId?: string; menuOptionId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number;
+  // The unit of measure, as a symbol. It goes over the wire as its own field so the line can
+  // be read in any language; it is never appended to `description`.
+  unit?: string;
 };
 
 export default function WorkOrderDetailPage() {
@@ -261,7 +264,7 @@ export default function WorkOrderDetailPage() {
                     <div className="min-w-0 flex-1">
                       <div className="text-[14.5px] font-semibold text-foreground">{it.description}</div>
                       <div className="font-mono text-[12.5px] text-muted-foreground">
-                        {money(it.unitPrice)} × {it.quantity}
+                        {money(it.unitPrice)} × {qtyUnit(t, it.quantity, it.unit)}
                         {discount > 0 && <span className="ml-1.5 text-muted-foreground line-through">{money(defPrice)}</span>}
                       </div>
                       {kind === "service" && (editable ? (
@@ -609,6 +612,9 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [qty, setQty] = useState("1");
+  // The unit the picked material is measured in, carried as its own value all the way to the
+  // server. Blank for a service, and for a material somebody typed rather than picked.
+  const [unit, setUnit] = useState("");
   const [from, setFrom] = useState<{ menuItemId: string; menuOptionId: string; defaultPrice: number }>({ menuItemId: "", menuOptionId: "", defaultPrice: 0 });
   const [fromVariant, setFromVariant] = useState(""); // warehouse variant to consume, if picked from stock
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -628,7 +634,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const [creating, setCreating] = useState(false);
   const variantOptions = parts.map((p) => ({ value: p.id, label: p.name }));
 
-  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
+  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setUnit(""); setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
 
   const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => { setProducts(ps); setParts(flattenVariants(ps)); }).catch(() => {}); }, [shopId]);
   const loadContragents = useCallback(() => { api.listContragents().then(setContragents).catch(() => {}); }, []);
@@ -648,7 +654,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const pickExtraVariant = (i: number, variantId: string) => {
     const v = parts.find((x) => x.id === variantId);
     if (!v) { setExtra(i, { variantId: "" }); return; }
-    setExtra(i, { variantId: v.id, name: v.unit ? `${v.name} (${v.unit})` : v.name, unit: v.unit || "pcs", cost: String(num(v.unitCost)), price: String(num(v.unitPrice)) });
+    setExtra(i, { variantId: v.id, name: v.name, unit: v.unit || "pcs", cost: String(num(v.unitCost)), price: String(num(v.unitPrice)) });
   };
 
   // A service with options is added as one of them: the line reads "Moy almashtirish ·
@@ -657,7 +663,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
   const pickMenu = (m: MenuItem, option?: import("@/lib/types").MenuItemOption) => {
     const price = option ? num(option.price) : num(m.defaultPrice);
     const cost = option ? num(option.cost) : num(m.defaultCost);
-    setPicked(true); setKind("service");
+    setPicked(true); setKind("service"); setUnit(""); // a service is not measured in litres
     setDesc(option ? `${menuName(m, lang)} · ${option.name}` : menuName(m, lang));
     setPrice(String(price)); setCost(String(cost));
     setFrom({ menuItemId: m.id, menuOptionId: option?.id ?? "", defaultPrice: price });
@@ -665,17 +671,16 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     setMats((m.materials ?? []).map((mat) => ({ on: true, mat }))); setExtras([]); setMode("custom");
   };
   const pickPart = (p: PickVariant) => {
-    setPicked(true); setKind("material"); setDesc(p.unit ? `${p.name} (${p.unit})` : p.name);
+    setPicked(true); setKind("material"); setDesc(p.name); setUnit(p.unit || "");
     setPrice(String(num(p.unitPrice))); setCost(String(num(p.unitCost)));
     setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: num(p.unitPrice) }); setFromVariant(p.id); setMats([]); setExtras([]); setMode("custom");
   };
   const matLine = (mat: import("@/lib/types").MenuMaterial): LineItemInput => {
     const q = mat.quantity || 1;
-    const label = mat.name + (mat.unit ? ` (${mat.unit})` : "");
     // Bundled recipe material: billed as a per-unit price × its (possibly fractional) recipe
     // quantity, and drawn from stock at that exact amount via consumed_qty.
     return {
-      kind: "material", description: label, unitPrice: num(mat.unitPrice), quantity: q,
+      kind: "material", description: mat.name, unit: mat.unit, unitPrice: num(mat.unitPrice), quantity: q,
       cost: num(mat.unitCost), defaultPrice: num(mat.unitPrice),
       variantId: mat.variantId || undefined,
       consumedQty: mat.variantId ? q : undefined,
@@ -688,7 +693,7 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
     // that amount is drawn from the warehouse (consumed_qty).
     const q = kind === "material" ? (parseFloat(qty) || 1) : (parseInt(qty, 10) || 1);
     const items: LineItemInput[] = [{
-      kind, description: desc.trim(),
+      kind, description: desc.trim(), unit: kind === "material" ? unit : "",
       unitPrice: parseInt(price, 10) || 0, quantity: q, cost: parseInt(cost, 10) || 0,
       menuItemId: from.menuItemId || undefined, menuOptionId: from.menuOptionId || undefined,
       defaultPrice: from.defaultPrice || undefined,
@@ -699,10 +704,9 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
       for (const m of mats) if (m.on) items.push(matLine(m.mat));
       for (const e of extras) {
         if (!e.name.trim()) continue;
-        const label = e.name.trim() + (e.unit ? ` (${e.unit})` : "");
         const eqty = parseFloat(e.qty) || 1;
         items.push({
-          kind: "material", description: label,
+          kind: "material", description: e.name.trim(), unit: e.unit,
           unitPrice: parseInt(e.price, 10) || 0, quantity: eqty, cost: parseInt(e.cost, 10) || 0,
           variantId: e.variantId || undefined,
           consumedQty: e.variantId ? eqty : undefined,
@@ -767,7 +771,9 @@ function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
                 <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
                 {/* Services are billed in whole units; a separately-added material may be
                     fractional (e.g. 3.5 L of oil), so it accepts a decimal quantity. */}
-                <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(kind === "material" ? /[^\d.]/g : /\D/g, ""))} inputMode={kind === "material" ? "decimal" : "numeric"} className="text-center font-mono" /></Field>
+                {/* Naming the unit on the label is how "4" stops being ambiguous — four
+                    litres, not four bottles — without it being written into the item's name. */}
+                <Field label={unit ? `${t("qty")}, ${unitLabel(t, unit)}` : t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(kind === "material" ? /[^\d.]/g : /\D/g, ""))} inputMode={kind === "material" ? "decimal" : "numeric"} className="text-center font-mono" /></Field>
               </div>
               {from.defaultPrice > 0 && (
                 <div className="flex justify-between gap-2 text-[12.5px] text-muted-foreground">

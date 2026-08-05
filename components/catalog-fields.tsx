@@ -107,6 +107,20 @@ export function unitLabel(t: (k: string) => string, unit?: string): string {
   return UNITS.includes(u as Unit) ? t("unit_" + u) : u;
 }
 
+/**
+ * qtyUnit writes an amount with what it is an amount of: "4 l", "2 dona", "3.5 кг".
+ *
+ * A bare number on a receipt line does not say four of what, which is why the unit used to
+ * be glued onto the item's name — where it could not be translated, and where two writers
+ * appended it twice. It belongs next to the number instead.
+ *
+ * With no unit recorded the number is shown alone, rather than assuming pieces.
+ */
+export function qtyUnit(t: (k: string) => string, qty: number | string, unit?: string): string {
+  const u = unitLabel(t, unit);
+  return u ? `${qty} ${u}` : String(qty);
+}
+
 export function UnitSelect({
   value, onChange, style,
 }: {
