@@ -30,15 +30,19 @@ export function middleware(req: NextRequest) {
     return isPublic ? NextResponse.next() : redirect("/login");
   }
 
-  // Signed in but on /login or root → send home.
-  if (pathname === "/login" || pathname === "/") return redirect(home);
-
   // The super-admin console is its own app on its own domain (avtoms-admin-web). An admin
   // who signs in here has no pages to land on, so send them across. ADMIN_URL is set per
   // environment so staging hands off to staging.
+  //
+  // This must come BEFORE the "/" and "/login" handling below: an admin has no home in this
+  // app, so homeFor() gives them /login, and sending them there from / would just bounce
+  // them between the two forever.
   if (role === "admin") {
     return NextResponse.redirect(process.env.ADMIN_URL || "https://admin.auto-garaj.com");
   }
+
+  // Signed in but on /login or root → send home.
+  if (pathname === "/login" || pathname === "/") return redirect(home);
 
   // Owners must not enter the mechanic area.
   if (role === "owner") return inMechanicArea ? redirect("/dashboard") : NextResponse.next();
