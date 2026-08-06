@@ -19,6 +19,8 @@ import { Field } from "@/components/ui-kit/label";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { MoneyInput } from "@/components/catalog-fields";
+import { FxMoneyInput } from "@/components/fx-money";
+import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
@@ -70,7 +72,8 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
   // Defaults to taking money, because collecting is what this screen is opened for. Adding a
   // charge by hand exists only for an opening balance carried over from a paper book.
   const [kind, setKind] = useState<CustomerEntryKind>("CUSTOMER_ENTRY_KIND_PAYMENT_IN");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState<FxValue>(() => emptyFx());
+  const currencies = useCurrencies();
   const [note, setNote] = useState("");
   const { payment, setPayment, reset } = usePayment();
 
@@ -89,26 +92,29 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
 
   useEffect(() => {
     if (!id) { setEntries(null); setSummary(null); return; }
-    setAmount(""); setNote(""); setKind("CUSTOMER_ENTRY_KIND_PAYMENT_IN"); reset();
+    setAmount(emptyFx()); setNote(""); setKind("CUSTOMER_ENTRY_KIND_PAYMENT_IN"); reset();
     void load();
   }, [id, load]);
 
   const balance = num(summary?.balance);
   const taking = kind === "CUSTOMER_ENTRY_KIND_PAYMENT_IN";
   // How much of the typed amount is more than the client actually owes.
-  const over = taking ? Math.max(0, (parseInt(amount, 10) || 0) - Math.max(0, balance)) : 0;
+  const over = taking ? Math.max(0, fxSoum(amount, findCurrency(currencies, amount.currency)) - Math.max(0, balance)) : 0;
 
   // A charge added by hand is a debt taken on, not money changing hands, so it is the one
   // entry here with nothing to pay it with.
-  const sum = parseInt(amount, 10) || 0;
+  const sum = fxSoum(amount, findCurrency(currencies, amount.currency));
   const parts = taking ? toParts(payment, sum) : null;
 
   const record = async () => {
     if (!id || sum <= 0 || busy || (taking && !parts)) return;
     setBusy(true);
     try {
-      await api.recordCustomerEntry(id, { kind, amount: sum, parts: parts ?? undefined, note: note.trim() });
-      setAmount(""); setNote(""); reset();
+      await api.recordCustomerEntry(id, {
+        kind, amount: sum, parts: parts ?? undefined, note: note.trim(),
+        fxAmount: fxPayload(amount, findCurrency(currencies, amount.currency)),
+      });
+      setAmount(emptyFx()); setNote(""); reset();
       toast(t("save"), { icon: "money" });
       await load();
       onChanged();
@@ -163,10 +169,10 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
               </Tabs>
               <div className="flex flex-col gap-2.5">
                 <Field label={t("amount")}>
-                  <MoneyInput value={amount} onChange={setAmount} />
+                  <FxMoneyInput value={amount} currencies={currencies} onChange={setAmount} />
                   {/* One tap to settle up, which is the usual case and the easiest to mistype. */}
                   {taking && balance > 0 && (
-                    <button type="button" onClick={() => setAmount(String(balance))}
+                    <button type="button" onClick={() => setAmount({ currency: "UZS", typed: String(balance), rate: "" })}
                       className="mt-1 text-[11.5px] font-semibold text-primary-emphasis hover:underline">
                       {t("cl_pay_full")} · {money(balance)}
                     </button>

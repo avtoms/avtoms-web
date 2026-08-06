@@ -21,6 +21,8 @@ import {
 import { ProductForm } from "@/components/product-form";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, unitLabel, qtyUnit } from "@/components/catalog-fields";
+import { FxMoneyInput } from "@/components/fx-money";
+import { emptyFx, findCurrency, fxLabel, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
@@ -429,11 +431,15 @@ function AdjustPanel({
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [supplierId, setSupplierId] = useState("");
-  const [unitCost, setUnitCost] = useState("");
+  // Both amounts carry the currency they were agreed in. A delivery priced in dollars and
+  // settled partly in so'm is an ordinary Tuesday here, so each amount says for itself
+  // which it was rather than inheriting one setting for the whole panel.
+  const [unitCost, setUnitCost] = useState<FxValue>(() => emptyFx());
   // How much of the delivery was handed over now. Empty is the honest default: the shop
   // took the goods and owes for them until it says otherwise.
-  const [paidNow, setPaidNow] = useState("");
+  const [paidNow, setPaidNow] = useState<FxValue>(() => emptyFx());
   const [busy, setBusy] = useState(false);
+  const currencies = useCurrencies();
 
   // Narrow suppliers to the product's brand (keeping brand-agnostic ones), so receiving
   // stock offers the same brand-scoped supplier list as the product form.
@@ -445,10 +451,12 @@ function AdjustPanel({
 
   const receiving = mode === "receive";
   const qty = parseFloat(amount) || 0;
-  const cost = parseInt(unitCost, 10) || 0;
+  // so'm previews of what the server is about to work out, for the summary below. What
+  // gets POSTed is the typed amount and its rate — see the fx* fields in save().
+  const cost = fxSoum(unitCost, findCurrency(currencies, unitCost.currency));
   const total = Math.round(qty * cost);
   // Never let the form claim more was paid than the delivery was worth.
-  const paid = Math.min(parseInt(paidNow, 10) || 0, total);
+  const paid = Math.min(fxSoum(paidNow, findCurrency(currencies, paidNow.currency)), total);
   const owed = Math.max(0, total - paid);
 
   const save = async () => {
@@ -459,7 +467,17 @@ function AdjustPanel({
         variant.id,
         receiving ? qty : -qty,
         reason.trim() || mode,
-        receiving ? { contragentId: supplierId, unitCost: cost, paidAmount: paid } : undefined,
+        receiving ? {
+          contragentId: supplierId, unitCost: cost, paidAmount: paid,
+          fxUnitCost: fxPayload(unitCost, findCurrency(currencies, unitCost.currency)),
+          // The settled amount only goes as a stamp when it was NOT capped above: `paid` is
+          // clamped to the delivery's worth, and a stamp saying "$200" beside a so'm figure
+          // that is no longer $200 would contradict it. A capped payment falls back to the
+          // plain so'm number, which is the one that is true.
+          fxPaidAmount: paid === fxSoum(paidNow, findCurrency(currencies, paidNow.currency))
+            ? fxPayload(paidNow, findCurrency(currencies, paidNow.currency))
+            : undefined,
+        } : undefined,
       );
       toast(t("save"), { icon: "check" });
       onClose();
@@ -493,7 +511,7 @@ function AdjustPanel({
             />
           </Field>
           <Field label={t("purchase_price") + (unit ? ` (${unitLabel(t, unit)})` : "")}>
-            <MoneyInput value={unitCost} onChange={setUnitCost} placeholder="0" hideHint />
+            <FxMoneyInput value={unitCost} onChange={setUnitCost} currencies={currencies} placeholder="0" hideHint />
           </Field>
         </div>
       )}
@@ -501,7 +519,7 @@ function AdjustPanel({
           without one there is no account for the rest to become a debt on. */}
       {receiving && supplierId && (
         <Field label={t("paid_now")}>
-          <MoneyInput value={paidNow} onChange={setPaidNow} placeholder="0" hideHint />
+          <FxMoneyInput value={paidNow} onChange={setPaidNow} currencies={currencies} placeholder="0" hideHint />
         </Field>
       )}
       <NoSupplierNote show={receiving && total > 0 && !supplierId} />
@@ -527,6 +545,7 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
 }) {
   const { t, lang } = useLang();
   const [items, setItems] = useState<StockMovement[] | null>(null);
+  const currencies = useCurrencies();
 
   useEffect(() => {
     let alive = true;
@@ -587,6 +606,14 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
               {income && cost > 0 && (
                 <span className="font-mono">
                   {money(cost)}{unit ? "/" + unitLabel(t, unit) : ""} · {t("total")} <span className="font-semibold text-foreground">{money(cost * Math.abs(num(m.delta)))}</span>
+                </span>
+              )}
+              {/* What was actually agreed, when it was not so'm. This is the sentence the
+                  whole feature exists to keep: six months on, a bare 3 175 000 is a number
+                  nobody can account for, and "$250 × 12 700" is an answer. */}
+              {income && m.fxUnitCost?.currency && (
+                <span className="font-mono font-semibold text-foreground">
+                  {fxLabel(m.fxUnitCost, currencies)}
                 </span>
               )}
               <span className="ml-auto font-mono">{fmtDate(m.createdAt)}</span>

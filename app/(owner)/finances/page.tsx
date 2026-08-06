@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
+import { FxMoneyInput } from "@/components/fx-money";
+import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { SuggestInput } from "@/components/suggest-input";
 import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -389,7 +391,7 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
   const { t, lang } = useLang();
   const { toast } = useToast();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const blank = { category: "rent", customCat: "", amount: "", date: today(), note: "", staffId: "", payee: "", paidBy: me };
+  const blank = { category: "rent", customCat: "", amount: emptyFx(), date: today(), note: "", staffId: "", payee: "", paidBy: me };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   // How it was paid. The same control the supplier account and the client account use.
@@ -399,7 +401,10 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
 
   const isSalary = f.category === "salary";
   const resolvedCat = f.category === CUSTOM ? f.customCat.trim() : f.category;
-  const amount = parseInt(f.amount, 10) || 0;
+  const currencies = useCurrencies();
+  // The so'm preview, for the payment split and the save button. Rent agreed in dollars is
+  // the ordinary case here; what gets POSTed is the typed amount and its rate.
+  const amount = fxSoum(f.amount, findCurrency(currencies, f.amount.currency));
   const parts = toParts(payment, amount);
 
   const save = async () => {
@@ -408,6 +413,7 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
     try {
       await api.createExpense(shopId, {
         category: resolvedCat, amount,
+        fxAmount: fxPayload(f.amount, findCurrency(currencies, f.amount.currency)),
         incurredOn: new Date(f.date + "T12:00:00").toISOString(), note: f.note.trim(),
         staffId: isSalary ? f.staffId : "",
         payee: isSalary ? "" : f.payee.trim(),
@@ -455,7 +461,9 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
               <SuggestInput value={f.payee} options={payees} onChange={(v) => setF({ ...f, payee: v })} placeholder={t("receiver_ph")} />
             </Field>
           )}
-          <Field label={t("amount")}><MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} /></Field>
+          <Field label={t("amount")}>
+            <FxMoneyInput value={f.amount} currencies={currencies} onChange={(v) => setF({ ...f, amount: v })} />
+          </Field>
           {/* How it left the shop. Asked here rather than nowhere, because "5 000 000 on rent"
               and "5 000 000 in cash on rent" are different facts when the till is counted. */}
           <Field label={t("payment_method")}>

@@ -427,6 +427,12 @@ export interface ProductVariant {
   reorderLevel: number;
   unitCost?: string; // tiyin
   unitPrice?: string; // tiyin
+  // The sell price as the shop typed it, when that was not in so'm — so reopening a product
+  // priced at $12 shows $12 rather than last week's so'm. There is deliberately no stamp for
+  // unitCost: it is a moving weighted average, rolled forward on every priced receipt, so a
+  // currency written against it would stop being true at the second delivery. A purchase
+  // price is kept on the delivery that had it, in the stock ledger.
+  fxUnitPrice?: FxAmount;
   active: boolean;
   attributes?: VariantAttribute[];
 }
@@ -477,6 +483,35 @@ export interface CatalogTerm {
   logoUrl?: string; // optional brand logo (superadmin-uploaded)
 }
 
+// One currency in the super admin's rate list, and the rate that converts it to so'm.
+//
+// rateMicros is so'm for ONE WHOLE unit, times a million: $1 = 12 700 so'm is 12700000000.
+// minorUnits is how many digits the currency's minor unit has — 2 for a dollar's cents, 0
+// for so'm — which is what turns a typed "250.50" into an amountMinor of 25050.
+export interface Currency {
+  code: string;   // ISO 4217: 'UZS', 'USD', 'RUB'
+  name: string;
+  symbol: string;
+  rateMicros: string | number;
+  minorUnits: number;
+  active: boolean;
+  position?: number;
+  updatedAt?: string;
+}
+
+// An amount as it was actually typed, before it became so'm.
+//
+// Nothing is stored in another currency: every amount the backend keeps is so'm, and this
+// is the explanation beside it, so a six-month-old receipt reads "$250 at 12 700" rather
+// than a bare 3 175 000. On the way in it is the input and it WINS — the server converts it
+// and ignores the plain so'm field beside it — so the screen and the ledger can never
+// disagree about the arithmetic. Absent on everything typed in so'm.
+export interface FxAmount {
+  currency: string;
+  amountMinor: string;  // $250.50 -> "25050"
+  rateMicros: string;   // so'm for one whole unit, x1e6
+}
+
 // One entry in a variant's income/outcome stock ledger.
 export interface StockMovement {
   id: string;
@@ -493,6 +528,8 @@ export interface StockMovement {
   sourceKind?: string;    // "work_order" | "sale" | ""
   sourceId?: string;      // for opening it
   sourceNo?: string;      // what it is called on screen: "Z-0013", "S-0003"
+  // What the delivery was agreed at, when that was not in so'm. Per unit, like unitCost.
+  fxUnitCost?: FxAmount;
 }
 
 // A counter sale: warehouse stock sold with no work order, vehicle or customer.

@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, FxAmount,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -217,6 +217,7 @@ export type ProductInput = {
   // over now, the rest becomes debt on their account. skipDebt records the stock and leaves the
   // account alone.
   paidAmount?: number;
+  fxPaidAmount?: FxAmount;
   skipDebt?: boolean;
   variants: {
     id?: string;   // sent on edit so the save lands on the same variant it came from
@@ -225,6 +226,11 @@ export type ProductInput = {
     reorderLevel: number;
     unitCost: number;
     unitPrice: number;
+    // What the shop typed when it priced this variant in another currency. Both override
+    // the plain field above; only fxUnitPrice comes back on a read, because unitCost is a
+    // moving weighted average by then and a currency stamp on it would be a lie.
+    fxUnitCost?: FxAmount;
+    fxUnitPrice?: FxAmount;
     active: boolean;
     attributes: VariantAttribute[];
   }[];
@@ -618,11 +624,13 @@ export const api = {
   createExpense: (shopId: string, e: {
     category: string; amount: number; incurredOn?: string; note?: string;
     staffId?: string; payee?: string; paidBy?: string; parts?: PaymentPart[];
+    fxAmount?: FxAmount;
   }) =>
     call<ShopExpense>("POST", "/v1/expenses", {
       shopId, category: e.category, amount: String(e.amount),
       incurredOn: e.incurredOn ?? "", note: e.note ?? "", staffId: e.staffId ?? "",
       payee: e.payee ?? "", paidBy: e.paidBy ?? "",
+      ...(e.fxAmount ? { fxAmount: e.fxAmount } : {}),
       // Always parts, even for one method: the server derives the row's own method from the
       // first of them, so there is one way in rather than two that can disagree.
       parts: (e.parts ?? []).map(partToWire),
@@ -644,13 +652,29 @@ export const api = {
     call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
   // paidAmount settles part of a delivery on the spot; the rest becomes debt on the
   // supplier's account. Omitted means the whole delivery is taken on credit.
-  adjustVariantStock: (variantId: string, delta: number, reason: string, opts?: { contragentId?: string; unitCost?: number; paidAmount?: number }) =>
+  // fxUnitCost / fxPaidAmount carry what was TYPED when the delivery was agreed in another
+  // currency. Send either and the server converts it and stores the so'm result, ignoring
+  // the plain field beside it — so the screen's preview and the ledger cannot drift apart.
+  // Omit them and this is exactly the so'm call it has always been.
+  adjustVariantStock: (variantId: string, delta: number, reason: string, opts?: {
+    contragentId?: string; unitCost?: number; paidAmount?: number;
+    fxUnitCost?: FxAmount; fxPaidAmount?: FxAmount;
+  }) =>
     call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, {
       delta, reason,
       contragentId: opts?.contragentId ?? "",
       unitCost: String(opts?.unitCost ?? 0),
       paidAmount: String(opts?.paidAmount ?? 0),
+      ...(opts?.fxUnitCost ? { fxUnitCost: opts.fxUnitCost } : {}),
+      ...(opts?.fxPaidAmount ? { fxPaidAmount: opts.fxPaidAmount } : {}),
     }),
+
+  // ── currencies ──
+  // The list a shop may price in, with the published rate that prefills every rate box.
+  // Read-only: the list and the rates belong to the super admin, and a shop that dealt at a
+  // different rate overrides it on the deal itself rather than by editing the list.
+  listCurrencies: () =>
+    call<{ currencies?: Currency[] }>("GET", "/v1/currencies").then((r) => r.currencies ?? []),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
 
@@ -689,13 +713,14 @@ export const api = {
   recordContragentEntry: (id: string, e: {
     kind: Exclude<ContragentEntryKind, "CONTRAGENT_ENTRY_KIND_PURCHASE">;
     amount: number; method?: PaymentMethod; parts?: PaymentPart[];
-    note?: string; description?: string; occurredAt?: string;
+    note?: string; description?: string; occurredAt?: string; fxAmount?: FxAmount;
   }) =>
     call<ContragentLedgerEntry>("POST", `/v1/contragents/${id}/entries`, {
       kind: e.kind, amount: String(e.amount),
       method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
       parts: (e.parts ?? []).map(partToWire),
       note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
+      ...(e.fxAmount ? { fxAmount: e.fxAmount } : {}),
     }),
   deleteContragentEntry: (entryId: string) =>
     call<{ ok?: boolean }>("POST", `/v1/contragents/entries/${entryId}/delete`, {}),
@@ -713,13 +738,14 @@ export const api = {
   // credit, and the gateway drops any order id sent here.
   recordCustomerEntry: (id: string, e: {
     kind: CustomerEntryKind; amount: number; method?: PaymentMethod; parts?: PaymentPart[];
-    note?: string; description?: string; occurredAt?: string;
+    note?: string; description?: string; occurredAt?: string; fxAmount?: FxAmount;
   }) =>
     call<CustomerLedgerEntry>("POST", `/v1/customers/${id}/entries`, {
       kind: e.kind, amount: String(e.amount),
       method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
       parts: (e.parts ?? []).map(partToWire),
       note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
+      ...(e.fxAmount ? { fxAmount: e.fxAmount } : {}),
     }),
   deleteCustomerEntry: (entryId: string) =>
     call<{ ok?: boolean }>("POST", `/v1/customers/entries/${entryId}/delete`, {}),

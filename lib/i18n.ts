@@ -479,6 +479,8 @@ export const STR: Record<string, Triple> = {
   contragent_brand_hint: ["Ixtiyoriy. Mahsulot qo'shishda shu brend tanlansa, ro'yxatda faqat shu yetkazib beruvchilar chiqadi.", "Ихтиёрий. Маҳсулот қўшишда шу бренд танланса, рўйхатда фақат шу етказиб берувчилар чиқади.", "Необязательно. При добавлении товара с этим брендом в списке останутся только эти поставщики."],
   receive: ["Kirim", "Кирим", "Приход"],
   purchase_price: ["Zakup narxi", "Закуп нархи", "Цена закупа"],
+  fx_rate: ["Kurs", "Курс", "Курс"],
+  fx_in_currency: ["Valyutada", "Валютада", "В валюте"],
   consume: ["Chiqim", "Чиқим", "Расход"],
   adjust_stock: ["Qoldiqni o'zgartirish", "Қолдиқни ўзгартириш", "Изменить остаток"],
   balance: ["Qoldiq", "Қолдиқ", "Остаток"],

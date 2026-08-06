@@ -16,12 +16,17 @@ import {
 } from "@/components/ui-kit/dialog";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
+import { FxMoneyInput } from "@/components/fx-money";
+import {
+  BASE_CURRENCY, emptyFx, findCurrency, fromMinor, fxPayload, fxSoum, minorUnitsOf, rateToInput,
+  useCurrencies, type FxValue,
+} from "@/lib/currency";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
 import { pickLangText } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm, Contragent } from "@/lib/types";
+import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm, Contragent, Currency } from "@/lib/types";
 
 // TermSelect is a dropdown over an admin-managed term list (brand/category). It
 // tolerates a legacy free-typed value by keeping it selectable, and offers a
@@ -120,8 +125,11 @@ type VarRow = {
   sku: string;
   qty: string;
   reorder: string;
-  cost: string;
-  price: string;
+  // Each carries the currency it was typed in. A price list can hold a filter bought in
+  // dollars next to a gasket bought in so'm, so the currency belongs to the amount rather
+  // than to the form.
+  cost: FxValue;
+  price: FxValue;
   active: boolean;
   attrs: Record<string, string>;
 };
@@ -169,7 +177,7 @@ function hexOf(defs: PropertyDefinition[], propName: string, value: string): str
 }
 
 const blankVar = (attrs: Record<string, string> = {}): VarRow => ({
-  key: newKey(), id: "", sku: genSku(), qty: "", reorder: "", cost: "", price: "", active: true, attrs,
+  key: newKey(), id: "", sku: genSku(), qty: "", reorder: "", cost: emptyFx(), price: emptyFx(), active: true, attrs,
 });
 
 // Rebuild the variant grid from a set of properties, preserving the data already entered for
@@ -203,7 +211,7 @@ function propsFromProduct(p: Product, defs: PropertyDefinition[]): PropRow[] {
   });
 }
 
-function varsFromProduct(p: Product): VarRow[] {
+function varsFromProduct(p: Product, currencies: Currency[]): VarRow[] {
   const vars = (p.variants ?? []).map((v) => {
     const attrs: Record<string, string> = {};
     for (const a of v.attributes ?? []) attrs[a.property] = a.value;
@@ -213,8 +221,10 @@ function varsFromProduct(p: Product): VarRow[] {
       sku: v.sku ?? "",
       qty: v.quantityOnHand ? String(v.quantityOnHand) : "",
       reorder: v.reorderLevel ? String(v.reorderLevel) : "",
-      cost: v.unitCost ?? "",
-      price: v.unitPrice ?? "",
+      cost: emptyFx(),
+      price: v.fxUnitPrice?.currency
+        ? { currency: v.fxUnitPrice.currency, typed: fromMinor(Number(v.fxUnitPrice.amountMinor) || 0, minorUnitsOf(currencies, v.fxUnitPrice.currency)), rate: rateToInput(v.fxUnitPrice.rateMicros) }
+        : { currency: BASE_CURRENCY, typed: String(v.unitPrice ?? ""), rate: "" },
       active: v.active,
       attrs,
     };
@@ -279,8 +289,9 @@ export function ProductForm({
   const [vars, setVars] = useState<VarRow[]>(() => [blankVar()]);
   // Stock arriving with this save is a delivery from the supplier. On credit unless the owner
   // says what was handed over; skipDebt is for goods the shop already owned.
-  const [paidNow, setPaidNow] = useState("");
+  const [paidNow, setPaidNow] = useState<FxValue>(() => emptyFx());
   const [skipDebt, setSkipDebt] = useState(false);
+  const currencies = useCurrencies();
   // What each variant held when the form opened, so an edit can price only the stock added.
   const [openingQty, setOpeningQty] = useState<Record<string, number>>({});
   // What each supplier is owed right now, so the form can say where this delivery leaves them.
@@ -298,14 +309,14 @@ export function ProductForm({
       setUnit(product.unit || "pcs");
       setDescription(product.description ?? "");
       setProps(propsFromProduct(product, definitions));
-      const rows = varsFromProduct(product);
+      const rows = varsFromProduct(product, currencies);
       setVars(rows);
       setOpeningQty(Object.fromEntries(rows.filter((v) => v.id).map((v) => [v.id, parseFloat(v.qty) || 0])));
     } else {
       setName(""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(""); setUnit("pcs"); setDescription("");
       setProps([]); setVars([blankVar()]); setOpeningQty({});
     }
-    setPaidNow(""); setSkipDebt(false);
+    setPaidNow(emptyFx()); setSkipDebt(false);
     api.contragentBalances(shopId).then((r) => {
       const m: Record<string, number> = {};
       for (const b of r.balances ?? []) m[b.contragentId] = parseInt(b.balance, 10) || 0;
@@ -321,9 +332,11 @@ export function ProductForm({
   const arriving = vars.reduce((sum, v) => {
     const qty = parseFloat(v.qty) || 0;
     const added = v.id ? qty - (openingQty[v.id] ?? 0) : qty;
-    return added > 0 ? sum + Math.round(added * (parseInt(v.cost, 10) || 0)) : sum;
+    const cost = fxSoum(v.cost, findCurrency(currencies, v.cost.currency));
+    return added > 0 ? sum + Math.round(added * cost) : sum;
   }, 0);
-  const paidNowAmount = Math.min(parseInt(paidNow, 10) || 0, arriving);
+  const paidNowTyped = fxSoum(paidNow, findCurrency(currencies, paidNow.currency));
+  const paidNowAmount = Math.min(paidNowTyped, arriving);
 
   const addPropertyFromCatalog = (defId: string) => {
     if (defId === ADHOC) {
@@ -390,14 +403,21 @@ export function ProductForm({
         .filter((p) => p.name.trim() && propValues(p).length > 0)
         .map((p) => ({ name: p.name.trim(), values: propValues(p) })),
       paidAmount: paidNowAmount,
+      // Only stamped when the amount was NOT capped at what the delivery was worth: a stamp
+      // saying "$200" beside a so'm figure that is no longer $200 would contradict it.
+      fxPaidAmount: paidNowAmount === paidNowTyped
+        ? fxPayload(paidNow, findCurrency(currencies, paidNow.currency))
+        : undefined,
       skipDebt,
       variants: activeVars.map((v) => ({
         id: v.id,
         sku: v.sku.trim(),
         quantityOnHand: parseFloat(v.qty) || 0,
         reorderLevel: parseFloat(v.reorder) || 0,
-        unitCost: parseInt(v.cost, 10) || 0,
-        unitPrice: parseInt(v.price, 10) || 0,
+        unitCost: fxSoum(v.cost, findCurrency(currencies, v.cost.currency)),
+        unitPrice: fxSoum(v.price, findCurrency(currencies, v.price.currency)),
+        fxUnitCost: fxPayload(v.cost, findCurrency(currencies, v.cost.currency)),
+        fxUnitPrice: fxPayload(v.price, findCurrency(currencies, v.price.currency)),
         active: v.active,
         attributes: Object.entries(v.attrs).map(([property, value]) => ({ property, value })),
       })),
@@ -539,8 +559,12 @@ export function ProductForm({
                   </div>
                   {/* SKU is auto-generated in the background and not shown to the user. */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Field label={t("cost")}><MoneyInput value={v.cost} onChange={(val) => setVar(v.key, { cost: val })} /></Field>
-                    <Field label={t("sell_price")}><MoneyInput value={v.price} onChange={(val) => setVar(v.key, { price: val })} /></Field>
+                    <Field label={t("cost")}>
+                      <FxMoneyInput value={v.cost} currencies={currencies} onChange={(val) => setVar(v.key, { cost: val })} />
+                    </Field>
+                    <Field label={t("sell_price")}>
+                      <FxMoneyInput value={v.price} currencies={currencies} onChange={(val) => setVar(v.key, { price: val })} />
+                    </Field>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label={t("in_stock")}><Input value={v.qty} inputMode="decimal" placeholder="0" className="font-mono" onChange={(e) => setVar(v.key, { qty: dec(e.target.value) })} /></Field>
@@ -566,7 +590,7 @@ export function ProductForm({
               {!skipDebt && (
                 <>
                   <Field label={t("paid_now")}>
-                    <MoneyInput value={paidNow} onChange={setPaidNow} placeholder="0" hideHint />
+                    <FxMoneyInput value={paidNow} currencies={currencies} onChange={setPaidNow} placeholder="0" hideHint />
                   </Field>
                   <DeliverySummary
                     supplierId={supplierId}

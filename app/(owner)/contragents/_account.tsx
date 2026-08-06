@@ -17,6 +17,8 @@ import { Field } from "@/components/ui-kit/label";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { MoneyInput } from "@/components/catalog-fields";
+import { FxMoneyInput } from "@/components/fx-money";
+import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
@@ -68,13 +70,15 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
   // The payment form. Direction defaults to paying them, which is what a supplier account is
   // for nine times in ten.
   const [kind, setKind] = useState<Exclude<ContragentEntryKind, "CONTRAGENT_ENTRY_KIND_PURCHASE">>("CONTRAGENT_ENTRY_KIND_PAYMENT_OUT");
-  const [amount, setAmount] = useState("");
+  // Paying a supplier in dollars is how most of these accounts are actually settled here.
+  const [amount, setAmount] = useState<FxValue>(() => emptyFx());
+  const currencies = useCurrencies();
   const [note, setNote] = useState("");
   const { payment, setPayment, reset } = usePayment();
   const cards = useShopCards(shopId);
   // A charge is goods or work handed over, not money — there is nothing to pay it with.
   const moves = kind !== "CONTRAGENT_ENTRY_KIND_CHARGE";
-  const sum = parseInt(amount, 10) || 0;
+  const sum = fxSoum(amount, findCurrency(currencies, amount.currency));
   const parts = moves ? toParts(payment, sum) : null;
 
   const id = contragent?.id;
@@ -92,7 +96,7 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
 
   useEffect(() => {
     if (!id) { setEntries(null); setSummary(null); return; }
-    setAmount(""); setNote(""); setKind("CONTRAGENT_ENTRY_KIND_PAYMENT_OUT"); reset();
+    setAmount(emptyFx()); setNote(""); setKind("CONTRAGENT_ENTRY_KIND_PAYMENT_OUT"); reset();
     void load();
   }, [id, load]);
 
@@ -102,8 +106,11 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
     if (!id || sum <= 0 || busy || (moves && !parts)) return;
     setBusy(true);
     try {
-      await api.recordContragentEntry(id, { kind, amount: sum, parts: parts ?? undefined, note: note.trim() });
-      setAmount(""); setNote(""); reset();
+      await api.recordContragentEntry(id, {
+        kind, amount: sum, parts: parts ?? undefined, note: note.trim(),
+        fxAmount: fxPayload(amount, findCurrency(currencies, amount.currency)),
+      });
+      setAmount(emptyFx()); setNote(""); reset();
       toast(t("save"), { icon: "money" });
       await load();
       onChanged();
@@ -157,7 +164,9 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
                   <TabsTrigger value="CONTRAGENT_ENTRY_KIND_CHARGE" className="flex-1">{t("cg_charge")}</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <Field label={t("amount")}><MoneyInput value={amount} onChange={setAmount} /></Field>
+              <Field label={t("amount")}>
+                <FxMoneyInput value={amount} currencies={currencies} onChange={setAmount} />
+              </Field>
               {moves && (
                 <Field label={t("payment_method")}>
                   <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy} />
