@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, FxAmount,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -675,6 +675,15 @@ export const api = {
   // different rate overrides it on the deal itself rather than by editing the list.
   listCurrencies: () =>
     call<{ currencies?: Currency[] }>("GET", "/v1/currencies").then((r) => r.currencies ?? []),
+  // What this shop actually buys the currency at. 0 clears the override and puts the shop
+  // back on the rate the super admin publishes.
+  setShopCurrencyRate: (code: string, rateMicros: number) =>
+    call<Currency>("POST", `/v1/currencies/${code}`, { rateMicros: String(rateMicros) }),
+  // This shop's own rate changes together with the platform's, newest first — the two read
+  // together are what answers "what rate was in force when this was costed".
+  listCurrencyRateHistory: (code: string) =>
+    call<{ changes?: CurrencyRateChange[] }>("GET", `/v1/currencies/${code}/history`)
+      .then((r) => r.changes ?? []),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
 

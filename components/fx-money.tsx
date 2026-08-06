@@ -27,7 +27,8 @@ import { useLang } from "./providers";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  BASE_CURRENCY, findCurrency, fxSoum, isForeign, rateToInput, useCurrencies, type FxValue,
+  BASE_CURRENCY, effectiveRate, findCurrency, fxSoum, isForeign, rateToInput, useCurrencies,
+  type FxValue,
 } from "@/lib/currency";
 import type { Currency } from "@/lib/types";
 
@@ -104,7 +105,7 @@ export function FxMoneyInput({
   // The rate box shows the published rate as a placeholder rather than as a value: leaving
   // it alone must mean "whatever the rate is when I save", not "this number, frozen when I
   // opened the form". A shop that dealt at a different rate types over it.
-  const published = cur ? rateToInput(cur.rateMicros) : "";
+  const published = rateToInput(effectiveRate(cur));
   const soum = fxSoum(value, cur);
 
   const set = (patch: Partial<FxValue>) => onChange({ ...value, ...patch });

@@ -497,6 +497,23 @@ export interface Currency {
   active: boolean;
   position?: number;
   updatedAt?: string;
+  // This shop's own rate, 0 when it has not set one, and the rate its forms should actually
+  // prefill with: its own if set, the platform's otherwise.
+  shopRateMicros?: string | number;
+  effectiveRateMicros?: string | number;
+}
+
+// One rate change. shopId empty means the platform's published rate; set means one shop's
+// own. A shop's settings screen shows both, because neither answers "what rate was in
+// force" by itself.
+export interface CurrencyRateChange {
+  id: string;
+  code: string;
+  oldRateMicros: string | number;
+  newRateMicros: string | number;
+  changedBy?: string;
+  changedAt: string;
+  shopId?: string;
 }
 
 // An amount as it was actually typed, before it became so'm.

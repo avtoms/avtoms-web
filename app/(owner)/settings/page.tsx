@@ -23,6 +23,7 @@ import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { loadShopProfile, mergeShopProfile } from "@/lib/shop";
 import { SecTitle } from "../_shared";
+import { CurrencyRates } from "./_currency-rates";
 
 export default function SettingsPage() {
   const { logout } = useAuth();
@@ -149,6 +150,9 @@ export default function SettingsPage() {
           </div>
         )}
       </Card>
+
+      {/* the shop's own exchange rates — hides itself when only so'm is published */}
+      <CurrencyRates span={!isMobile} />
 
       {/* order status flow — which statuses this shop's board uses */}
       <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>

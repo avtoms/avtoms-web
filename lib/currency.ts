@@ -59,6 +59,19 @@ export function fromMinor(minor: number, minorUnits: number): string {
   return (minor < 0 ? "-" : "") + out.replace(/\.?0+$/, "");
 }
 
+/**
+ * effectiveRate is the rate a shop's forms should actually use.
+ *
+ * The server works this out — the shop's own rate where it has set one, the platform's
+ * otherwise — and sends it as effectiveRateMicros. The fallback to rateMicros is for a
+ * caller reading the list unscoped (the admin console), where there is no shop and the
+ * published rate is the only one there is.
+ */
+export function effectiveRate(cur: Currency | undefined): number {
+  if (!cur) return 0;
+  return Number(cur.effectiveRateMicros) || Number(cur.rateMicros) || 0;
+}
+
 /** rateToInput renders a stored micro-rate for a rate box: 12700000000 -> "12700". */
 export function rateToInput(rateMicros: number | string): string {
   const n = Number(rateMicros) || 0;
@@ -108,7 +121,7 @@ export const emptyFx = (currency = BASE_CURRENCY): FxValue => ({ currency, typed
 export function fxSoum(v: FxValue, cur: Currency | undefined): number {
   if (!isForeign(v.currency)) return Number((v.typed ?? "").replace(/\D/g, "")) || 0;
   if (!cur) return 0;
-  const rate = inputToRate(v.rate) || Number(cur.rateMicros) || 0;
+  const rate = inputToRate(v.rate) || effectiveRate(cur);
   return previewSoum(toMinor(v.typed, cur.minorUnits), rate, cur.minorUnits);
 }
 
@@ -134,7 +147,7 @@ export function fxPayload(v: FxValue, cur: Currency | undefined): FxAmount | und
     // The rate the shop actually dealt at, falling back to the published one when the box
     // was left alone. Dollars are bought at the bazaar, not at the official rate. Zero is a
     // valid answer and means "use whatever is published at the moment I save".
-    rateMicros: String(inputToRate(v.rate) || Number(cur?.rateMicros) || 0),
+    rateMicros: String(inputToRate(v.rate) || effectiveRate(cur)),
   };
 }
 
