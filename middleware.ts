@@ -19,7 +19,6 @@ export function middleware(req: NextRequest) {
 
   // Match areas by exact segment so "/menu" isn't caught by the "/m" prefix.
   const inMechanicArea = pathname === "/m" || pathname.startsWith("/m/");
-  const inAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
 
   // Not signed in → the public marketing site is the front door: the landing page ("/"),
   // the login screen, and the demo-request API are open; everything else bounces to /login.
@@ -34,11 +33,12 @@ export function middleware(req: NextRequest) {
   // Signed in but on /login or root → send home.
   if (pathname === "/login" || pathname === "/") return redirect(home);
 
-  // Admins live only in the admin area.
-  if (role === "admin") return inAdminArea ? NextResponse.next() : redirect("/admin");
-
-  // Non-admins cannot enter the admin area.
-  if (inAdminArea) return redirect(home);
+  // The super-admin console is its own app on its own domain (avtoms-admin-web). An admin
+  // who signs in here has no pages to land on, so send them across. ADMIN_URL is set per
+  // environment so staging hands off to staging.
+  if (role === "admin") {
+    return NextResponse.redirect(process.env.ADMIN_URL || "https://admin.auto-garaj.com");
+  }
 
   // Owners must not enter the mechanic area.
   if (role === "owner") return inMechanicArea ? redirect("/dashboard") : NextResponse.next();

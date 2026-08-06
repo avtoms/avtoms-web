@@ -225,16 +225,13 @@ export function ChatWidget() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const isMobile = useIsMobile();
 
-  const isAdmin = session?.role === "admin";
-
-  // Navigate the app, guarding cross-role links (owners → owner paths, admin → admin paths).
+  // Navigate the app. The admin console is a separate app on its own domain, so every
+  // path the assistant can offer here is a shop path.
   const navTo = useCallback((path: string) => {
     if (!path.startsWith("/")) return;
-    const adminPath = path === "/admin" || path.startsWith("/admin/");
-    if (adminPath !== isAdmin) { toast(t("ai_nav_blocked"), { icon: "alert", tone: "danger" }); return; }
     router.push(path);
     setOpen(false);
-  }, [isAdmin, router, t, toast]);
+  }, [router]);
 
   // Bridge from sandboxed app iframes: in-app navigation + per-iframe auto-height.
   useEffect(() => {
@@ -318,9 +315,8 @@ export function ChatWidget() {
     navTo(el.getAttribute("data-nav") || "");
   };
 
-  const suggestions = isAdmin
-    ? [t("ai_sug_platform"), t("ai_sug_leads"), t("ai_sug_shops")]
-    : [t("ai_sug_today"), t("ai_sug_profit"), t("ai_sug_reminders")];
+  // Only shop staff reach this app now, so the prompts are always the shop ones.
+  const suggestions = [t("ai_sug_today"), t("ai_sug_profit"), t("ai_sug_reminders")];
 
   // On a phone the console's tab bar owns the bottom of the screen, and the launcher was
   // landing squarely on the "•••" tab that opens the menu — the one nav control a phone cannot

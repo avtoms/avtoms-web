@@ -91,7 +91,9 @@ export function consoleWorker(session: Session | null): boolean {
 // says more plainly than an empty console that their access has not been set up yet.
 export function homeFor(session: Session | null): string {
   if (!session) return "/login";
-  if (session.role === "admin") return "/admin";
+  // Admins belong to the separate admin console (its own domain); middleware
+  // redirects them there, so no route in this app is ever their home.
+  if (session.role === "admin") return "/login";
   if (session.role === "owner") return "/dashboard";
   if (!consoleWorker(session)) return "/m";
   return CONSOLE_HOMES.find((h) => can(session, h.perm))?.route ?? "/m";
