@@ -72,7 +72,10 @@ export default function LoginPage() {
     try {
       const tp = await api.signIn(loginName.trim(), password);
       const s = login(tp);
-      router.replace(homeFor(s));
+      const dest = homeFor(s);
+      // Same hand-off as the code flow: an admin's console is on another origin.
+      if (s.role === "admin") { window.location.assign(dest); return; }
+      router.replace(dest);
     } catch (e) {
       // The server answers a wrong password and an unknown login identically, on purpose, so
       // there is nothing more specific to say here than what it said.
@@ -105,7 +108,12 @@ export default function LoginPage() {
     try {
       const tp = await api.verifyOtp(challengeId, c);
       const s = login(tp);
-      router.replace(homeFor(s));
+      const dest = homeFor(s);
+      // An admin is handed to the console on its own domain, and middleware can only do that
+      // with a cross-origin redirect — which the client-side router cannot follow. Ask the
+      // browser for the page properly so the redirect is obeyed.
+      if (s.role === "admin") { window.location.assign(dest); return; }
+      router.replace(dest);
     } catch (e) {
       // 403 means the code was right and access is the problem: the account is waiting on
       // an admin, or has been switched off. That is a dead end rather than a retry, so it
