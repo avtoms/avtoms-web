@@ -15,7 +15,8 @@ import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { MoneyInput } from "@/components/catalog-fields";
 import { FxMoneyInput } from "@/components/fx-money";
-import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
+import { FxStamp } from "@/components/fx-stamp";
+import { emptyFx, findCurrency, fxLabel, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { SuggestInput } from "@/components/suggest-input";
 import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
 import { useAuth, useLang, useToast } from "@/components/providers";
@@ -199,7 +200,11 @@ export default function FinancesPage() {
                         {payer && <span className="text-[12px] text-muted-foreground">{payer}</span>}
                       </div>
                     </div>
-                    <div className="font-mono text-[14px] font-bold text-foreground">{money(num(e.amount))}</div>
+                    <div className="flex flex-col items-end">
+                        <div className="font-mono text-[14px] font-bold text-foreground">{money(num(e.amount))}</div>
+                        {/* What the cost was agreed in, at the rate of the day it was paid. */}
+                        <FxStamp fx={e.fxAmount} />
+                      </div>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </button>
                   );
@@ -317,6 +322,9 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
   const [confirm, setConfirm] = useState(false);
   useEffect(() => { if (expense) setConfirm(false); }, [expense]);
   const e = expense;
+  // For rendering the stamp: the symbol and decimal places come from the list, the rate and
+  // the amount from the row itself, so the figure shown is the one that was recorded.
+  const currencies = useCurrencies();
   const fullDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "long", year: "numeric" }) : "—");
   const recorded = e?.createdAt ? new Date(e.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
@@ -335,6 +343,7 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
           {e && (
             <div className="rounded-[12px] bg-secondary/60 p-4">
               <Row label={t("amount")} value={money(num(e.amount)) + " " + t("soum")} strong mono />
+              {e.fxAmount?.currency && <Row label={t("fx_in_currency")} value={fxLabel(e.fxAmount, currencies)} mono />}
               <Separator className="my-2" />
               <Row label={t("category")} value={expenseCategory(lang, e.category)} />
               <Row label={t("date")} value={fullDate(e.incurredOn)} />

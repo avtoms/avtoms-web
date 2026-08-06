@@ -324,6 +324,11 @@ export interface ShopExpense {
   cardId?: string;
   cardNumber?: string;
   parts?: PaymentPartOut[];
+  // What was agreed or handed over, when that was not in so'm. Explains the amount above,
+  // which stays the so'm the balance is summed from, and is pinned to the rate of the day
+  // it happened: nothing later re-prices it.
+  fxAmount?: FxAmount;
+
 }
 
 // One part of a payment as the server returns it — amounts arrive as strings. The row it
@@ -650,6 +655,11 @@ export interface ContragentLedgerEntry {
   note?: string;
   occurredAt?: string;
   createdAt?: string;
+  // What was agreed or handed over, when that was not in so'm. Explains the amount above,
+  // which stays the so'm the balance is summed from, and is pinned to the rate of the day
+  // it happened: nothing later re-prices it.
+  fxAmount?: FxAmount;
+
 }
 
 export interface ContragentBalance {
@@ -690,6 +700,11 @@ export interface CustomerLedgerEntry {
   note?: string;
   occurredAt?: string;
   createdAt?: string;
+  // What was agreed or handed over, when that was not in so'm. Explains the amount above,
+  // which stays the so'm the balance is summed from, and is pinned to the rate of the day
+  // it happened: nothing later re-prices it.
+  fxAmount?: FxAmount;
+
 }
 
 export interface CustomerBalance {

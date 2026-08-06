@@ -17,6 +17,7 @@ import { Field } from "@/components/ui-kit/label";
 import { Spinner } from "@/components/ui-kit/misc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import { MoneyInput } from "@/components/catalog-fields";
+import { FxStamp } from "@/components/fx-stamp";
 import { FxMoneyInput } from "@/components/fx-money";
 import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { useLang, useToast } from "@/components/providers";
@@ -199,8 +200,12 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
                       <PaidBadge paid={e} className="mt-1" />
                       {(e.parts?.length ?? 0) > 1 && <div className="mt-1 max-w-[220px]"><PaidParts paid={e} /></div>}
                     </div>
-                    <span className={cn("shrink-0 font-mono text-[13.5px] font-bold", k.sign > 0 ? "text-destructive" : "text-success")}>
-                      {k.sign > 0 ? "+" : "−"}{money(e.amount)}
+                    <span className={cn("flex shrink-0 flex-col items-end", k.sign > 0 ? "text-destructive" : "text-success")}>
+                      <span className="font-mono text-[13.5px] font-bold">
+                        {k.sign > 0 ? "+" : "−"}{money(e.amount)}
+                      </span>
+                      {/* What it was agreed in, at the rate of the day it happened. */}
+                      <FxStamp fx={e.fxAmount} />
                     </span>
                     {/* An entry written by a stock receipt cannot be removed: the goods are on
                         the shelf, so deleting the debt would leave the two disagreeing. */}
