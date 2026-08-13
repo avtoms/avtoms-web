@@ -377,6 +377,74 @@ export function SalesConsole() {
 }
 
 /* ── taking the money ── */
+// Adding a client without leaving the till.
+//
+// Two fields and nothing else: a name and a phone. Everything else a client record can hold —
+// language, Telegram, address — is a thing to fill in later on the clients screen, and asking
+// for it here would turn a sale into paperwork while somebody waits at the counter.
+//
+// The search box is reused as the name: whatever the cashier typed looking for them is almost
+// always the name they would type again.
+function NewClientInline({ query, shopId, onCreated }: {
+  query: string;
+  shopId: string;
+  onCreated: (c: Customer) => void;
+}) {
+  const { t, lang } = useLang();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // A digit typed into the search box is somebody looking up a phone number; a word is a name.
+  const opening = () => {
+    const q = query.trim();
+    const digits = q.replace(/\D/g, "");
+    setName(digits.length >= 5 ? "" : q);
+    setPhone(digits.length >= 5 ? q : "");
+    setOpen(true);
+  };
+
+  const create = async () => {
+    if (!phone.trim() || busy) return;
+    setBusy(true);
+    try {
+      const c = await api.createCustomer(shopId, { phone: phone.trim(), name: name.trim(), language: lang });
+      onCreated(c);
+      setOpen(false); setName(""); setPhone("");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally { setBusy(false); }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" onClick={opening}
+        className="mt-1.5 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
+        <Plus className="size-3.5" /> {t("new_client")}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-1.5 flex flex-col gap-1.5 rounded-[9px] border border-border bg-secondary/30 p-2">
+      <Input value={name} disabled={busy} placeholder={t("client_name")} onChange={(e) => setName(e.target.value)} />
+      <Input value={phone} disabled={busy} inputMode="tel" className="font-mono" placeholder={t("phone")}
+        autoFocus={!!name} onChange={(e) => setPhone(e.target.value)} />
+      <div className="flex justify-end gap-1.5">
+        <button type="button" disabled={busy} onClick={() => setOpen(false)}
+          className="rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary">
+          {t("cancel")}
+        </button>
+        <button type="button" disabled={busy || !phone.trim()} onClick={() => void create()}
+          className="rounded-[7px] bg-primary px-2.5 py-1 text-[12px] font-semibold text-primary-foreground disabled:opacity-40">
+          {busy ? "…" : t("save")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustomers }: {
   open: boolean; total: number; cards: ShopCard[]; busy: boolean; shopId: string;
   onClose: () => void;
@@ -467,6 +535,10 @@ function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustome
                     ))}
                   </div>
                 )}
+                {/* The way out for a client who is not on the list yet. It matters most for
+                    nasiya: that button is dark until somebody is named, and sending the cashier
+                    to the clients screen mid-sale means starting the sale again. */}
+                <NewClientInline query={buyerQuery} shopId={shopId} onCreated={(c) => { setBuyer(c); setMatches([]); }} />
               </>
             )}
           </Field>

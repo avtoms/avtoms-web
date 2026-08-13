@@ -342,6 +342,11 @@ export interface PaymentPartOut {
   // For a TRANSFER: the payment order it went out on. It is the only handle this row and the
   // bank statement have in common.
   transferRef?: string;
+  // Which accounts it moved between: ours (with its number snapshotted, like a card's) and
+  // theirs, kept as digits because the row already names the party.
+  bankAccountId?: string;
+  bankAccountNumber?: string;
+  counterpartyAccount?: string;
 }
 
 export interface ExpenseBucket {
@@ -432,6 +437,30 @@ export interface CompanyDetails {
   bankAccount?: string;   // hisob raqami, 20 digits
   contractNo?: string;
   contractDate?: string;  // YYYY-MM-DD
+}
+
+// Whose account this is. One list serves both sides of a transfer, because a payment order
+// names two accounts of exactly the same shape.
+export type BankAccountOwner =
+  | "BANK_ACCOUNT_OWNER_UNSPECIFIED"
+  | "BANK_ACCOUNT_OWNER_SHOP"
+  | "BANK_ACCOUNT_OWNER_CONTRAGENT";
+
+// One hisob raqami money can move through. A company rarely has exactly one — a so'm account
+// and a currency account, often at different banks — so this is a list per owner and a payment
+// says which of them it used, the way a card payment says which card.
+export interface BankAccount {
+  id: string;
+  shopId?: string;
+  ownerKind?: BankAccountOwner | string;
+  ownerId?: string;
+  label?: string;
+  bankName?: string;
+  bankMfo?: string;
+  accountNumber: string;
+  isPrimary?: boolean;  // the one offered first; exactly one per owner
+  active?: boolean;
+  createdAt?: string;
 }
 
 export interface Contragent {
@@ -684,6 +713,9 @@ export interface ContragentLedgerEntry {
   cardNumber?: string;
   parts?: PaymentPartOut[];
   transferRef?: string;  // mirrors the first part, like cardNumber
+  bankAccountId?: string;
+  bankAccountNumber?: string;
+  counterpartyAccount?: string;
   staffId?: string;
   note?: string;
   occurredAt?: string;

@@ -25,6 +25,7 @@ import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/li
 import { loadShopProfile, mergeShopProfile } from "@/lib/shop";
 import { SecTitle } from "../_shared";
 import { CurrencyRates } from "./_currency-rates";
+import { BankAccountsCard } from "./_bank-accounts";
 
 export default function SettingsPage() {
   const { logout } = useAuth();
@@ -174,10 +175,14 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-3">
           <p className="-mt-1 text-[12px] leading-snug text-muted-foreground">{t("shop_requisites_hint")}</p>
           {/* The STIR is shown, not asked for: it is the same column the profile card edits. */}
-          <CompanyFields value={company} onChange={setCompany} disabled={savingCompany} hideTin tinNote={shop.tin} />
+          <CompanyFields value={company} onChange={setCompany} disabled={savingCompany} hideTin tinNote={shop.tin} hideBank />
           <Button disabled={savingCompany} onClick={saveCompany}>{savingCompany ? <Spinner /> : t("save")}</Button>
         </div>
       </Card>
+
+      {/* The accounts themselves live in their own card: there can be several, they are added
+          and closed over time, and a block of identity fields is the wrong shape for a list. */}
+      <BankAccountsCard />
 
       {/* pricing policy — real backend (workorder shop settings) */}
       <Card className="p-5">

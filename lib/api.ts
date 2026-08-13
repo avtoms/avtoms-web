@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, BankAccount, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -28,6 +28,10 @@ export interface PaymentPart {
   // For a transfer: the payment order it went out on. What the bank statement and this
   // payment have in common, and the only way to reconcile the two.
   transferRef?: string;
+  // Which of the shop's accounts it moved through, and which of theirs it reached.
+  bankAccountId?: string;
+  bankAccountNumber?: string;
+  counterpartyAccount?: string;
 }
 
 // The requisites block, always sent whole. Every field is a string on the wire, so an unset
@@ -52,6 +56,9 @@ const partToWire = (p: PaymentPart) => ({
   cardId: p.cardId ?? "",
   cardNumber: p.cardNumber ?? "",
   transferRef: p.transferRef ?? "",
+  bankAccountId: p.bankAccountId ?? "",
+  bankAccountNumber: p.bankAccountNumber ?? "",
+  counterpartyAccount: p.counterpartyAccount ?? "",
 });
 
 export class ApiError extends Error {
@@ -743,6 +750,36 @@ export const api = {
   // contragent_ledger cascades off it, so removing a supplier took their whole account with
   // them — every purchase, every payment, and any balance still owed. Retiring one is the
   // Active switch on the edit form: the history survives and the name stops being offered.
+
+  // ── bank accounts (either side of a transfer) ──
+  // The shop's own by default; a counterparty's by naming them. Primary first, so a payment
+  // form can offer the top of the list without deciding anything itself.
+  listBankAccounts: (owner?: { contragentId?: string }, includeInactive = false) =>
+    call<{ accounts?: BankAccount[] }>("GET", "/v1/bank-accounts" + qs({
+      owner_kind: owner?.contragentId ? "contragent" : "shop",
+      owner_id: owner?.contragentId,
+      include_inactive: includeInactive ? "true" : undefined,
+    })).then((r) => r.accounts ?? []),
+  createBankAccount: (a: {
+    contragentId?: string; label?: string; bankName?: string; bankMfo?: string;
+    accountNumber: string; isPrimary?: boolean;
+  }) =>
+    call<BankAccount>("POST", "/v1/bank-accounts", {
+      ownerKind: a.contragentId ? "BANK_ACCOUNT_OWNER_CONTRAGENT" : "BANK_ACCOUNT_OWNER_SHOP",
+      ownerId: a.contragentId ?? "",
+      label: a.label?.trim() ?? "", bankName: a.bankName?.trim() ?? "", bankMfo: a.bankMfo?.trim() ?? "",
+      accountNumber: a.accountNumber.trim(), isPrimary: a.isPrimary ?? false,
+    }),
+  updateBankAccount: (id: string, a: {
+    label?: string; bankName?: string; bankMfo?: string; accountNumber: string;
+    isPrimary?: boolean; active?: boolean;
+  }) =>
+    call<BankAccount>("POST", `/v1/bank-accounts/${id}`, {
+      label: a.label?.trim() ?? "", bankName: a.bankName?.trim() ?? "", bankMfo: a.bankMfo?.trim() ?? "",
+      accountNumber: a.accountNumber.trim(), isPrimary: a.isPrimary ?? false, active: a.active ?? true,
+    }),
+  deleteBankAccount: (id: string) =>
+    call<{ ok?: boolean }>("POST", `/v1/bank-accounts/${id}/delete`, {}),
 
   // ── contragent accounts (debt and cash; never profit) ──
   contragentBalances: (shopId: string, from?: string, to?: string) =>

@@ -24,6 +24,7 @@ import { money, num, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ContragentAccount } from "./_account";
 import { CompanyFields, isCompany } from "@/components/company-details";
+import { ContragentAccounts } from "./_bank-accounts";
 
 export default function ContragentsPage() {
   const { t } = useLang();
@@ -322,8 +323,14 @@ function ContragentModal({
               </span>
               <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
-            <div className="border-t border-border p-3">
-              <CompanyFields value={company} onChange={setCompany} disabled={busy} />
+            <div className="flex flex-col gap-3 border-t border-border p-3">
+              {/* Bank details are asked for inline while the counterparty is being created —
+                  one account, which is what a first form sensibly asks for. Once they exist,
+                  the list below takes over: a supplier can hold several, and the one money is
+                  sent to is chosen at payment time rather than assumed here. */}
+              <CompanyFields value={company} onChange={setCompany} disabled={busy}
+                hideBank={state?.mode === "edit"} />
+              {state?.mode === "edit" && state.item && <ContragentAccounts contragentId={state.item.id} />}
             </div>
           </details>
 

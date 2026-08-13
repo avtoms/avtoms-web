@@ -40,7 +40,7 @@ export function isCompany(c?: CompanyDetails): boolean {
 // typed; the server enforces the same rule, because a browser is not a validator.
 const WIDTH = { tin: 9, vatCode: 12, bankMfo: 5, bankAccount: 20 } as const;
 
-export function CompanyFields({ value, onChange, disabled, hideTin, tinNote }: {
+export function CompanyFields({ value, onChange, disabled, hideTin, tinNote, hideBank }: {
   value: CompanyDetails;
   onChange: (c: CompanyDetails) => void;
   disabled?: boolean;
@@ -49,6 +49,11 @@ export function CompanyFields({ value, onChange, disabled, hideTin, tinNote }: {
   // edit vanishes, so this block borrows it as a line of text instead of offering it again.
   hideTin?: boolean;
   tinNote?: string;
+  // Set where a full accounts LIST is on screen. The block asks for one account because that
+  // is what a form sensibly asks when a party is first added; once the list exists it is the
+  // only place accounts are managed, and a stale copy of the primary one beside it would be a
+  // second thing to keep in step.
+  hideBank?: boolean;
 }) {
   const { t } = useLang();
   const set = (patch: Partial<CompanyDetails>) => onChange({ ...value, ...patch });
@@ -108,19 +113,23 @@ export function CompanyFields({ value, onChange, disabled, hideTin, tinNote }: {
         <Input value={value.legalAddress ?? ""} disabled={disabled} onChange={(e) => set({ legalAddress: e.target.value })} />
       </Field>
 
-      <Field label={t("co_bank_name")}>
-        <Input value={value.bankName ?? ""} disabled={disabled} onChange={(e) => set({ bankName: e.target.value })} />
-      </Field>
-      <div className="grid grid-cols-[1fr_2fr] gap-2">
-        <Field label={t("co_bank_mfo")} hint={counter(value.bankMfo, WIDTH.bankMfo)}>
-          <Input value={value.bankMfo ?? ""} inputMode="numeric" className="font-mono" disabled={disabled}
-            onChange={(e) => digits("bankMfo")(e.target.value)} />
-        </Field>
-        <Field label={t("co_bank_account")} hint={counter(value.bankAccount, WIDTH.bankAccount)}>
-          <Input value={value.bankAccount ?? ""} inputMode="numeric" className="font-mono" disabled={disabled}
-            onChange={(e) => digits("bankAccount")(e.target.value)} />
-        </Field>
-      </div>
+      {!hideBank && (
+        <>
+          <Field label={t("co_bank_name")}>
+            <Input value={value.bankName ?? ""} disabled={disabled} onChange={(e) => set({ bankName: e.target.value })} />
+          </Field>
+          <div className="grid grid-cols-[1fr_2fr] gap-2">
+            <Field label={t("co_bank_mfo")} hint={counter(value.bankMfo, WIDTH.bankMfo)}>
+              <Input value={value.bankMfo ?? ""} inputMode="numeric" className="font-mono" disabled={disabled}
+                onChange={(e) => digits("bankMfo")(e.target.value)} />
+            </Field>
+            <Field label={t("co_bank_account")} hint={counter(value.bankAccount, WIDTH.bankAccount)}>
+              <Input value={value.bankAccount ?? ""} inputMode="numeric" className="font-mono" disabled={disabled}
+                onChange={(e) => digits("bankAccount")(e.target.value)} />
+            </Field>
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Field label={t("co_contract_no")}>

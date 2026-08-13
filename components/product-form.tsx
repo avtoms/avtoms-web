@@ -22,7 +22,7 @@ import {
   useCurrencies, type FxValue,
 } from "@/lib/currency";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
-import { PaymentPicker, toParts, usePayment, useShopCards } from "@/components/payment-picker";
+import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
 import { pickLangText } from "@/lib/i18n";
@@ -296,6 +296,8 @@ export function ProductForm({
   // transfer to their account, and the delivery is the moment the money is sent.
   const { payment, setPayment, reset: resetPayment } = usePayment();
   const cards = useShopCards(shopId);
+  const shopAccounts = useShopAccounts();
+  const theirAccounts = useContragentAccounts(supplierId);
   const currencies = useCurrencies();
   // What each variant held when the form opened, so an edit can price only the stock added.
   const [openingQty, setOpeningQty] = useState<Record<string, number>>({});
@@ -344,7 +346,7 @@ export function ProductForm({
   const paidNowAmount = Math.min(paidNowTyped, arriving);
   // A payment described but not finished — "card" with no card named — must not save as
   // though nothing had been said about it. The button goes dark instead.
-  const payParts = paidNowAmount > 0 ? toParts(payment, paidNowAmount) : null;
+  const payParts = paidNowAmount > 0 ? toParts(payment, paidNowAmount, shopAccounts.accounts) : null;
   const payIncomplete = paidNowAmount > 0 && !skipDebt && !!supplierId && !payParts;
 
   const addPropertyFromCatalog = (defId: string) => {
@@ -606,7 +608,10 @@ export function ProductForm({
                   </Field>
                   {paidNowAmount > 0 && (
                     <Field label={t("payment_method")}>
-                      <PaymentPicker value={payment} onChange={setPayment} total={paidNowAmount} cards={cards} disabled={busy} />
+                      <PaymentPicker value={payment} onChange={setPayment} total={paidNowAmount} cards={cards} disabled={busy}
+                        accounts={shopAccounts.accounts}
+                        payee={{ contragentId: supplierId, accounts: theirAccounts.accounts }}
+                        onAccountsChanged={() => { shopAccounts.reload(); theirAccounts.reload(); }} />
                     </Field>
                   )}
                   <DeliverySummary

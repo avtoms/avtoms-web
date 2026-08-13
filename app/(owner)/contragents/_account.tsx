@@ -23,7 +23,9 @@ import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue }
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
-import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
+import {
+  PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts,
+} from "@/components/payment-picker";
 import { useStaffNames } from "@/lib/use-staff";
 import { useAuth } from "@/components/providers";
 import { cn } from "@/lib/utils";
@@ -78,10 +80,13 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
   const [note, setNote] = useState("");
   const { payment, setPayment, reset } = usePayment();
   const cards = useShopCards(shopId);
+  // Both sides of a transfer: which of ours it leaves from, and which of theirs it reaches.
+  const shopAccounts = useShopAccounts();
+  const theirAccounts = useContragentAccounts(contragent?.id);
   // A charge is goods or work handed over, not money — there is nothing to pay it with.
   const moves = kind !== "CONTRAGENT_ENTRY_KIND_CHARGE";
   const sum = fxSoum(amount, findCurrency(currencies, amount.currency));
-  const parts = moves ? toParts(payment, sum) : null;
+  const parts = moves ? toParts(payment, sum, shopAccounts.accounts) : null;
 
   const id = contragent?.id;
   const load = useCallback(async () => {
@@ -176,7 +181,10 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
               </Field>
               {moves && (
                 <Field label={t("payment_method")}>
-                  <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy} />
+                  <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy}
+                    accounts={shopAccounts.accounts}
+                    payee={{ contragentId: contragent?.id, accounts: theirAccounts.accounts, label: contragent?.name }}
+                    onAccountsChanged={() => { shopAccounts.reload(); theirAccounts.reload(); }} />
                 </Field>
               )}
               <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("note")} className="h-9 text-[13px]" />

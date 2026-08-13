@@ -25,7 +25,7 @@ import { emptyFx, findCurrency, fxPayload, fxSoum, useCurrencies, type FxValue }
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { money, num, shortDateTime } from "@/lib/format";
-import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
+import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards, useShopAccounts } from "@/components/payment-picker";
 import { useStaffNames } from "@/lib/use-staff";
 import { cn } from "@/lib/utils";
 import type { CustomerBalance, CustomerEntryKind, CustomerLedgerEntry } from "@/lib/types";
@@ -66,6 +66,8 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
   const { session } = useAuth();
   const who = useStaffNames();
   const cards = useShopCards(session?.staff.shopId);
+  // Money that moves by bank names the account it moved through, here as everywhere else.
+  const shopAccounts = useShopAccounts();
   const [entries, setEntries] = useState<CustomerLedgerEntry[] | null>(null);
   const [summary, setSummary] = useState<CustomerBalance | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,7 +107,7 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
   // A charge added by hand is a debt taken on, not money changing hands, so it is the one
   // entry here with nothing to pay it with.
   const sum = fxSoum(amount, findCurrency(currencies, amount.currency));
-  const parts = taking ? toParts(payment, sum) : null;
+  const parts = taking ? toParts(payment, sum, shopAccounts.accounts) : null;
 
   const record = async () => {
     if (!id || sum <= 0 || busy || (taking && !parts)) return;
@@ -189,7 +191,8 @@ export function CustomerAccount({ customer, onClose, onChanged }: {
                 </Field>
                 {taking && (
                   <Field label={t("payment_method")}>
-                    <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy} />
+                    <PaymentPicker value={payment} onChange={setPayment} total={sum} cards={cards} disabled={busy}
+                    accounts={shopAccounts.accounts} onAccountsChanged={shopAccounts.reload} />
                   </Field>
                 )}
               </div>

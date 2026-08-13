@@ -18,7 +18,7 @@ import { FxMoneyInput } from "@/components/fx-money";
 import { FxStamp } from "@/components/fx-stamp";
 import { emptyFx, findCurrency, fxLabel, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
 import { SuggestInput } from "@/components/suggest-input";
-import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards } from "@/components/payment-picker";
+import { PaymentPicker, PaidBadge, PaidParts, toParts, usePayment, useShopCards, useShopAccounts } from "@/components/payment-picker";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { PeriodPicker, usePeriod, monthRange, lastNMonths } from "../_period";
 import { api, ApiError } from "@/lib/api";
@@ -406,6 +406,8 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
   // How it was paid. The same control the supplier account and the client account use.
   const { payment, setPayment, reset } = usePayment();
   const cards = useShopCards(shopId);
+  // Money that moves by bank names the account it moved through, here as everywhere else.
+  const shopAccounts = useShopAccounts();
   useEffect(() => { if (open) { setF(blank); reset(); } }, [open]);
 
   const isSalary = f.category === "salary";
@@ -414,7 +416,7 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
   // The so'm preview, for the payment split and the save button. Rent agreed in dollars is
   // the ordinary case here; what gets POSTed is the typed amount and its rate.
   const amount = fxSoum(f.amount, findCurrency(currencies, f.amount.currency));
-  const parts = toParts(payment, amount);
+  const parts = toParts(payment, amount, shopAccounts.accounts);
 
   const save = async () => {
     if (amount <= 0 || !resolvedCat || !parts || busy) return;
@@ -476,7 +478,8 @@ function AddModal({ open, onClose, shopId, staff, knownCats, payees, me, onCreat
           {/* How it left the shop. Asked here rather than nowhere, because "5 000 000 on rent"
               and "5 000 000 in cash on rent" are different facts when the till is counted. */}
           <Field label={t("payment_method")}>
-            <PaymentPicker value={payment} onChange={setPayment} total={amount} cards={cards} disabled={busy} />
+            <PaymentPicker value={payment} onChange={setPayment} total={amount} cards={cards} disabled={busy}
+                    accounts={shopAccounts.accounts} onAccountsChanged={shopAccounts.reload} />
           </Field>
           <Field label={t("paid_by")}>
             <Select value={f.paidBy} onValueChange={(v) => setF({ ...f, paidBy: v })}>

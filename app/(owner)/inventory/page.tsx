@@ -32,8 +32,7 @@ import { stockReason } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
-import { PaymentPicker, toParts, usePayment, useShopCards } from "@/components/payment-picker";
-import { CompanySummary } from "@/components/company-details";
+import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
 import { StatCard } from "../_shared";
 
 // Total on-hand across a product's variants, and whether any variant is low.
@@ -446,6 +445,10 @@ function AdjustPanel({
   const { payment, setPayment } = usePayment();
   const { session } = useAuth();
   const cards = useShopCards(session?.staff.shopId);
+  const shopAccounts = useShopAccounts();
+  // The supplier's own accounts, so "where is this money going" is answered on this screen
+  // and a new one can be added the moment the delivery note shows a different number.
+  const theirAccounts = useContragentAccounts(supplierId);
   const [busy, setBusy] = useState(false);
   const currencies = useCurrencies();
 
@@ -470,7 +473,7 @@ function AdjustPanel({
   // A payment that has been described but not finished — "card" with no card named — must not
   // save as though nothing was said about it. The button goes dark instead, the same rule the
   // supplier's account uses.
-  const parts = paid > 0 ? toParts(payment, paid) : null;
+  const parts = paid > 0 ? toParts(payment, paid, shopAccounts.accounts) : null;
   const payIncomplete = paid > 0 && !parts;
 
   const save = async () => {
@@ -541,14 +544,15 @@ function AdjustPanel({
       )}
       {receiving && supplierId && paid > 0 && (
         <Field label={t("payment_method")}>
-          <PaymentPicker value={payment} onChange={setPayment} total={paid} cards={cards} disabled={busy} />
+          <PaymentPicker value={payment} onChange={setPayment} total={paid} cards={cards} disabled={busy}
+            accounts={shopAccounts.accounts}
+            payee={{ contragentId: supplierId, accounts: theirAccounts.accounts }}
+            onAccountsChanged={() => { shopAccounts.reload(); theirAccounts.reload(); }} />
         </Field>
       )}
       {/* Where the money is going, once it is going by bank. Read straight off the supplier's
           card, so nobody has to open another screen to check an account number mid-delivery. */}
-      {receiving && paid > 0 && payment.mode === "transfer" && (
-        <CompanySummary company={contragents.find((c) => c.id === supplierId)?.company} />
-      )}
+
       <NoSupplierNote show={receiving && total > 0 && !supplierId} />
       {receiving && (
         <DeliverySummary supplierId={supplierId} total={total} paid={paid} balance={balances[supplierId] ?? 0} />

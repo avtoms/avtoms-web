@@ -504,6 +504,28 @@ export const STR: Record<string, Triple> = {
     "Расчётный счёт не заполнен — перечисление всё равно можно записать.",
   ],
   co_pay_to: ["Qayerga o'tkaziladi", "Қаерга ўтказилади", "Куда перечисляется"],
+  // ── bank accounts: either side of a transfer ──
+  acct_from: ["Qaysi hisobdan", "Қайси ҳисобдан", "С какого счёта"],
+  acct_to: ["Qaysi hisobga", "Қайси ҳисобга", "На какой счёт"],
+  acct_add: ["Hisob raqami qo'shish", "Ҳисоб рақами қўшиш", "Добавить счёт"],
+  acct_title: ["Hisob raqamlari", "Ҳисоб рақамлари", "Расчётные счета"],
+  acct_hint: [
+    "Pul o'tkazma qilinadigan hisoblar. Bir nechta bo'lsa, to'lov paytida qaysi biri ekanini tanlaysiz.",
+    "Пул ўтказма қилинадиган ҳисоблар. Бир нечта бўлса, тўлов пайтида қайси бири эканини танлайсиз.",
+    "Счета для перечислений. Если их несколько, при оплате выбираете, с какого именно.",
+  ],
+  acct_primary: ["Asosiy", "Асосий", "Основной"],
+  acct_make_primary: ["Asosiy qilish", "Асосий қилиш", "Сделать основным"],
+  acct_closed: ["Yopilgan", "Ёпилган", "Закрыт"],
+  acct_none: ["Hisob raqami kiritilmagan", "Ҳисоб рақами киритилмаган", "Счетов пока нет"],
+  acct_label: ["Nomi (ixtiyoriy)", "Номи (ихтиёрий)", "Название (необязательно)"],
+  acct_delete_confirm: [
+    "Hisob raqami ro'yxatdan o'chiriladi. Shu hisob orqali qilingan to'lovlar joyida qoladi.",
+    "Ҳисоб рақами рўйхатдан ўчирилади. Шу ҳисоб орқали қилинган тўловлар жойида қолади.",
+    "Счёт удалится из списка. Платежи, сделанные через него, останутся на месте.",
+  ],
+  new_client: ["Yangi mijoz", "Янги мижоз", "Новый клиент"],
+  client_name: ["Ismi", "Исми", "Имя"],
   // ── the shop's own side of a transfer ──
   shop_requisites: ["Korxona rekvizitlari", "Корхона реквизитлари", "Реквизиты организации"],
   shop_requisites_hint: [
