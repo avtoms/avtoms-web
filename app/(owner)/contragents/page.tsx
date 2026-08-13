@@ -284,7 +284,14 @@ function ContragentModal({
     setBusy(true);
     try {
       if (state?.mode === "edit" && state.item) {
-        await api.updateContragent(state.item.id, { name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim(), active, company });
+        // The bank half is left out on an edit, because the list below owns it. The block was
+        // filled from whichever account was primary when the dialog opened, so sending it back
+        // would re-promote that one — quietly undoing a promotion made in the list a moment
+        // ago, on the same screen, with no sign that anything had happened.
+        await api.updateContragent(state.item.id, {
+          name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim(), active,
+          company: { ...company, bankName: "", bankMfo: "", bankAccount: "" },
+        });
       } else {
         await api.createContragent({ name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim(), company });
       }
