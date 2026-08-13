@@ -22,6 +22,7 @@ import {
   useCurrencies, type FxValue,
 } from "@/lib/currency";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
+import { PaymentPicker, toParts, usePayment, useShopCards } from "@/components/payment-picker";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
 import { pickLangText } from "@/lib/i18n";
@@ -291,6 +292,10 @@ export function ProductForm({
   // says what was handed over; skipDebt is for goods the shop already owned.
   const [paidNow, setPaidNow] = useState<FxValue>(() => emptyFx());
   const [skipDebt, setSkipDebt] = useState(false);
+  // How that settlement leaves the shop. A supplier that is an MCHJ is normally paid by
+  // transfer to their account, and the delivery is the moment the money is sent.
+  const { payment, setPayment, reset: resetPayment } = usePayment();
+  const cards = useShopCards(shopId);
   const currencies = useCurrencies();
   // What each variant held when the form opened, so an edit can price only the stock added.
   const [openingQty, setOpeningQty] = useState<Record<string, number>>({});
@@ -316,7 +321,7 @@ export function ProductForm({
       setName(""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(""); setUnit("pcs"); setDescription("");
       setProps([]); setVars([blankVar()]); setOpeningQty({});
     }
-    setPaidNow(emptyFx()); setSkipDebt(false);
+    setPaidNow(emptyFx()); setSkipDebt(false); resetPayment();
     api.contragentBalances(shopId).then((r) => {
       const m: Record<string, number> = {};
       for (const b of r.balances ?? []) m[b.contragentId] = parseInt(b.balance, 10) || 0;
@@ -403,6 +408,9 @@ export function ProductForm({
         .filter((p) => p.name.trim() && propValues(p).length > 0)
         .map((p) => ({ name: p.name.trim(), values: propValues(p) })),
       paidAmount: paidNowAmount,
+      // Only when money actually moved. A delivery taken wholly on credit has nothing to
+      // describe, and sending "cash: 0" would put a payment on the account that never happened.
+      parts: paidNowAmount > 0 ? (toParts(payment, paidNowAmount) ?? undefined) : undefined,
       // Only stamped when the amount was NOT capped at what the delivery was worth: a stamp
       // saying "$200" beside a so'm figure that is no longer $200 would contradict it.
       fxPaidAmount: paidNowAmount === paidNowTyped
@@ -592,6 +600,11 @@ export function ProductForm({
                   <Field label={t("paid_now")}>
                     <FxMoneyInput value={paidNow} currencies={currencies} onChange={setPaidNow} placeholder="0" hideHint />
                   </Field>
+                  {paidNowAmount > 0 && (
+                    <Field label={t("payment_method")}>
+                      <PaymentPicker value={payment} onChange={setPayment} total={paidNowAmount} cards={cards} disabled={busy} />
+                    </Field>
+                  )}
                   <DeliverySummary
                     supplierId={supplierId}
                     total={arriving}

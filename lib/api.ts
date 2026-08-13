@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -25,13 +25,33 @@ export interface PaymentPart {
   method: PaymentMethod;
   cardId?: string;
   cardNumber?: string;
+  // For a transfer: the payment order it went out on. What the bank statement and this
+  // payment have in common, and the only way to reconcile the two.
+  transferRef?: string;
 }
+
+// The requisites block, always sent whole. Every field is a string on the wire, so an unset
+// one is "" rather than missing — protojson would read a missing field as unset and leave
+// whatever was there, which would make clearing a bank account impossible.
+const companyBody = (c?: CompanyDetails) => ({
+  entityType: c?.entityType || "CONTRAGENT_ENTITY_TYPE_UNSPECIFIED",
+  tin: c?.tin?.trim() ?? "",
+  vatCode: c?.vatCode?.trim() ?? "",
+  director: c?.director?.trim() ?? "",
+  legalAddress: c?.legalAddress?.trim() ?? "",
+  bankName: c?.bankName?.trim() ?? "",
+  bankMfo: c?.bankMfo?.trim() ?? "",
+  bankAccount: c?.bankAccount?.trim() ?? "",
+  contractNo: c?.contractNo?.trim() ?? "",
+  contractDate: c?.contractDate?.trim() ?? "",
+});
 
 const partToWire = (p: PaymentPart) => ({
   amount: String(p.amount),
   method: paymentToProto(p.method),
   cardId: p.cardId ?? "",
   cardNumber: p.cardNumber ?? "",
+  transferRef: p.transferRef ?? "",
 });
 
 export class ApiError extends Error {
@@ -219,6 +239,8 @@ export type ProductInput = {
   paidAmount?: number;
   fxPaidAmount?: FxAmount;
   skipDebt?: boolean;
+  // How that settlement left the shop; same shape as the receive form's.
+  parts?: PaymentPart[];
   variants: {
     id?: string;   // sent on edit so the save lands on the same variant it came from
     sku?: string;
@@ -269,6 +291,7 @@ const productBody = (p: ProductInput) => ({
   unit: p.unit ?? "", supplier: p.supplier ?? "", supplierId: p.supplierId ?? "", brand: p.brand ?? "",
   paidAmount: String(p.paidAmount ?? 0),
   skipDebt: p.skipDebt ?? false,
+  ...(p.parts?.length ? { parts: p.parts.map(partToWire) } : {}),
   properties: p.properties.map((pr) => ({ name: pr.name, values: pr.values })),
   variants: p.variants.map((v) => ({
     id: v.id ?? "", sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
@@ -656,9 +679,12 @@ export const api = {
   // currency. Send either and the server converts it and stores the so'm result, ignoring
   // the plain field beside it — so the screen's preview and the ledger cannot drift apart.
   // Omit them and this is exactly the so'm call it has always been.
+  // parts says HOW the settled part left the shop — cash from the till, a card, or a transfer
+  // to the supplier's account (their hisob raqami, referenced by the payment order number).
+  // Omit it and the payment is recorded without a method, exactly as before.
   adjustVariantStock: (variantId: string, delta: number, reason: string, opts?: {
     contragentId?: string; unitCost?: number; paidAmount?: number;
-    fxUnitCost?: FxAmount; fxPaidAmount?: FxAmount;
+    fxUnitCost?: FxAmount; fxPaidAmount?: FxAmount; parts?: PaymentPart[];
   }) =>
     call<ProductVariant>("POST", `/v1/products/variants/${variantId}/adjust`, {
       delta, reason,
@@ -667,6 +693,7 @@ export const api = {
       paidAmount: String(opts?.paidAmount ?? 0),
       ...(opts?.fxUnitCost ? { fxUnitCost: opts.fxUnitCost } : {}),
       ...(opts?.fxPaidAmount ? { fxPaidAmount: opts.fxPaidAmount } : {}),
+      ...(opts?.parts?.length ? { parts: opts.parts.map(partToWire) } : {}),
     }),
 
   // ── currencies ──
@@ -702,10 +729,16 @@ export const api = {
   // ── contragents (suppliers) ──
   listContragents: (includeInactive = false) =>
     call<{ contragents?: Contragent[] }>("GET", "/v1/contragents" + qs({ include_inactive: includeInactive ? "true" : undefined })).then((r) => r.contragents ?? []),
-  createContragent: (c: { name: string; phone?: string; address?: string; notes?: string; brand?: string }) =>
-    call<Contragent>("POST", "/v1/contragents", { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", brand: c.brand ?? "" }),
-  updateContragent: (id: string, c: { name: string; phone?: string; address?: string; notes?: string; active?: boolean; brand?: string }) =>
-    call<Contragent>("POST", `/v1/contragents/${id}`, { name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true, brand: c.brand ?? "" }),
+  createContragent: (c: { name: string; phone?: string; address?: string; notes?: string; brand?: string; company?: CompanyDetails }) =>
+    call<Contragent>("POST", "/v1/contragents", {
+      name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", brand: c.brand ?? "",
+      company: companyBody(c.company),
+    }),
+  updateContragent: (id: string, c: { name: string; phone?: string; address?: string; notes?: string; active?: boolean; brand?: string; company?: CompanyDetails }) =>
+    call<Contragent>("POST", `/v1/contragents/${id}`, {
+      name: c.name, phone: c.phone ?? "", address: c.address ?? "", notes: c.notes ?? "", active: c.active ?? true, brand: c.brand ?? "",
+      company: companyBody(c.company),
+    }),
   // No deleteContragent here on purpose. The row is hard-deleted server-side and
   // contragent_ledger cascades off it, so removing a supplier took their whole account with
   // them — every purchase, every payment, and any balance still owed. Retiring one is the
@@ -721,13 +754,14 @@ export const api = {
   // A purchase is not accepted here — goods arrive by receiving stock, which writes it.
   recordContragentEntry: (id: string, e: {
     kind: Exclude<ContragentEntryKind, "CONTRAGENT_ENTRY_KIND_PURCHASE">;
-    amount: number; method?: PaymentMethod; parts?: PaymentPart[];
+    amount: number; method?: PaymentMethod; parts?: PaymentPart[]; transferRef?: string;
     note?: string; description?: string; occurredAt?: string; fxAmount?: FxAmount;
   }) =>
     call<ContragentLedgerEntry>("POST", `/v1/contragents/${id}/entries`, {
       kind: e.kind, amount: String(e.amount),
       method: e.method ? paymentToProto(e.method) : "PAYMENT_METHOD_UNSPECIFIED",
       parts: (e.parts ?? []).map(partToWire),
+      transferRef: e.transferRef ?? "",
       note: e.note ?? "", description: e.description ?? "", occurredAt: e.occurredAt ?? "",
       ...(e.fxAmount ? { fxAmount: e.fxAmount } : {}),
     }),
@@ -780,6 +814,7 @@ export const api = {
   updateShopSettings: (s: {
     maxDiscountPercent: number; enabledStates?: string[];
     name?: string; address?: string; tin?: string; phone?: string; hours?: string;
+    company?: CompanyDetails;
   }) =>
     call<ShopSettings>("POST", "/v1/shop/settings", {
       maxDiscountPercent: s.maxDiscountPercent,
@@ -789,6 +824,7 @@ export const api = {
       tin: s.tin ?? "",
       phone: s.phone ?? "",
       hours: s.hours ?? "",
+      company: companyBody(s.company),
     }),
 
   // ── the customer's own check ──

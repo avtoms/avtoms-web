@@ -10,7 +10,7 @@
 // before the button can be pressed. The server refuses a split that does not sum to the
 // amount, which is a rule worth keeping unreachable rather than explaining.
 import React, { useEffect, useMemo, useState } from "react";
-import { Banknote, CreditCard, Wallet, Split, Plus, X, Check } from "lucide-react";
+import { Banknote, CreditCard, Wallet, Split, Plus, X, Check, Landmark } from "lucide-react";
 import { Input } from "@/components/ui-kit/input";
 import { Badge } from "@/components/ui-kit/badge";
 import { MoneyInput } from "@/components/catalog-fields";
@@ -26,23 +26,28 @@ export type Payment = {
   mode: PaymentMethod | "split";
   cardId: string;
   cardNumber: string;
-  rows: { method: PaymentMethod; amount: string; cardId: string; cardNumber: string }[];
+  // The payment order a transfer went out on. Kept beside the card fields because it answers
+  // the same question for the other rail: which movement in the bank was this one.
+  transferRef: string;
+  rows: { method: PaymentMethod; amount: string; cardId: string; cardNumber: string; transferRef: string }[];
 };
 
-// The three ways money moves out of, or into, a shop by hand. Credit is deliberately absent:
-// it means nobody paid, which is a debt on an account rather than a movement of money, and
-// both ledgers already have a direction for that.
-const METHODS: PaymentMethod[] = ["cash", "card", "other"];
+// The four ways money moves out of, or into, a shop. Transfer is how one company settles with
+// another — an MCHJ paying an MCHJ sends a payment order between two accounts rather than
+// handing anything over. Credit is deliberately absent: it means nobody paid, which is a debt
+// on an account rather than a movement of money, and both ledgers already have a direction
+// for that.
+const METHODS: PaymentMethod[] = ["cash", "card", "transfer", "other"];
 
 const ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-  cash: Banknote, card: CreditCard, other: Wallet, split: Split,
+  cash: Banknote, card: CreditCard, transfer: Landmark, other: Wallet, split: Split,
 };
 
 export const blankPayment = (): Payment => ({
-  mode: "cash", cardId: "", cardNumber: "",
+  mode: "cash", cardId: "", cardNumber: "", transferRef: "",
   rows: [
-    { method: "cash", amount: "", cardId: "", cardNumber: "" },
-    { method: "card", amount: "", cardId: "", cardNumber: "" },
+    { method: "cash", amount: "", cardId: "", cardNumber: "", transferRef: "" },
+    { method: "card", amount: "", cardId: "", cardNumber: "", transferRef: "" },
   ],
 });
 
@@ -62,6 +67,7 @@ export function toParts(p: Payment, total: number): PaymentPart[] | null {
       amount: total, method: p.mode,
       cardId: p.mode === "card" ? p.cardId || undefined : undefined,
       cardNumber: p.mode === "card" ? p.cardNumber.trim() || undefined : undefined,
+      transferRef: p.mode === "transfer" ? p.transferRef.trim() || undefined : undefined,
     }];
   }
   const allocated = p.rows.slice(0, -1).reduce((s, r) => s + (parseInt(r.amount, 10) || 0), 0);
@@ -74,6 +80,7 @@ export function toParts(p: Payment, total: number): PaymentPart[] | null {
     method: r.method,
     cardId: r.method === "card" ? r.cardId || undefined : undefined,
     cardNumber: r.method === "card" ? r.cardNumber.trim() || undefined : undefined,
+    transferRef: r.method === "transfer" ? r.transferRef.trim() || undefined : undefined,
   }));
 }
 
@@ -107,7 +114,7 @@ export function PaymentPicker({ value, onChange, total, cards, disabled }: {
           const Icon = ICON[m];
           const on = value.mode === m;
           return (
-            <button key={m} type="button" disabled={disabled} onClick={() => set({ mode: m, cardId: "", cardNumber: "" })}
+            <button key={m} type="button" disabled={disabled} onClick={() => set({ mode: m, cardId: "", cardNumber: "", transferRef: "" })}
               className={cn(
                 "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[9px] border px-2 text-[12.5px] font-semibold transition-colors sm:min-h-9",
                 on ? "border-primary bg-primary-soft text-primary-emphasis"
@@ -126,6 +133,10 @@ export function PaymentPicker({ value, onChange, total, cards, disabled }: {
           onType={(cardNumber) => set({ cardNumber, cardId: cardNumber ? "" : value.cardId })} />
       )}
 
+      {value.mode === "transfer" && (
+        <TransferRef value={value.transferRef} disabled={disabled} onChange={(transferRef) => set({ transferRef })} />
+      )}
+
       {value.mode === "split" && (
         <div className="flex flex-col gap-2 rounded-[11px] border border-border bg-secondary/30 p-2.5">
           {value.rows.map((row, i) => {
@@ -133,10 +144,10 @@ export function PaymentPicker({ value, onChange, total, cards, disabled }: {
             return (
               <div key={i} className="flex flex-col gap-1.5 rounded-[9px] border border-border bg-card p-2">
                 <div className="flex items-center gap-1.5">
-                  <div className="grid flex-1 grid-cols-3 gap-1">
+                  <div className="grid flex-1 grid-cols-2 gap-1 min-[380px]:grid-cols-4">
                     {METHODS.map((m) => (
                       <button key={m} type="button" disabled={disabled}
-                        onClick={() => setRow(i, { method: m, cardId: "", cardNumber: "" })}
+                        onClick={() => setRow(i, { method: m, cardId: "", cardNumber: "", transferRef: "" })}
                         className={cn(
                           "inline-flex min-h-9 items-center justify-center gap-1 rounded-[7px] border px-1 text-[12px] font-semibold transition-colors",
                           row.method === m ? "border-primary bg-primary-soft text-primary-emphasis"
@@ -172,12 +183,15 @@ export function PaymentPicker({ value, onChange, total, cards, disabled }: {
                     onPick={(cardId) => setRow(i, { cardId, cardNumber: "" })}
                     onType={(cardNumber) => setRow(i, { cardNumber, cardId: cardNumber ? "" : row.cardId })} />
                 )}
+                {row.method === "transfer" && (
+                  <TransferRef value={row.transferRef} disabled={disabled} onChange={(transferRef) => setRow(i, { transferRef })} />
+                )}
               </div>
             );
           })}
           {value.rows.length < 4 && (
             <button type="button" disabled={disabled}
-              onClick={() => onChange({ ...value, rows: [...value.rows, { method: "other", amount: "", cardId: "", cardNumber: "" }] })}
+              onClick={() => onChange({ ...value, rows: [...value.rows, { method: "other", amount: "", cardId: "", cardNumber: "", transferRef: "" }] })}
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
               <Plus className="size-3.5" /> {t("split_add_part")}
             </button>
@@ -188,6 +202,20 @@ export function PaymentPicker({ value, onChange, total, cards, disabled }: {
 
       {unnamedCard && <p className="px-0.5 text-[11.5px] leading-snug text-muted-foreground">{t("pay_which_card")}</p>}
     </div>
+  );
+}
+
+// The payment order a transfer went out on. Optional on purpose: a shop recording this
+// afternoon's transfer often does not have the number to hand until the bank confirms it, and
+// refusing the payment until then would send the record somewhere no one keeps it. Left empty
+// the payment still says it went by bank, which is the half that cannot be reconstructed.
+function TransferRef({ value, disabled, onChange }: {
+  value: string; disabled?: boolean; onChange: (v: string) => void;
+}) {
+  const { t } = useLang();
+  return (
+    <Input value={value} disabled={disabled} placeholder={t("transfer_ref_hint")}
+      className="font-mono text-[13px]" onChange={(e) => onChange(e.target.value)} />
   );
 }
 
@@ -225,7 +253,8 @@ function CardChoice({ cards, cardId, cardNumber, disabled, onPick, onType }: {
 export type Paid = {
   method?: string;
   cardNumber?: string;
-  parts?: { amount?: string | number; method?: string; cardNumber?: string }[];
+  transferRef?: string;
+  parts?: { amount?: string | number; method?: string; cardNumber?: string; transferRef?: string }[];
 };
 
 // PaidBadge says how a movement was paid, in one chip. A split names its parts rather than
@@ -247,10 +276,15 @@ export function PaidBadge({ paid, className }: { paid: Paid | undefined; classNa
 
   if (!label) return null;
   const card = parts.find((p) => methodKey(p.method) === "card")?.cardNumber || paid?.cardNumber || "";
+  // A transfer's payment order number, shown on the chip exactly where a card number is. It is
+  // the thing a shop looks for when it holds this row against a bank statement.
+  const ref = parts.find((p) => methodKey(p.method) === "transfer")?.transferRef || paid?.transferRef || "";
   return (
     <Badge tone="neutral" className={className}>
       {React.createElement(ICON[parts.length > 1 ? "split" : methodKey(paid?.method) || "cash"] ?? Wallet, { className: "mr-1 size-3" })}
-      {label}{card ? <span className="ml-1 font-mono opacity-70">{card}</span> : null}
+      {label}
+      {card ? <span className="ml-1 font-mono opacity-70">{card}</span> : null}
+      {ref ? <span className="ml-1 font-mono opacity-70">№{ref}</span> : null}
     </Badge>
   );
 }
@@ -267,6 +301,7 @@ export function PaidParts({ paid }: { paid: Paid | undefined }) {
           <span className="text-muted-foreground">
             {t(paymentLabelKey((methodKey(p.method) || "cash") as PaymentMethod))}
             {p.cardNumber ? <span className="ml-1 font-mono opacity-70">{p.cardNumber}</span> : null}
+            {p.transferRef ? <span className="ml-1 font-mono opacity-70">№{p.transferRef}</span> : null}
           </span>
           <span className="font-mono font-semibold text-foreground">{money(Number(p.amount ?? 0))}</span>
         </div>
@@ -282,6 +317,7 @@ function methodKey(s?: string): PaymentMethod | "" {
   if (s === "PAYMENT_METHOD_CARD") return "card";
   if (s === "PAYMENT_METHOD_OTHER") return "other";
   if (s === "PAYMENT_METHOD_CREDIT") return "credit";
+  if (s === "PAYMENT_METHOD_TRANSFER") return "transfer";
   return "cash";
 }
 

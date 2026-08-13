@@ -28,6 +28,7 @@ import { useStaffNames } from "@/lib/use-staff";
 import { useAuth } from "@/components/providers";
 import { cn } from "@/lib/utils";
 import type { Contragent, ContragentBalance, ContragentEntryKind, ContragentLedgerEntry } from "@/lib/types";
+import { CompanySummary } from "@/components/company-details";
 
 // How each kind reads on screen. `sign` is its effect on the balance, where positive means
 // the shop owes them — the same rule the backend uses.
@@ -154,6 +155,11 @@ export function ContragentAccount({ contragent, onClose, onChanged }: {
               {num(summary?.charged) > 0 && <Totals label={t("cg_charged")} value={num(summary?.charged)} />}
               {num(summary?.received) > 0 && <Totals label={t("cg_received")} value={num(summary?.received)} />}
             </div>
+
+            {/* Where a transfer to them lands. Directly above the form that sends the money,
+                because "which account is this going to" is asked at exactly that moment and
+                the answer used to live only on the edit dialog. */}
+            <CompanySummary company={contragent.company} />
 
             {/* record money, in either direction, without buying anything */}
             <div className="flex flex-col gap-2.5 rounded-[12px] border border-border p-3.5">

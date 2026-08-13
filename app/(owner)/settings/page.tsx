@@ -18,7 +18,8 @@ import { api, ApiError } from "@/lib/api";
 import {
   WO_STATES, STATE_LABEL, LOCKED_STATES, OPTIONAL_STATES, enabledSet, woStateToProto, type WoState,
 } from "@/lib/enums";
-import type { ShopCard } from "@/lib/types";
+import type { ShopCard, CompanyDetails } from "@/lib/types";
+import { CompanyFields } from "@/components/company-details";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
 import { loadShopProfile, mergeShopProfile } from "@/lib/shop";
@@ -39,6 +40,10 @@ export default function SettingsPage() {
   // this moved — they press Save and it is on the server for good.
   const [shop, setShop] = useState({ name: "", address: "", tin: "", phone: "", hours: "" });
   const [savingShop, setSavingShop] = useState(false);
+  // The shop's own side of a bank transfer. A payment order names two parties, and until this
+  // existed the system knew the supplier's account and never its own.
+  const [company, setCompany] = useState<CompanyDetails>({});
+  const [savingCompany, setSavingCompany] = useState(false);
 
   // Shop policy (real backend): the max discount %, and which statuses the order flow uses.
   // Both live on the same record, so each save sends the current value of the other.
@@ -56,6 +61,7 @@ export default function SettingsPage() {
         // Seed from the browser's old copy only where the server has nothing, so a shop
         // that never re-saved still sees its details instead of blank boxes.
         setShop(mergeShopProfile(s));
+        setCompany(s.company ?? {});
       })
       .catch(() => setShop(loadShopProfile()))
       .finally(() => setPolicyLoading(false));
@@ -69,8 +75,10 @@ export default function SettingsPage() {
       const s = await api.updateShopSettings({
         maxDiscountPercent: currentPct(), enabledStates: flowList(flow),
         name: shop.name, address: shop.address, tin: shop.tin, phone: shop.phone, hours: shop.hours,
+        company: companyBody(),
       });
       setShop({ name: s.name ?? "", address: s.address ?? "", tin: s.tin ?? "", phone: s.phone ?? "", hours: s.hours ?? "" });
+      setCompany(s.company ?? {});
       toast(t("save"), { icon: "check" });
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
@@ -79,6 +87,11 @@ export default function SettingsPage() {
     }
   };
 
+  // The requisites block travels without its STIR: that value belongs to the profile field
+  // above, and sending both would mean clearing the profile field silently restores it from
+  // the block's copy — see the fallback in UpdateShopSettings.
+  const companyBody = () => ({ ...company, tin: "" });
+
   const currentPct = () => Math.max(0, Math.min(100, parseInt(maxDiscount, 10) || 0));
   const flowList = (f: Set<WoState>) => WO_STATES.filter((s) => f.has(s)).map(woStateToProto);
 
@@ -86,7 +99,7 @@ export default function SettingsPage() {
     if (savingPolicy) return;
     setSavingPolicy(true);
     try {
-      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(flow), ...shop });
+      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(flow), ...shop, company: companyBody() });
       setMaxDiscount(String(s.maxDiscountPercent));
       toast(t("save"), { icon: "check" });
     } catch (e) {
@@ -102,7 +115,7 @@ export default function SettingsPage() {
     setFlow(next); // optimistic: the toggle should feel instant
     setSavingFlow(true);
     try {
-      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(next) });
+      const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(next), ...shop, company: companyBody() });
       setFlow(enabledSet(s.enabledStates)); // trust the server's resolved set
       toast(t("save"), { icon: "check" });
     } catch (e) {
@@ -110,6 +123,25 @@ export default function SettingsPage() {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
       setSavingFlow(false);
+    }
+  };
+
+  const saveCompany = async () => {
+    if (savingCompany) return;
+    setSavingCompany(true);
+    try {
+      const s = await api.updateShopSettings({
+        maxDiscountPercent: currentPct(), enabledStates: flowList(flow), ...shop, company: companyBody(),
+      });
+      setCompany(s.company ?? {});
+      // The STIR is one column, shared with the receipt identity above: saving it here has to
+      // show up there too, or the two boxes disagree until the page is reloaded.
+      setShop((p) => ({ ...p, tin: s.tin ?? p.tin }));
+      toast(t("save"), { icon: "check" });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally {
+      setSavingCompany(false);
     }
   };
 
@@ -130,6 +162,20 @@ export default function SettingsPage() {
           <Field label={t("phone")}><Input value={shop.phone} onChange={(e) => setShop({ ...shop, phone: e.target.value })} className="font-mono" /></Field>
           <Button disabled={savingShop} onClick={saveShop}>{savingShop ? <Spinner /> : t("save")}</Button>
           <div className="text-[12px] text-muted-foreground">{t("shop_profile_hint")}</div>
+        </div>
+      </Card>
+
+      {/* The shop as a legal entity: what a payment order needs to name the paying side.
+          Its own card rather than more fields on the profile above, because the two are filled
+          in by different people — the profile is what a customer's receipt prints, this is
+          what the bank needs — and neither should look like a prerequisite for the other. */}
+      <Card className="p-5">
+        <SecTitle>{t("shop_requisites")}</SecTitle>
+        <div className="flex flex-col gap-3">
+          <p className="-mt-1 text-[12px] leading-snug text-muted-foreground">{t("shop_requisites_hint")}</p>
+          {/* The STIR is shown, not asked for: it is the same column the profile card edits. */}
+          <CompanyFields value={company} onChange={setCompany} disabled={savingCompany} hideTin tinNote={shop.tin} />
+          <Button disabled={savingCompany} onClick={saveCompany}>{savingCompany ? <Spinner /> : t("save")}</Button>
         </div>
       </Card>
 

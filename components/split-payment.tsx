@@ -12,7 +12,7 @@
 // rather than being something they work out.
 
 import { useEffect, useState } from "react";
-import { Banknote, CreditCard, HandCoins, Wallet, Plus, X, Check } from "lucide-react";
+import { Banknote, CreditCard, HandCoins, Wallet, Plus, X, Check, Landmark } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Input } from "@/components/ui-kit/input";
 import { MoneyInput } from "@/components/catalog-fields";
@@ -28,15 +28,21 @@ type Row = {
   amount: string;   // digits only, tiyin; ignored on the last row, which is the remainder
   cardId: string;
   cardNumber: string;
+  transferRef: string; // the payment order, on a transfer row
 };
 
 const ICONS: Record<PaymentMethod, React.ComponentType<{ className?: string }>> = {
-  cash: Banknote, card: CreditCard, other: Wallet, credit: HandCoins,
+  cash: Banknote, card: CreditCard, transfer: Landmark, other: Wallet, credit: HandCoins,
 };
 
 const LABEL: Record<PaymentMethod, string> = {
-  cash: "pay_cash", card: "pay_card", other: "pay_other", credit: "pay_credit",
+  cash: "pay_cash", card: "pay_card", transfer: "pay_transfer", other: "pay_other", credit: "pay_credit",
 };
+
+// Every way a bill can be settled at the counter. Transfer is here because a client that is
+// itself a company does not pay in cash: it sends a payment order from its account to the
+// shop's, and the shop has to be able to say so on the till rather than filing it as "other".
+const ROW_METHODS: PaymentMethod[] = ["cash", "card", "transfer", "other", "credit"];
 
 export function SplitPayment({
   total, cards, busy, allowCredit, onBack, onPay,
@@ -52,8 +58,8 @@ export function SplitPayment({
 }) {
   const { t } = useLang();
   const [rows, setRows] = useState<Row[]>([
-    { method: "cash", amount: "", cardId: "", cardNumber: "" },
-    { method: "card", amount: "", cardId: "", cardNumber: "" },
+    { method: "cash", amount: "", cardId: "", cardNumber: "", transferRef: "" },
+    { method: "card", amount: "", cardId: "", cardNumber: "", transferRef: "" },
   ]);
   // A method that stops being allowed must not stay selected — the button would send a part
   // the server refuses.
@@ -79,6 +85,7 @@ export function SplitPayment({
       method: r.method,
       cardId: r.method === "card" ? r.cardId || undefined : undefined,
       cardNumber: r.method === "card" ? (r.cardNumber.trim() || undefined) : undefined,
+      transferRef: r.method === "transfer" ? (r.transferRef.trim() || undefined) : undefined,
     })));
   };
 
@@ -98,13 +105,13 @@ export function SplitPayment({
           return (
             <div key={i} className="rounded-[11px] border border-border bg-card p-2.5">
               <div className="flex items-center gap-1.5">
-                <div className="grid flex-1 grid-cols-4 gap-1">
-                  {(["cash", "card", "other", "credit"] as PaymentMethod[]).map((m) => {
+                <div className="grid flex-1 grid-cols-3 gap-1 min-[420px]:grid-cols-5">
+                  {ROW_METHODS.map((m) => {
                     const Icon = ICONS[m];
                     const off = m === "credit" && !allowCredit;
                     return (
                       <button key={m} disabled={off || busy}
-                        onClick={() => set(i, { method: m, cardId: "", cardNumber: "" })}
+                        onClick={() => set(i, { method: m, cardId: "", cardNumber: "", transferRef: "" })}
                         className={cn(
                           "flex items-center justify-center gap-1 rounded-[8px] border px-1.5 py-1.5 text-[12px] font-semibold transition-colors",
                           row.method === m ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-secondary",
@@ -157,13 +164,22 @@ export function SplitPayment({
                     onChange={(e) => set(i, { cardNumber: e.target.value, cardId: e.target.value ? "" : row.cardId })} />
                 </div>
               )}
+
+              {/* The payment order this leg arrived on. Optional — the number often follows
+                  the money by a day, and a till that refuses the sale until the bank confirms
+                  is a till nobody uses. */}
+              {row.method === "transfer" && (
+                <Input value={row.transferRef} className="mt-2 font-mono" disabled={busy}
+                  placeholder={t("transfer_ref_hint")}
+                  onChange={(e) => set(i, { transferRef: e.target.value })} />
+              )}
             </div>
           );
         })}
       </div>
 
       {rows.length < 4 && (
-        <Button variant="soft" disabled={busy} onClick={() => setRows((rs) => [...rs, { method: "other", amount: "", cardId: "", cardNumber: "" }])}>
+        <Button variant="soft" disabled={busy} onClick={() => setRows((rs) => [...rs, { method: "other", amount: "", cardId: "", cardNumber: "", transferRef: "" }])}>
           <Plus /> {t("split_add_part")}
         </Button>
       )}

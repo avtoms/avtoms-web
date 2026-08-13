@@ -339,6 +339,9 @@ export interface PaymentPartOut {
   method?: string;
   cardId?: string;
   cardNumber?: string;
+  // For a TRANSFER: the payment order it went out on. It is the only handle this row and the
+  // bank statement have in common.
+  transferRef?: string;
 }
 
 export interface ExpenseBucket {
@@ -405,6 +408,32 @@ export interface Product {
 
 // A per-shop counterparty — chiefly a supplier ("yetkazib beruvchi") the shop
 // buys products from. Managed from the owner UI, offered as the supplier dropdown.
+// What a counterparty is in law. It decides what the rest of their card means: a market
+// trader has a name and a phone, an MCHJ has a STIR, a bank account and a director who
+// signs — and money reaches the two by completely different routes.
+export type EntityType =
+  | "CONTRAGENT_ENTITY_TYPE_UNSPECIFIED"
+  | "CONTRAGENT_ENTITY_TYPE_INDIVIDUAL"   // jismoniy shaxs
+  | "CONTRAGENT_ENTITY_TYPE_SOLE_TRADER"  // YaTT
+  | "CONTRAGENT_ENTITY_TYPE_LLC"          // MCHJ
+  | "CONTRAGENT_ENTITY_TYPE_JSC";         // AJ
+
+// Who a party is on paper and where money reaches them — the requisites block copied off a
+// contract. The same shape describes the shop itself, because a payment order names two
+// parties of exactly the same kind. Every field is optional.
+export interface CompanyDetails {
+  entityType?: EntityType | string;
+  tin?: string;           // STIR, 9 digits
+  vatCode?: string;       // NDS code, 12 digits
+  director?: string;
+  legalAddress?: string;
+  bankName?: string;
+  bankMfo?: string;       // 5 digits
+  bankAccount?: string;   // hisob raqami, 20 digits
+  contractNo?: string;
+  contractDate?: string;  // YYYY-MM-DD
+}
+
 export interface Contragent {
   id: string;
   shopId: string;
@@ -414,6 +443,9 @@ export interface Contragent {
   notes?: string;
   active: boolean;
   brand?: string; // optional brand this supplier is tied to (matches Product.brand by name)
+  // Their legal identity and bank account. Absent on every supplier a shop has never had
+  // to pay by bank transfer.
+  company?: CompanyDetails;
 }
 
 // A named option (e.g. "Size") with its allowed values.
@@ -651,6 +683,7 @@ export interface ContragentLedgerEntry {
   cardId?: string;
   cardNumber?: string;
   parts?: PaymentPartOut[];
+  transferRef?: string;  // mirrors the first part, like cardNumber
   staffId?: string;
   note?: string;
   occurredAt?: string;
@@ -782,6 +815,10 @@ export interface ShopSettings {
   tin?: string;
   phone?: string;
   hours?: string;
+  // The shop's own side of a bank transfer: who it is in law, and the account money leaves
+  // from. Kept apart from the receipt identity above — the two are filled in by different
+  // people, and one being blank must never blank the other.
+  company?: CompanyDetails;
 }
 
 // PublicReceipt is a customer's check as served by the gateway to the public page. It

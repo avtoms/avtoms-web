@@ -476,6 +476,41 @@ export const STR: Record<string, Triple> = {
   edit_contragent: ["Kontragentni tahrirlash", "Контрагентни таҳрирлаш", "Редактировать контрагента"],
   contragent_name: ["Nomi", "Номи", "Название"],
   no_contragents: ["Hozircha kontragent yo'q", "Ҳозирча контрагент йўқ", "Пока нет контрагентов"],
+  // ── who a counterparty is on paper, and where money reaches them ──
+  cg_requisites: ["Rekvizitlar", "Реквизитлар", "Реквизиты"],
+  cg_requisites_hint: [
+    "Yuridik shaxsga pul o'tkazma bilan to'lash uchun. Naqd ishlaydigan yetkazib beruvchiga shart emas.",
+    "Юридик шахсга пул ўтказма билан тўлаш учун. Нақд ишлайдиган етказиб берувчига шарт эмас.",
+    "Нужны, чтобы платить юрлицу перечислением. Для поставщика за наличные заполнять не обязательно.",
+  ],
+  entity_type: ["Shakli", "Шакли", "Форма"],
+  entity_individual: ["Jismoniy shaxs", "Жисмоний шахс", "Физлицо"],
+  entity_sole_trader: ["YaTT", "ЯТТ", "ИП"],
+  entity_llc: ["MCHJ", "МЧЖ", "ООО"],
+  entity_jsc: ["AJ", "АЖ", "АО"],
+  entity_unset: ["Ko'rsatilmagan", "Кўрсатилмаган", "Не указана"],
+  co_tin: ["STIR", "СТИР", "ИНН"],
+  co_vat_code: ["NDS kodi", "НДС коди", "Код НДС"],
+  co_director: ["Rahbar", "Раҳбар", "Руководитель"],
+  co_legal_address: ["Yuridik manzil", "Юридик манзил", "Юридический адрес"],
+  co_bank_name: ["Bank", "Банк", "Банк"],
+  co_bank_mfo: ["MFO", "МФО", "МФО"],
+  co_bank_account: ["Hisob raqami", "Ҳисоб рақами", "Расчётный счёт"],
+  co_contract_no: ["Shartnoma \u2116", "Шартнома \u2116", "Договор \u2116"],
+  co_contract_date: ["Shartnoma sanasi", "Шартнома санаси", "Дата договора"],
+  co_no_account: [
+    "Hisob raqami kiritilmagan — o'tkazmani baribir yozib qo'yish mumkin.",
+    "Ҳисоб рақами киритилмаган — ўтказмани барибир ёзиб қўйиш мумкин.",
+    "Расчётный счёт не заполнен — перечисление всё равно можно записать.",
+  ],
+  co_pay_to: ["Qayerga o'tkaziladi", "Қаерга ўтказилади", "Куда перечисляется"],
+  // ── the shop's own side of a transfer ──
+  shop_requisites: ["Korxona rekvizitlari", "Корхона реквизитлари", "Реквизиты организации"],
+  shop_requisites_hint: [
+    "Pul o'tkazmasida ikki tomon ko'rsatiladi: kimdan va kimga. Bu — sizning tomoningiz.",
+    "Пул ўтказмасида икки томон кўрсатилади: кимдан ва кимга. Бу — сизнинг томонингиз.",
+    "В платёжном поручении две стороны: от кого и кому. Это — ваша сторона.",
+  ],
   contragent_brand_hint: ["Ixtiyoriy. Mahsulot qo'shishda shu brend tanlansa, ro'yxatda faqat shu yetkazib beruvchilar chiqadi.", "Ихтиёрий. Маҳсулот қўшишда шу бренд танланса, рўйхатда фақат шу етказиб берувчилар чиқади.", "Необязательно. При добавлении товара с этим брендом в списке останутся только эти поставщики."],
   receive: ["Kirim", "Кирим", "Приход"],
   purchase_price: ["Zakup narxi", "Закуп нархи", "Цена закупа"],
@@ -735,7 +770,15 @@ export const STR: Record<string, Triple> = {
   pay_card: ["Karta", "Карта", "Карта"],
   pay_other: ["Boshqa", "Бошқа", "Другое"],
   pay_credit: ["Nasiya", "Насия", "В долг"],
+  pay_transfer: ["O'tkazma", "Ўтказма", "Перечисление"],
   payment_method: ["To'lov usuli", "Тўлов усули", "Способ оплаты"],
+  // What proves a transfer happened: the payment order's number. Optional — the bank often
+  // confirms it a day later, and a form that refuses to save until then is a form nobody uses.
+  transfer_ref_hint: [
+    "To'lov topshiriqnomasi \u2116 (ixtiyoriy)",
+    "Тўлов топшириқномаси \u2116 (ихтиёрий)",
+    "\u2116 платёжного поручения (необязательно)",
+  ],
   // ── one bill, several payments ──
   split_payment: ["Bo'lib to'lash", "Бўлиб тўлаш", "Оплата частями"],
   split_hint: [

@@ -7,7 +7,7 @@
 // and <IncomeBreakdownModal> wraps the same panel in a dialog (opened by clicking an
 // income figure). Both take the same shop + date window.
 import React, { useEffect, useState } from "react";
-import { CreditCard, Banknote, Wallet, Wrench, ShoppingCart, HandCoins } from "lucide-react";
+import { CreditCard, Banknote, Wallet, Wrench, ShoppingCart, HandCoins, Landmark } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
 import { Spinner } from "@/components/ui-kit/misc";
 import { useLang } from "@/components/providers";
@@ -42,6 +42,10 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
   const cash = (rows ?? []).filter((r) => r.method === "cash");
   const card = (rows ?? []).filter((r) => r.method === "card");
   const other = (rows ?? []).filter((r) => r.method === "other");
+  // Money that arrived by bank transfer. Real income like cash and card, but it is in the
+  // account rather than the till, so it gets its own line instead of being folded into
+  // "other" — a shop counting the drawer must not be sent looking for it there.
+  const transfer = (rows ?? []).filter((r) => r.method === "transfer");
   // Nasiya has its own bucket in the projection. Without a block for it the money would be
   // in the total and in no line, and the percentages would stop adding up.
   const credit = (rows ?? []).filter((r) => r.method === "credit");
@@ -87,6 +91,10 @@ export function IncomeBreakdownPanel({ shopId, from, to, showTotal = true }: { s
             ))}
           </div>
         </div>
+      )}
+
+      {transfer.length > 0 && (
+        <MethodBlock icon={<Landmark className="size-4" />} label={t("pay_transfer")} amount={sum(transfer)} count={cnt(transfer)} share={grand} tCount={t("payments_n")} />
       )}
 
       {other.length > 0 && (

@@ -32,6 +32,8 @@ import { stockReason } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
+import { PaymentPicker, toParts, usePayment, useShopCards } from "@/components/payment-picker";
+import { CompanySummary } from "@/components/company-details";
 import { StatCard } from "../_shared";
 
 // Total on-hand across a product's variants, and whether any variant is low.
@@ -438,6 +440,12 @@ function AdjustPanel({
   // How much of the delivery was handed over now. Empty is the honest default: the shop
   // took the goods and owes for them until it says otherwise.
   const [paidNow, setPaidNow] = useState<FxValue>(() => emptyFx());
+  // How that money left the shop. Receiving goods from an MCHJ and wiring them the money is
+  // one action on one screen: this is where the shop is standing when the payment is made,
+  // and asking later — or not at all — is how a ledger stops matching a bank statement.
+  const { payment, setPayment } = usePayment();
+  const { session } = useAuth();
+  const cards = useShopCards(session?.staff.shopId);
   const [busy, setBusy] = useState(false);
   const currencies = useCurrencies();
 
@@ -469,6 +477,9 @@ function AdjustPanel({
         reason.trim() || mode,
         receiving ? {
           contragentId: supplierId, unitCost: cost, paidAmount: paid,
+          // Only when money actually moved: a delivery taken on credit has no payment to
+          // describe, and describing one would put it on the account.
+          parts: paid > 0 ? (toParts(payment, paid) ?? undefined) : undefined,
           fxUnitCost: fxPayload(unitCost, findCurrency(currencies, unitCost.currency)),
           // The settled amount only goes as a stamp when it was NOT capped above: `paid` is
           // clamped to the delivery's worth, and a stamp saying "$200" beside a so'm figure
@@ -521,6 +532,16 @@ function AdjustPanel({
         <Field label={t("paid_now")}>
           <FxMoneyInput value={paidNow} onChange={setPaidNow} currencies={currencies} placeholder="0" hideHint />
         </Field>
+      )}
+      {receiving && supplierId && paid > 0 && (
+        <Field label={t("payment_method")}>
+          <PaymentPicker value={payment} onChange={setPayment} total={paid} cards={cards} disabled={busy} />
+        </Field>
+      )}
+      {/* Where the money is going, once it is going by bank. Read straight off the supplier's
+          card, so nobody has to open another screen to check an account number mid-delivery. */}
+      {receiving && paid > 0 && payment.mode === "transfer" && (
+        <CompanySummary company={contragents.find((c) => c.id === supplierId)?.company} />
       )}
       <NoSupplierNote show={receiving && total > 0 && !supplierId} />
       {receiving && (

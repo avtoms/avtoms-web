@@ -4,7 +4,7 @@
 // dialog. The list drives the supplier dropdown on the product form.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Phone, MapPin, Tag, Wallet } from "lucide-react";
+import { Plus, Pencil, Phone, MapPin, Tag, Wallet, Landmark, ChevronDown } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -18,11 +18,12 @@ import {
 } from "@/components/ui-kit/dialog";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import type { Contragent, CatalogTerm, ContragentBalance } from "@/lib/types";
+import type { Contragent, CatalogTerm, ContragentBalance, CompanyDetails } from "@/lib/types";
 import { useAuth } from "@/components/providers";
 import { money, num, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ContragentAccount } from "./_account";
+import { CompanyFields, isCompany } from "@/components/company-details";
 
 export default function ContragentsPage() {
   const { t } = useLang();
@@ -90,11 +91,17 @@ export default function ContragentsPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-[14px] font-semibold text-foreground">{c.name}</span>
+              {entityBadge(c) && <Badge tone="neutral">{t(entityBadge(c)!)}</Badge>}
               {!c.active && <Badge tone="danger">{t("inactive")}</Badge>}
             </div>
             <div className="flex flex-wrap gap-x-3 text-[11.5px] text-muted-foreground">
               {c.phone && <span className="inline-flex items-center gap-1"><Phone className="size-3" />{c.phone}</span>}
               {c.address && <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{c.address}</span>}
+              {/* The account, where there is one. It is the thing an owner looks up when they
+                  are about to send money, and it was previously nowhere on this screen. */}
+              {c.company?.bankAccount && (
+                <span className="inline-flex items-center gap-1 font-mono"><Landmark className="size-3" />{c.company.bankAccount}</span>
+              )}
             </div>
           </div>
         );
@@ -245,7 +252,12 @@ function ContragentModal({
   const [notes, setNotes] = useState("");
   const [brand, setBrand] = useState("");
   const [active, setActive] = useState(true);
+  const [company, setCompany] = useState<CompanyDetails>({});
   const [busy, setBusy] = useState(false);
+  // Open the requisites section for a counterparty that has any, so editing an MCHJ's bank
+  // account does not begin by hunting for where it lives.
+  const hasCompany = !!state?.item?.company && Object.values(state.item.company).some((v) =>
+    typeof v === "string" && v.trim() !== "" && v !== "CONTRAGENT_ENTITY_TYPE_UNSPECIFIED");
 
   useEffect(() => {
     if (!open) return;
@@ -256,6 +268,7 @@ function ContragentModal({
     setNotes(c?.notes ?? "");
     setBrand(c?.brand ?? "");
     setActive(c?.active ?? true);
+    setCompany(c?.company ?? {});
   }, [open, state]);
 
   // Brand options: the catalog brands, plus a legacy free-typed value kept selectable.
@@ -270,9 +283,9 @@ function ContragentModal({
     setBusy(true);
     try {
       if (state?.mode === "edit" && state.item) {
-        await api.updateContragent(state.item.id, { name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim(), active });
+        await api.updateContragent(state.item.id, { name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim(), active, company });
       } else {
-        await api.createContragent({ name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim() });
+        await api.createContragent({ name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), brand: brand.trim(), company });
       }
       toast(t("save"), { icon: "check" });
       onClose();
@@ -296,6 +309,24 @@ function ContragentModal({
             <SearchSelect value={brand} options={brandOptions} placeholder={t("brand")} onChange={setBrand} />
           </Field>
           <Field label={t("notes")}><Input value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+
+          {/* Who they are in law, and the account a transfer to them goes to. Behind a
+              disclosure rather than inline: most suppliers are a name and a phone number, and
+              a shop adding one of those should not have to scroll past nine bank fields to
+              reach Save. It opens by itself for a counterparty that already has requisites. */}
+          <details className="group rounded-[11px] border border-border" open={hasCompany}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5">
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-semibold text-foreground">{t("cg_requisites")}</span>
+                <span className="truncate text-[11.5px] text-muted-foreground">{t("cg_requisites_hint")}</span>
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border p-3">
+              <CompanyFields value={company} onChange={setCompany} disabled={busy} />
+            </div>
+          </details>
+
           {state?.mode === "edit" && (
             <div className="flex items-center justify-between gap-3 rounded-[9px] border border-border bg-card px-3 py-2.5">
               <span className="text-[14px] font-semibold text-foreground">{t("active")}</span>
@@ -310,6 +341,18 @@ function ContragentModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+// The legal form, as a chip beside the name. Only for registered entities: "MCHJ" says how
+// this counterparty is paid and who signs for it, while "jismoniy shaxs" on a market trader
+// is a label on the ordinary case and only adds noise to the row.
+function entityBadge(c: Contragent): string | null {
+  if (!isCompany(c.company)) return null;
+  switch (c.company?.entityType) {
+    case "CONTRAGENT_ENTITY_TYPE_SOLE_TRADER": return "entity_sole_trader";
+    case "CONTRAGENT_ENTITY_TYPE_JSC": return "entity_jsc";
+    default: return "entity_llc";
+  }
 }
 
 // Amount renders a money cell where nothing is a dash rather than a zero. A column of "0"
