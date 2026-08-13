@@ -467,8 +467,14 @@ function AdjustPanel({
   const paid = Math.min(fxSoum(paidNow, findCurrency(currencies, paidNow.currency)), total);
   const owed = Math.max(0, total - paid);
 
+  // A payment that has been described but not finished — "card" with no card named — must not
+  // save as though nothing was said about it. The button goes dark instead, the same rule the
+  // supplier's account uses.
+  const parts = paid > 0 ? toParts(payment, paid) : null;
+  const payIncomplete = paid > 0 && !parts;
+
   const save = async () => {
-    if (qty <= 0 || busy || !variant.id) return;
+    if (qty <= 0 || busy || !variant.id || payIncomplete) return;
     setBusy(true);
     try {
       await api.adjustVariantStock(
@@ -479,7 +485,7 @@ function AdjustPanel({
           contragentId: supplierId, unitCost: cost, paidAmount: paid,
           // Only when money actually moved: a delivery taken on credit has no payment to
           // describe, and describing one would put it on the account.
-          parts: paid > 0 ? (toParts(payment, paid) ?? undefined) : undefined,
+          parts: parts ?? undefined,
           fxUnitCost: fxPayload(unitCost, findCurrency(currencies, unitCost.currency)),
           // The settled amount only goes as a stamp when it was NOT capped above: `paid` is
           // clamped to the delivery's worth, and a stamp saying "$200" beside a so'm figure
@@ -548,7 +554,7 @@ function AdjustPanel({
         <DeliverySummary supplierId={supplierId} total={total} paid={paid} balance={balances[supplierId] ?? 0} />
       )}
       <div className="flex justify-end">
-        <Button disabled={busy} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+        <Button disabled={busy || payIncomplete} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
       </div>
     </div>
   );

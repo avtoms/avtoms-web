@@ -342,6 +342,10 @@ export function ProductForm({
   }, 0);
   const paidNowTyped = fxSoum(paidNow, findCurrency(currencies, paidNow.currency));
   const paidNowAmount = Math.min(paidNowTyped, arriving);
+  // A payment described but not finished — "card" with no card named — must not save as
+  // though nothing had been said about it. The button goes dark instead.
+  const payParts = paidNowAmount > 0 ? toParts(payment, paidNowAmount) : null;
+  const payIncomplete = paidNowAmount > 0 && !skipDebt && !!supplierId && !payParts;
 
   const addPropertyFromCatalog = (defId: string) => {
     if (defId === ADHOC) {
@@ -389,7 +393,7 @@ export function ProductForm({
     setVars((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
 
   const save = async () => {
-    if (!name.trim() || busy) return;
+    if (!name.trim() || busy || payIncomplete) return;
     const activeVars = vars.filter((v) => !hasProps || Object.keys(v.attrs).length > 0);
     if (activeVars.length === 0) { toast(t("no_variants"), { icon: "alert", tone: "danger" }); return; }
     // Resolve the supplier name from the linked contragent; keep the legacy free-typed
@@ -410,7 +414,7 @@ export function ProductForm({
       paidAmount: paidNowAmount,
       // Only when money actually moved. A delivery taken wholly on credit has nothing to
       // describe, and sending "cash: 0" would put a payment on the account that never happened.
-      parts: paidNowAmount > 0 ? (toParts(payment, paidNowAmount) ?? undefined) : undefined,
+      parts: payParts ?? undefined,
       // Only stamped when the amount was NOT capped at what the delivery was worth: a stamp
       // saying "$200" beside a so'm figure that is no longer $200 would contradict it.
       fxPaidAmount: paidNowAmount === paidNowTyped
@@ -619,7 +623,7 @@ export function ProductForm({
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+          <Button disabled={busy || payIncomplete} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
