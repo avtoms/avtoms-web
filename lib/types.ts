@@ -407,6 +407,10 @@ export interface Product {
   supplierId?: string; // linked contragent id ("" = none)
   brand?: string;
   active: boolean;
+  // The catalogue entry this was stocked from, empty for a hand-typed product. Resolve it
+  // against the template list for the picture: it lives on the template rather than being
+  // copied here, so replacing a bad photo fixes it everywhere at once.
+  templateId?: string;
   properties?: ProductProperty[];
   variants?: ProductVariant[];
 }
@@ -537,6 +541,38 @@ export interface PropertyDefinitionValue {
   valueUzLatn?: string;
   valueUzCyrl?: string;
   valueRu?: string;
+}
+
+// One combination the super admin says is worth stocking. No quantity and no cost — what a
+// shop paid is between the shop and its supplier; suggestedPrice only prefills the shop's own
+// price field and is never saved as though the platform had set it.
+export interface ProductTemplateVariant {
+  id?: string;
+  sku?: string;
+  suggestedPrice?: string; // tiyin
+  attributes?: VariantAttribute[];
+}
+
+// A ready-made product the super admin authored for every shop: a name, a picture, the
+// properties this kind of goods varies by, and the combinations worth carrying. Stocking one
+// is ticking the variants the shop sells and typing a price and a count.
+export interface ProductTemplate {
+  id: string;
+  category?: string;   // a CatalogTerm of type "category"
+  brand?: string;      // a CatalogTerm of type "brand"; empty for unbranded goods
+  // Canonical name and the stable identifier; name* are display translations that fall back
+  // to it when blank, the same rule PropertyDefinition follows.
+  name: string;
+  nameUzLatn?: string;
+  nameUzCyrl?: string;
+  nameRu?: string;
+  description?: string;
+  unit?: string;
+  imageUrl?: string;
+  position?: number;
+  active: boolean;
+  properties?: ProductProperty[];
+  variants?: ProductTemplateVariant[];
 }
 
 // One entry in an admin-managed term list (brand or category).

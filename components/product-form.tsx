@@ -145,8 +145,12 @@ const newKey = () => `k${keySeq++}`;
 // Auto-generate a numeric SKU. The counter suffix keeps rapidly-generated variants
 // (e.g. a whole matrix at once) unique within the same millisecond. Users can
 // override the value by typing their own SKU.
+//
+// Exported because the catalogue picker mints variants too, and a product stocked from the
+// catalogue must carry the same kind of code as one typed by hand — the QR on the shelf label
+// is printed from it either way.
 let skuSeq = 0;
-const genSku = () => `${String(Date.now()).slice(-7)}${String(skuSeq++ % 1000).padStart(3, "0")}`;
+export const genSku = () => `${String(Date.now()).slice(-7)}${String(skuSeq++ % 1000).padStart(3, "0")}`;
 
 // The effective values of a property, whichever way they were entered.
 const propValues = (p: PropRow) =>

@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus } from "lucide-react";
+import { LayoutGrid, Plus } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -19,6 +19,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
 import { ProductForm } from "@/components/product-form";
+import { TemplatePicker } from "@/components/template-picker";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, unitLabel, qtyUnit } from "@/components/catalog-fields";
 import { FxMoneyInput } from "@/components/fx-money";
@@ -30,7 +31,7 @@ import { countVariants, money, num } from "@/lib/format";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { stockReason } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff } from "@/lib/types";
+import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff, ProductTemplate } from "@/lib/types";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
 import { StatCard } from "../_shared";
@@ -82,8 +83,12 @@ export default function InventoryPage() {
   // to add to an account that already has one.
   const [balances, setBalances] = useState<Record<string, number>>({});
   const [staff, setStaff] = useState<Staff[]>([]);
+  // The super admin's ready-made products: the catalogue this screen stocks from, and where
+  // the picture on a row comes from for anything already stocked that way.
+  const [templates, setTemplates] = useState<ProductTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
+  const [fromCatalog, setFromCatalog] = useState(false);
   const [managing, setManaging] = useState<Product | null>(null);
 
   const load = useCallback(async () => {
@@ -111,6 +116,7 @@ export default function InventoryPage() {
     api.listCatalogTerms("brand").then(setBrands).catch(() => {});
     api.listCatalogTerms("category").then(setCategories).catch(() => {});
     api.listStaff(shopId).then(setStaff).catch(() => {});
+    api.listProductTemplates().then(setTemplates).catch(() => {});
     loadContragents();
   }, [loadContragents, shopId]);
 
@@ -120,6 +126,14 @@ export default function InventoryPage() {
     for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
     return m;
   }, [brands]);
+
+  // Template id -> the admin's picture of the goods. Resolved here rather than stored on the
+  // product, so replacing a bad photo in the console fixes every shop's list at once.
+  const templateImages = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const tpl of templates) if (tpl.imageUrl) m[tpl.id] = tpl.imageUrl;
+    return m;
+  }, [templates]);
 
   // What the whole warehouse is worth. Summed here from the same rows the table shows, so the
   // figure above the list and the list itself can never disagree.
@@ -152,12 +166,16 @@ export default function InventoryPage() {
       header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
+        // The photo of the goods beats the brand mark when there is one: a shelf is scanned
+        // by what the bottle looks like, and only then by whose bottle it is.
+        const photo = p.templateId ? templateImages[p.templateId] : undefined;
         const logo = p.brand ? brandLogos[p.brand] : undefined;
+        const thumb = photo || logo;
         return (
           <div className="flex min-w-0 items-center gap-1.5">
-            {logo && (
+            {thumb && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt="" className="size-6 shrink-0 rounded-[6px] object-contain" />
+              <img src={thumb} alt="" className="size-6 shrink-0 rounded-[6px] object-contain" />
             )}
             {p.brand && <Badge tone="info">{p.brand}</Badge>}
             <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
@@ -232,7 +250,7 @@ export default function InventoryPage() {
         </div>
       ),
     },
-  ], [t, brandLogos]);
+  ], [t, brandLogos, templateImages]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -269,7 +287,19 @@ export default function InventoryPage() {
           onRowClick={(p) => setManaging(p)}
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
-          toolbar={<Button onClick={() => setEditing({ mode: "new", product: null })}><Plus /> {t("add_part")}</Button>}
+          toolbar={
+            <div className="flex items-center gap-2">
+              {/* The catalogue leads and the hand-built form follows it as the quieter
+                  button: stocking a known product should be the path of least resistance,
+                  and typing one out from nothing the deliberate choice. */}
+              <Button disabled={templates.length === 0} onClick={() => setFromCatalog(true)}>
+                <LayoutGrid /> {t("tpl_add_from_catalog")}
+              </Button>
+              <Button variant="soft" onClick={() => setEditing({ mode: "new", product: null })}>
+                <Plus /> {t("add_part")}
+              </Button>
+            </div>
+          }
           columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock"), value: t("wh_value_col") }}
           pageSize={12}
         />
@@ -288,6 +318,19 @@ export default function InventoryPage() {
         // A product save can bring stock in, so the supplier balances move with it.
         onSaved={() => { load(); loadContragents(); }}
       />
+      <TemplatePicker
+        open={fromCatalog}
+        shopId={shopId}
+        templates={templates}
+        products={list}
+        definitions={definitions}
+        brands={brands}
+        contragents={contragents}
+        onContragentsChange={loadContragents}
+        onClose={() => setFromCatalog(false)}
+        // Stocking from the catalogue brings goods in, so the supplier balances move with it.
+        onSaved={() => { load(); loadContragents(); }}
+      />
       <ManageModal
         product={managing}
         definitions={definitions}
@@ -295,6 +338,7 @@ export default function InventoryPage() {
         balances={balances}
         staff={staff}
         brandLogos={brandLogos}
+        templateImages={templateImages}
         onClose={() => setManaging(null)}
         onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
         // A receipt moves stock and the supplier's balance together, so refresh both —
@@ -308,7 +352,7 @@ export default function InventoryPage() {
 // ManageModal lists a product's variants with their stock and a per-variant
 // receive/consume stock adjustment.
 function ManageModal({
-  product, definitions, contragents, balances, staff, brandLogos, onClose, onEdit, onDone,
+  product, definitions, contragents, balances, staff, brandLogos, templateImages, onClose, onEdit, onDone,
 }: {
   product: Product | null;
   definitions: PropertyDefinition[];
@@ -316,6 +360,7 @@ function ManageModal({
   balances: Record<string, number>;
   staff: Staff[];
   brandLogos: Record<string, string>;
+  templateImages: Record<string, string>;
   onClose: () => void;
   onEdit: (p: Product) => void;
   onDone: () => void;
@@ -330,10 +375,12 @@ function ManageModal({
       <DialogContent className="max-w-[520px]">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
-            {product?.brand && brandLogos[product.brand] && (
+            {(() => {
+              const thumb = (product?.templateId && templateImages[product.templateId])
+                || (product?.brand ? brandLogos[product.brand] : undefined);
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={brandLogos[product.brand]} alt="" aria-hidden className="size-6 shrink-0 rounded-[5px] object-contain" />
-            )}
+              return thumb ? <img src={thumb} alt="" aria-hidden className="size-6 shrink-0 rounded-[5px] object-contain" /> : null;
+            })()}
             <span className="truncate">{product ? `${product.brand ? product.brand + " · " : ""}${product.name}` : ""}</span>
           </DialogTitle>
         </DialogHeader>

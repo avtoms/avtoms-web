@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, BankAccount, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, BankAccount, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount, ProductTemplate,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -239,6 +239,10 @@ export type ProductInput = {
   supplier?: string;
   supplierId?: string;
   brand?: string;
+  // The catalogue entry this was stocked from, on a create that came from one. The server
+  // also stamps it when the save folds into a product of the same name and brand that had
+  // none, so a product typed by hand and later restocked from the catalogue picks it up.
+  templateId?: string;
   properties: ProductProperty[];
   // Stock arriving with this save is a delivery from supplierId: paidAmount is what was handed
   // over now, the rest becomes debt on their account. skipDebt records the stock and leaves the
@@ -296,6 +300,7 @@ const propertyDefinitionBody = (d: PropertyDefinitionInput) => ({
 const productBody = (p: ProductInput) => ({
   name: p.name, description: p.description ?? "", category: p.category ?? "",
   unit: p.unit ?? "", supplier: p.supplier ?? "", supplierId: p.supplierId ?? "", brand: p.brand ?? "",
+  ...(p.templateId ? { templateId: p.templateId } : {}),
   paidAmount: String(p.paidAmount ?? 0),
   skipDebt: p.skipDebt ?? false,
   ...(p.parts?.length ? { parts: p.parts.map(partToWire) } : {}),
@@ -720,6 +725,13 @@ export const api = {
       .then((r) => r.changes ?? []),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
+
+  // ── the super admin's ready-made products ──
+  // The grid a shop stocks from, and where a stocked product's picture comes from. Active
+  // entries only; a deactivated one is something shops may no longer add.
+  listProductTemplates: (category?: string) =>
+    call<{ templates?: ProductTemplate[] }>("GET", "/v1/product-templates" + qs({ category }))
+      .then((r) => r.templates ?? []),
 
   // ── brand/category term lists ──
   listCatalogTerms: (type: "brand" | "category") =>

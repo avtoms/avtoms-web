@@ -451,8 +451,41 @@ export const STR: Record<string, Triple> = {
   preset_insurance: ["Sug'urta", "Суғурта", "Страховка"],
   preset_air_filter: ["Havo filtri", "Ҳаво фильтри", "Воздушный фильтр"],
   no_appointments: ["Yozuvlar yo'q", "Ёзувлар йўқ", "Записей нет"],
-  add_part: ["Mahsulot qo'shish", "Маҳсулот қўшиш", "Добавить товар"],
+  add_part: ["Qo'lda qo'shish", "Қўлда қўшиш", "Добавить вручную"],
   edit_product: ["Mahsulotni tahrirlash", "Маҳсулотни таҳрирлаш", "Редактировать товар"],
+
+  // Stocking from the super admin's ready-made catalogue: the short way in, next to the
+  // hand-built form that stays for everything nobody has catalogued.
+  tpl_add_from_catalog: ["Katalogdan qo'shish", "Каталогдан қўшиш", "Добавить из каталога"],
+  tpl_search_placeholder: [
+    "Mahsulot yoki brend nomi…",
+    "Маҳсулот ёки бренд номи…",
+    "Название товара или бренда…",
+  ],
+  tpl_empty_catalog: [
+    "Katalog hozircha bo'sh. Mahsulotni qo'lda qo'shishingiz mumkin.",
+    "Каталог ҳозирча бўш. Маҳсулотни қўлда қўшишингиз мумкин.",
+    "Каталог пока пуст. Товар можно добавить вручную.",
+  ],
+  tpl_uncategorised: ["Turkumsiz", "Туркумсиз", "Без категории"],
+  tpl_in_warehouse: ["Omborda bor", "Омборда бор", "Есть на складе"],
+  tpl_already_note: [
+    "Bu mahsulot omborda bor. Tanlangan variantlar mavjud kartochkaga qo'shiladi — nusxa yaratilmaydi.",
+    "Бу маҳсулот омборда бор. Танланган вариантлар мавжуд карточкага қўшилади — нусха яратилмайди.",
+    "Этот товар уже на складе. Выбранные варианты добавятся к существующей карточке — дубль не создастся.",
+  ],
+  tpl_pick_variants: [
+    "Qaysi variantlarni sotasiz?",
+    "Қайси вариантларни сотасиз?",
+    "Какие варианты вы продаёте?",
+  ],
+  tpl_pick_at_least_one: [
+    "Kamida bitta variantni tanlang",
+    "Камида битта вариантни танланг",
+    "Выберите хотя бы один вариант",
+  ],
+  tpl_on_shelf: ["Omborda:", "Омборда:", "На складе:"],
+  tpl_add_to_warehouse: ["Omborga qo'shish", "Омборга қўшиш", "Добавить на склад"],
   product_name: ["Mahsulot nomi", "Маҳсулот номи", "Название товара"],
   brand: ["Brend", "Бренд", "Бренд"],
   properties: ["Xususiyatlar", "Хусусиятлар", "Свойства"],
