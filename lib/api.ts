@@ -304,10 +304,22 @@ const productBody = (p: ProductInput) => ({
   paidAmount: String(p.paidAmount ?? 0),
   skipDebt: p.skipDebt ?? false,
   ...(p.parts?.length ? { parts: p.parts.map(partToWire) } : {}),
+  // What was actually typed, when it was not typed in so'm. The plain amounts above are this
+  // side's preview of the conversion; the server converts from these stamps and they override
+  // it. Only present on a foreign amount — fxPayload returns undefined for so'm — so a shop
+  // that never touches another currency posts exactly what it always posted.
+  //
+  // These used to be dropped here, quietly, while the form built them and the type declared
+  // them: the receive panel next door sends its own, so a delivery agreed at $250 recorded the
+  // sentence "$250 at 12 700" while the same delivery entered on the product form recorded
+  // only the so'm it multiplied out to.
+  ...(p.fxPaidAmount ? { fxPaidAmount: p.fxPaidAmount } : {}),
   properties: p.properties.map((pr) => ({ name: pr.name, values: pr.values })),
   variants: p.variants.map((v) => ({
     id: v.id ?? "", sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
     unitCost: String(v.unitCost), unitPrice: String(v.unitPrice), active: v.active,
+    ...(v.fxUnitCost ? { fxUnitCost: v.fxUnitCost } : {}),
+    ...(v.fxUnitPrice ? { fxUnitPrice: v.fxUnitPrice } : {}),
     attributes: v.attributes,
   })),
 });

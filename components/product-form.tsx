@@ -25,6 +25,7 @@ import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
+import { num } from "@/lib/format";
 import { pickLangText } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm, Contragent, Currency } from "@/lib/types";
@@ -216,6 +217,18 @@ function propsFromProduct(p: Product, defs: PropertyDefinition[]): PropRow[] {
   });
 }
 
+// Build the editable variant rows from a saved product.
+//
+// The cost box is filled from what the variant currently costs, and that is not cosmetic: the
+// save posts every field back, so a blank cost box posted a zero and wiped the cost the shop
+// had built up. Renaming a product was enough to do it, which took the warehouse's cost total
+// and every margin figure with it. A box that shows the stored value round-trips it untouched
+// and only changes what somebody actually retyped.
+//
+// It carries no currency stamp, unlike the price beside it: unit_cost is a moving weighted
+// average, rolled forward on every priced receipt, so it is a so'm figure and nothing else —
+// see ProductVariant in the proto. Typing over it in another currency still works, and is how
+// a delivery at a new price is priced.
 function varsFromProduct(p: Product, currencies: Currency[]): VarRow[] {
   const vars = (p.variants ?? []).map((v) => {
     const attrs: Record<string, string> = {};
@@ -226,10 +239,10 @@ function varsFromProduct(p: Product, currencies: Currency[]): VarRow[] {
       sku: v.sku ?? "",
       qty: v.quantityOnHand ? String(v.quantityOnHand) : "",
       reorder: v.reorderLevel ? String(v.reorderLevel) : "",
-      cost: emptyFx(),
+      cost: { currency: BASE_CURRENCY, typed: num(v.unitCost) ? String(v.unitCost) : "", rate: "" },
       price: v.fxUnitPrice?.currency
         ? { currency: v.fxUnitPrice.currency, typed: fromMinor(Number(v.fxUnitPrice.amountMinor) || 0, minorUnitsOf(currencies, v.fxUnitPrice.currency)), rate: rateToInput(v.fxUnitPrice.rateMicros) }
-        : { currency: BASE_CURRENCY, typed: String(v.unitPrice ?? ""), rate: "" },
+        : { currency: BASE_CURRENCY, typed: num(v.unitPrice) ? String(v.unitPrice) : "", rate: "" },
       active: v.active,
       attrs,
     };
