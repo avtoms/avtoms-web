@@ -63,8 +63,19 @@ it is live — slide 14 lists wiring it up as the first roadmap item. Keep it th
 
 ```bash
 npm install pptxgenjs
-node build.js          # writes the three .pptx files
+node build.js                                    # writes the three .pptx files
+python3 postprocess.py AvtoNazorat-Pitch-*.pptx  # required — see below
 ```
+
+`postprocess.py` is not optional. pptxgenjs writes `line: {type:"none"}` as an empty
+`<a:ln></a:ln>` and `fill: {type:"none"}` as no fill element at all; in OOXML both mean
+*inherit from the theme*, so PowerPoint and macOS Quick Look draw a theme outline and a
+solid theme fill where the deck intends neither. LibreOffice guesses differently, which is
+why the fault only appears in some viewers. The script rewrites those to explicit
+`<a:noFill/>` and fails loudly if any shape is still left inheriting.
+
+PDF exports of all three languages sit alongside the `.pptx` files. Use them when you just
+need the deck to look right — a phone, a preview pane, an emailed submission.
 
 `content.js` holds all copy for the three languages; `build.js` holds the layout and the
 "garage signal" design system (navy dominant, product blue, signal amber). Edit copy in

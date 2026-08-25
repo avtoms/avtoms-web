@@ -96,18 +96,23 @@ function darkBg(s) {
 }
 
 // Decorative concentric "signal" rings — used only on the two dark hero slides.
+//
+// These are filled with the slide's own background colour rather than left unfilled:
+// pptxgenjs emits NO fill element for `fill: {type:"none"}`, and in OOXML an absent fill
+// means "inherit from the theme", which renders as a solid disc in PowerPoint and in
+// macOS previewers. Drawing largest-to-smallest keeps each ring visible over the last.
 function rings(s, cx, cy, r) {
   s.addShape("ellipse", {
     x: cx - r, y: cy - r, w: r * 2, h: r * 2,
-    fill: { type: "none" }, line: { color: NAVY3, width: 1.5 },
+    fill: { color: NAVY }, line: { color: NAVY3, width: 1.5 },
   });
   s.addShape("ellipse", {
     x: cx - r * 0.66, y: cy - r * 0.66, w: r * 1.32, h: r * 1.32,
-    fill: { type: "none" }, line: { color: BLUE, width: 1.5 },
+    fill: { color: NAVY }, line: { color: BLUE, width: 1.5 },
   });
   s.addShape("ellipse", {
     x: cx - r * 0.3, y: cy - r * 0.3, w: r * 0.6, h: r * 0.6,
-    fill: { color: AMBER }, line: { type: "none" }, transparency: 12,
+    fill: { color: AMBER }, line: { type: "none" },
   });
 }
 
@@ -601,7 +606,7 @@ function slideRoadmap(p, d) {
   const s = p.addSlide();
   header(s, d.s14.kicker, d.s14.title);
 
-  const cw = (CW - 2 * 0.35) / 3, ch = 4.4, y = 1.72;
+  const cw = (CW - 2 * 0.35) / 3, ch = 3.5, y = 1.78;
   d.s14.cols.forEach((c, i) => {
     const x = M + i * (cw + 0.35);
     card(s, x, y, cw, ch, {
