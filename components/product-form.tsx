@@ -590,7 +590,12 @@ export function ProductForm({
                   </div>
                   {/* SKU is auto-generated in the background and not shown to the user. */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Field label={t("cost")}>
+                    {/* On an edit this box holds the running average cost the receipts built up,
+                        not a purchase price — and typing over it replaces that average outright,
+                        unlike the receive panel next door, which averages a delivery into it. Two
+                        boxes that look identical and behave differently need saying out loud. On a
+                        new product there is no average yet and the hint would be noise. */}
+                    <Field label={t("cost")} hint={mode === "edit" ? t("cost_avg_hint") : undefined}>
                       <FxMoneyInput value={v.cost} currencies={currencies} onChange={(val) => setVar(v.key, { cost: val })} />
                     </Field>
                     <Field label={t("sell_price")}>

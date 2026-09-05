@@ -17,7 +17,7 @@
 // restocks what is there rather than growing a second copy of it, and the supplier's account
 // is settled exactly as it is on every other screen that brings stock in.
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Package, Search } from "lucide-react";
+import { ArrowLeft, Check, Package, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
@@ -55,12 +55,24 @@ const sigOf = (attrs: { property: string; value: string }[]) =>
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 // A row in the variant step: ticked or not, plus what the shop is putting on the shelf.
-type Row = { qty: string; cost: string; price: string };
-const emptyRow = (): Row => ({ qty: "", cost: "", price: "" });
+//
+// reorderTouched separates "the threshold the form guessed" from "the threshold somebody chose",
+// so the guess can keep following the count without ever overwriting a real decision.
+type Row = { qty: string; cost: string; price: string; reorder: string; reorderTouched: boolean };
+const emptyRow = (): Row => ({ qty: "", cost: "", price: "", reorder: "", reorderTouched: false });
 const dec = (v: string) => v.replace(/[^\d.]/g, "");
 
+// A shop that has not thought about a reorder threshold still wants warning before the shelf is
+// empty. Leaving it at zero does not do that: low stock is `quantity <= threshold`, so zero only
+// fires once the product has actually run out, which is too late to order more. A fifth of what
+// is going on the shelf is the opening guess — shown in the field, not applied behind their back.
+const suggestReorder = (qty: string) => {
+  const n = parseFloat(qty) || 0;
+  return n > 0 ? String(Math.max(1, Math.round(n * 0.2))) : "";
+};
+
 export function TemplatePicker({
-  open, shopId, templates, products, definitions, brands, contragents, onContragentsChange, onClose, onSaved,
+  open, shopId, templates, products, definitions, brands, contragents, onContragentsChange, onClose, onSaved, onManual,
 }: {
   open: boolean;
   shopId: string;
@@ -72,6 +84,7 @@ export function TemplatePicker({
   onContragentsChange: () => void;
   onClose: () => void;
   onSaved: () => void;
+  onManual: () => void;   // close this and open the hand-built form instead
 }) {
   const { t, lang } = useLang();
   const { toast } = useToast();
@@ -140,7 +153,10 @@ export function TemplatePicker({
         </DialogHeader>
         <DialogBody className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto py-1">
           {templates.length === 0 && (
-            <p className="py-6 text-center text-[13px] text-muted-foreground">{t("tpl_empty_catalog")}</p>
+            <div className="flex flex-col items-center gap-3 py-6">
+              <p className="text-center text-[13px] text-muted-foreground">{t("tpl_empty_catalog")}</p>
+              <Button onClick={onManual}><Plus /> {t("add_part")}</Button>
+            </div>
           )}
 
           {/* One search box serves both browsing steps: typing in it is itself the way past
@@ -222,8 +238,11 @@ export function TemplatePicker({
             />
           )}
         </DialogBody>
-        {step < 3 && (
-          <DialogFooter>
+        {step < 3 && templates.length > 0 && (
+          <DialogFooter className="justify-between">
+            {/* Not a second button competing at the top of the warehouse screen, but the answer
+                to "the catalogue hasn't got my product" offered at the moment that is discovered. */}
+            <Button variant="ghost" onClick={onManual}>{t("add_part")}</Button>
             <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
           </DialogFooter>
         )}
@@ -279,9 +298,21 @@ function StockStep({
   const setRow = (id: string, patch: Partial<Row>) =>
     setRows((prev) => ({ ...prev, [id]: { ...(prev[id] ?? emptyRow()), ...patch } }));
 
-  // Ticking a row prefills the price: what this shop already charges if it stocks the
-  // combination, the admin's suggestion otherwise. Untick clears the row outright — a hidden
-  // number that comes back when you change your mind twice is a trap.
+  // How a freshly ticked row starts. One function rather than a copy in `toggle` and another in
+  // `toggleAll`, because two copies of a prefill rule drift apart and then the whole-grid button
+  // quietly does something the single tick does not.
+  //
+  // It fills the price only from what this shop already charges for the combination. The
+  // platform's suggested price deliberately does NOT land in the field: a number sitting in an
+  // input is a number that ships by inaction, and that is the platform setting a shop's retail
+  // price by accident. It is offered as one tap instead — see the sell-price hint below.
+  const startRow = (v: ProductTemplateVariant): Row => {
+    const mine = already.get(sigOf(v.attributes ?? []));
+    return { ...emptyRow(), price: !foreign && mine?.price ? String(mine.price) : "" };
+  };
+
+  // Untick clears the row outright — a hidden number that comes back when you change your mind
+  // twice is a trap.
   const toggle = (v: ProductTemplateVariant, key: string) => {
     setRows((prev) => {
       if (prev[key]) {
@@ -289,10 +320,7 @@ function StockStep({
         delete next[key];
         return next;
       }
-      const mine = already.get(sigOf(v.attributes ?? []));
-      const suggested = parseInt(v.suggestedPrice ?? "0", 10) || 0;
-      const prefill = foreign ? "" : String(mine?.price || suggested || "");
-      return { ...prev, [key]: { ...emptyRow(), price: prefill === "0" ? "" : prefill } };
+      return { ...prev, [key]: startRow(v) };
     });
   };
 
@@ -309,10 +337,7 @@ function StockStep({
     variants.forEach((v, i) => {
       const key = keyOf(v, i);
       if (next[key]) return;
-      const mine = already.get(sigOf(v.attributes ?? []));
-      const suggested = parseInt(v.suggestedPrice ?? "0", 10) || 0;
-      const prefill = foreign ? "" : String(mine?.price || suggested || "");
-      next[key] = { ...emptyRow(), price: prefill === "0" ? "" : prefill };
+      next[key] = startRow(v);
     });
     setRows(next);
   };
@@ -399,7 +424,7 @@ function StockStep({
       variants: picks.map(({ v, row }) => ({
           sku: v.sku?.trim() || genSku(),
           quantityOnHand: parseFloat(row.qty) || 0,
-          reorderLevel: 0,
+          reorderLevel: parseFloat(row.reorder) || 0,
           unitCost: soum(row.cost),
           unitPrice: soum(row.price),
           fxUnitCost: fxPayload(fx(row.cost), cur),
@@ -492,17 +517,38 @@ function StockStep({
                 {!mine && suggested > 0 && <span className="block">≈ {money(suggested)}</span>}
               </span>
             </button>
+            {/* Two-by-two on a phone, four across from `sm`. Four fields in a fixed three-column
+                grid inside a dialog is how a form ends up unusable on the device most of these
+                are actually filled in on. */}
             {row && (
-              <div className="grid grid-cols-3 gap-2 pl-[30px]">
+              <div className="grid grid-cols-2 gap-2 pl-[30px] sm:grid-cols-4">
                 <Field label={t("in_stock") + unitSuffix}>
                   <Input value={row.qty} inputMode="decimal" placeholder="0" className="font-mono" autoFocus
-                    onChange={(e) => setRow(key, { qty: dec(e.target.value) })} />
+                    onChange={(e) => {
+                      const qty = dec(e.target.value);
+                      // The guessed threshold tracks the count until somebody takes it over.
+                      setRow(key, row.reorderTouched ? { qty } : { qty, reorder: suggestReorder(qty) });
+                    }} />
+                </Field>
+                <Field label={t("reorder_level")}>
+                  <Input value={row.reorder} inputMode="decimal" placeholder="0" className="font-mono"
+                    onChange={(e) => setRow(key, { reorder: dec(e.target.value), reorderTouched: true })} />
                 </Field>
                 <Field label={t("cost")}>
                   <Amount value={row.cost} foreign={foreign} symbol={cur?.symbol || currency}
                     onChange={(val) => setRow(key, { cost: val })} />
                 </Field>
-                <Field label={t("sell_price")}>
+                <Field
+                  label={t("sell_price")}
+                  // The admin's recommendation, offered rather than applied. One tap accepts it;
+                  // doing nothing leaves the shop's own price blank, which is the honest default.
+                  hint={!row.price && suggested > 0 && !foreign ? (
+                    <button type="button" onClick={() => setRow(key, { price: String(suggested) })}
+                      className="bg-transparent text-left text-[11.5px] font-semibold text-primary hover:underline">
+                      {t("tpl_use_suggested")} {money(suggested)}
+                    </button>
+                  ) : undefined}
+                >
                   <Amount value={row.price} foreign={foreign} symbol={cur?.symbol || currency}
                     onChange={(val) => setRow(key, { price: val })} />
                 </Field>

@@ -452,6 +452,15 @@ export const STR: Record<string, Triple> = {
   preset_air_filter: ["Havo filtri", "Ҳаво фильтри", "Воздушный фильтр"],
   no_appointments: ["Yozuvlar yo'q", "Ёзувлар йўқ", "Записей нет"],
   add_part: ["Qo'lda qo'shish", "Қўлда қўшиш", "Добавить вручную"],
+  // The warehouse toolbar's one way in. Deliberately not "from catalogue": the reader should not
+  // have to know whether their product is catalogued before they can press anything.
+  add_part_cta: ["Mahsulot qo'shish", "Маҳсулот қўшиш", "Добавить товар"],
+  // The cost box on an edit is a running average, not a purchase price. See ProductForm.
+  cost_avg_hint: [
+    "O'rtacha tannarx. Ustiga yozsangiz, almashadi.",
+    "Ўртача таннарх. Устига ёзсангиз, алмашади.",
+    "Средняя себестоимость. Если впишете своё — заменит её.",
+  ],
   edit_product: ["Mahsulotni tahrirlash", "Маҳсулотни таҳрирлаш", "Редактировать товар"],
 
   // Stocking from the super admin's ready-made catalogue: the short way in, next to the
@@ -485,6 +494,9 @@ export const STR: Record<string, Triple> = {
     "Выберите хотя бы один вариант",
   ],
   tpl_on_shelf: ["Omborda:", "Омборда:", "На складе:"],
+  // The admin's recommended price, offered as a tap rather than pre-filled — a number sitting in
+  // the field is one the shop ships without deciding to.
+  tpl_use_suggested: ["Tavsiya:", "Тавсия:", "Реком.:"],
   tpl_add_to_warehouse: ["Omborga qo'shish", "Омборга қўшиш", "Добавить на склад"],
   product_name: ["Mahsulot nomi", "Маҳсулот номи", "Название товара"],
   brand: ["Brend", "Бренд", "Бренд"],

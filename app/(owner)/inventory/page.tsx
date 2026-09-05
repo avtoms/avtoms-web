@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { QRCodeSVG } from "qrcode.react";
-import { LayoutGrid, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -166,16 +166,18 @@ export default function InventoryPage() {
       header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
-        // The photo of the goods beats the brand mark when there is one: a shelf is scanned
-        // by what the bottle looks like, and only then by whose bottle it is.
+        // The brand mark wins at this size, and the photograph is the fallback — the opposite
+        // of the card grid, on purpose. This thumbnail is 28px: a mark is drawn to survive
+        // that, a photograph of a bottle on a workbench turns to mud. The photo still leads
+        // wherever there is room for it — the catalogue cards and the manage dialog.
         const photo = p.templateId ? templateImages[p.templateId] : undefined;
         const logo = p.brand ? brandLogos[p.brand] : undefined;
-        const thumb = photo || logo;
+        const thumb = logo || photo;
         return (
           <div className="flex min-w-0 items-center gap-1.5">
             {thumb && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumb} alt="" className="size-6 shrink-0 rounded-[6px] object-contain" />
+              <img src={thumb} alt="" className="size-7 shrink-0 rounded-[6px] object-contain" />
             )}
             {p.brand && <Badge tone="info">{p.brand}</Badge>}
             <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
@@ -287,18 +289,15 @@ export default function InventoryPage() {
           onRowClick={(p) => setManaging(p)}
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
+          // One way in, not a fork. Two buttons side by side made the reader choose between
+          // "from catalogue" and "by hand" before they knew whether the catalogue had their
+          // product; the catalogue answers that itself and offers the hand-built form when the
+          // answer is no. With an empty catalogue this still opens the picker, which is then
+          // nothing but that offer.
           toolbar={
-            <div className="flex items-center gap-2">
-              {/* The catalogue leads and the hand-built form follows it as the quieter
-                  button: stocking a known product should be the path of least resistance,
-                  and typing one out from nothing the deliberate choice. */}
-              <Button disabled={templates.length === 0} onClick={() => setFromCatalog(true)}>
-                <LayoutGrid /> {t("tpl_add_from_catalog")}
-              </Button>
-              <Button variant="soft" onClick={() => setEditing({ mode: "new", product: null })}>
-                <Plus /> {t("add_part")}
-              </Button>
-            </div>
+            <Button onClick={() => setFromCatalog(true)}>
+              <Plus /> {t("add_part_cta")}
+            </Button>
           }
           columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock"), value: t("wh_value_col") }}
           pageSize={12}
@@ -328,6 +327,7 @@ export default function InventoryPage() {
         contragents={contragents}
         onContragentsChange={loadContragents}
         onClose={() => setFromCatalog(false)}
+        onManual={() => { setFromCatalog(false); setEditing({ mode: "new", product: null }); }}
         // Stocking from the catalogue brings goods in, so the supplier balances move with it.
         onSaved={() => { load(); loadContragents(); }}
       />
