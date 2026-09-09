@@ -27,6 +27,35 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Build WITHOUT pushing first, so the scan below can refuse a vulnerable image.
+      # Scanning after the push would be theatre: Watchtower pulls :staging and :latest
+      # within 60s, so the image would already be live by the time the red X appeared.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ steps.meta.outputs.api }}
+          tags: avtoms-web:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The gate. This repo shipped an unauthenticated RCE for 63 patch releases because
+      # nothing was watching (incident 2026-09-09), and a cryptojacker mined production
+      # through it. ignore-unfixed keeps the gate honest: it fails only when a fix actually
+      # exists, so it blocks the case that mattered here and does not cry wolf over
+      # base-image findings nobody can act on.
+      - name: Scan the image for known vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: avtoms-web:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+      # Same build, now from cache, and only once the scan has passed.
       - uses: docker/build-push-action@v6
         with:
           context: .
