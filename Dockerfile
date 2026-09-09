@@ -17,6 +17,11 @@ RUN npm run build
 
 FROM node:22-alpine AS run
 WORKDIR /app
+# Pick up Alpine's patched packages at build time. The base image lags its own security
+# updates by days to weeks, and the scan gate rightly refuses an image carrying a fixable
+# CVE — openssl was the one that caught this. Cheap, and it keeps the gate green for the
+# right reason rather than by lowering it.
+RUN apk --no-cache upgrade
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Server-side (SSR) fetches go to the gateway over the internal Docker network.
