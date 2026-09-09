@@ -24,5 +24,12 @@ ENV API_BASE_URL=http://gateway:8080
 COPY --from=build /app/public ./public
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+# The runtime never uses a package manager — it runs `node server.js` and nothing else.
+# npm ships its own dependency tree (tar among them) which keeps turning up in image scans,
+# and an attacker who lands code execution in here should not find a tool that fetches and
+# installs more of it. Incident 2026-09-09.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+           /usr/local/lib/node_modules/corepack /usr/local/bin/corepack /opt/yarn* 2>/dev/null || true
+
 EXPOSE 3000
 CMD ["node", "server.js"]
