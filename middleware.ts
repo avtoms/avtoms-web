@@ -55,6 +55,9 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except Next internals, the fonts, and static assets.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Run on everything except Next internals, the fonts, and static assets. zxing/ is the barcode
+  // decoder the camera scanner fetches on phones without a native one (iOS Safari): a file, not
+  // a page, and role routing would answer it with a redirect the scanner can only report as
+  // "camera failed".
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|zxing/).*)"],
 };
