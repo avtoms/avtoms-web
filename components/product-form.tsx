@@ -5,7 +5,7 @@
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus, Search, Trash2, Wand2 } from "lucide-react";
+import { ChevronRight, Plus, ScanBarcode, Search, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
@@ -15,6 +15,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
 import { SearchSelect } from "@/components/ui-kit/search-select";
+import { BarcodeScanner, isBarcode } from "@/components/barcode-scanner";
+import { MxikField, emptyMxik, type MxikValue } from "@/components/mxik-field";
 import { MoneyInput, UnitSelect } from "@/components/catalog-fields";
 import { FxMoneyInput } from "@/components/fx-money";
 import {
@@ -134,6 +136,7 @@ type VarRow = {
   price: FxValue;
   active: boolean;
   attrs: Record<string, string>;
+  barcode: string; // digits only; "" = none
 };
 
 const dec = (v: string) => v.replace(/[^\d.]/g, "");
@@ -183,7 +186,7 @@ function hexOf(defs: PropertyDefinition[], propName: string, value: string): str
 }
 
 const blankVar = (attrs: Record<string, string> = {}): VarRow => ({
-  key: newKey(), id: "", sku: genSku(), qty: "", reorder: "", cost: emptyFx(), price: emptyFx(), active: true, attrs,
+  key: newKey(), id: "", sku: genSku(), qty: "", reorder: "", cost: emptyFx(), price: emptyFx(), active: true, attrs, barcode: "",
 });
 
 // Rebuild the variant grid from a set of properties, preserving the data already entered for
@@ -245,14 +248,27 @@ function varsFromProduct(p: Product, currencies: Currency[]): VarRow[] {
         : { currency: BASE_CURRENCY, typed: num(v.unitPrice) ? String(v.unitPrice) : "", rate: "" },
       active: v.active,
       attrs,
+      barcode: v.barcode ?? "",
     };
   });
   return vars.length ? vars : [blankVar()];
 }
 
+// What a scan already knows about goods that are not in the warehouse yet. Read only on a new
+// product; the reset effect in ProductForm says how each field lands.
+export type ProductPrefill = {
+  name?: string;
+  brand?: string;
+  mxik?: MxikValue;
+  barcode?: string;
+  // The registry did not recognise the barcode: open with the MXIK search focused and say why.
+  searchMxik?: boolean;
+};
+
 export function ProductForm({
-  open, mode, product, shopId, definitions, brands, categories, contragents, onContragentsChange, onClose, onSaved,
+  open, mode, product, shopId, definitions, brands, categories, contragents, onContragentsChange, onClose, onSaved, prefill,
 }: {
+  prefill?: ProductPrefill;
   open: boolean;
   mode: "new" | "edit";
   product: Product | null;
@@ -305,6 +321,9 @@ export function ProductForm({
   const [description, setDescription] = useState("");
   const [props, setProps] = useState<PropRow[]>([]);
   const [vars, setVars] = useState<VarRow[]>(() => [blankVar()]);
+  const [mxik, setMxik] = useState<MxikValue>(emptyMxik);
+  // The variant whose barcode the camera is reading, or null with the scanner closed.
+  const [scanFor, setScanFor] = useState<string | null>(null);
   // Stock arriving with this save is a delivery from the supplier. On credit unless the owner
   // says what was handed over; skipDebt is for goods the shop already owned.
   const [paidNow, setPaidNow] = useState<FxValue>(() => emptyFx());
@@ -336,17 +355,28 @@ export function ProductForm({
       const rows = varsFromProduct(product, currencies);
       setVars(rows);
       setOpeningQty(Object.fromEntries(rows.filter((v) => v.id).map((v) => [v.id, parseFloat(v.qty) || 0])));
+      setMxik({
+        mxikCode: product.mxikCode ?? "", mxikName: product.mxikName ?? "",
+        packageCode: product.packageCode ?? "", packageName: product.packageName ?? "",
+      });
     } else {
-      setName(""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(""); setUnit("pcs"); setDescription("");
-      setProps([]); setVars([blankVar()]); setOpeningQty({});
+      // A form opened from a scan arrives with what the barcode told us. The brand is taken only
+      // when it names one of the admin's brands: the brand box picks from that list, and a
+      // registry spelling that matches none of them ("BOSCH GmbH") would sit there as a stray
+      // value that neither the brand filter nor the supplier list knows.
+      const pb = prefill?.brand?.trim().toLowerCase();
+      const knownBrand = pb ? brands.find((b) => b.name.trim().toLowerCase() === pb)?.name ?? "" : "";
+      setName(prefill?.name ?? ""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(knownBrand); setUnit("pcs"); setDescription("");
+      setProps([]); setVars([{ ...blankVar(), barcode: prefill?.barcode ?? "" }]); setOpeningQty({});
+      setMxik(prefill?.mxik ?? emptyMxik);
     }
-    setPaidNow(emptyFx()); setSkipDebt(false); resetPayment();
+    setPaidNow(emptyFx()); setSkipDebt(false); resetPayment(); setScanFor(null);
     api.contragentBalances(shopId).then((r) => {
       const m: Record<string, number> = {};
       for (const b of r.balances ?? []) m[b.contragentId] = parseInt(b.balance, 10) || 0;
       setBalances(m);
     }).catch(() => {});
-  }, [open, mode, product, definitions, shopId]);
+  }, [open, mode, product, definitions, shopId, prefill]);
 
   const hasProps = props.some((p) => p.name.trim() && propValues(p).length > 0);
 
@@ -415,6 +445,11 @@ export function ProductForm({
     if (!name.trim() || busy || payIncomplete) return;
     const activeVars = vars.filter((v) => !hasProps || Object.keys(v.attrs).length > 0);
     if (activeVars.length === 0) { toast(t("no_variants"), { icon: "alert", tone: "danger" }); return; }
+    // The server checks this too; checking here says it in the language on screen.
+    if (activeVars.some((v) => v.barcode && !isBarcode(v.barcode))) {
+      toast(t("scan_bad_code"), { icon: "alert", tone: "danger" });
+      return;
+    }
     // Resolve the supplier name from the linked contragent; keep the legacy free-typed
     // name only when nothing is linked (so old unlinked products don't lose their label).
     const linked = contragents.find((c) => c.id === supplierId);
@@ -427,6 +462,7 @@ export function ProductForm({
       supplier: supplierName,
       supplierId,
       brand: brand.trim(),
+      ...mxik,
       properties: props
         .filter((p) => p.name.trim() && propValues(p).length > 0)
         .map((p) => ({ name: p.name.trim(), values: propValues(p) })),
@@ -451,6 +487,7 @@ export function ProductForm({
         fxUnitPrice: fxPayload(v.price, findCurrency(currencies, v.price.currency)),
         active: v.active,
         attributes: Object.entries(v.attrs).map(([property, value]) => ({ property, value })),
+        barcode: v.barcode,
       })),
     };
     setBusy(true);
@@ -485,6 +522,14 @@ export function ProductForm({
             <Field label={t("brand")}><TermSelect value={brand} terms={brands} placeholder={t("brand")} onChange={setBrand} /></Field>
             <Field label={t("category")}><TermSelect value={category} terms={categories} placeholder={t("category")} onChange={setCategory} /></Field>
           </div>
+          <Field label={t("mxik")} hint={t("mxik_hint")}>
+            <MxikField
+              value={mxik}
+              onChange={setMxik}
+              focusSearch={mode === "new" && !!prefill?.searchMxik}
+              hint={mode === "new" && prefill?.searchMxik ? t("mxik_gtin_miss") : undefined}
+            />
+          </Field>
           <div className="grid grid-cols-[1fr_80px] gap-2.5">
             <Field label={t("supplier")}>
               <SupplierField
@@ -606,9 +651,26 @@ export function ProductForm({
                     <Field label={t("in_stock")}><Input value={v.qty} inputMode="decimal" placeholder="0" className="font-mono" onChange={(e) => setVar(v.key, { qty: dec(e.target.value) })} /></Field>
                     <Field label={t("reorder_level")}><Input value={v.reorder} inputMode="decimal" placeholder="0" className="font-mono" onChange={(e) => setVar(v.key, { reorder: dec(e.target.value) })} /></Field>
                   </div>
+                  {/* Typed, filled by a USB reader (which types the digits into whatever has
+                      focus), or read by the camera. Digits only, so a reader's stray prefix or
+                      a pasted "4 600 000 ..." lands clean. */}
+                  <Field label={t("barcode")}>
+                    <div className="flex items-center gap-1.5">
+                      <Input value={v.barcode} inputMode="numeric" autoComplete="off" placeholder={t("scan_manual_ph")} className="font-mono"
+                        onChange={(e) => setVar(v.key, { barcode: e.target.value.replace(/\D/g, "") })} />
+                      <Button type="button" variant="soft" size="icon" className="size-10 touch:size-11" aria-label={t("scan_camera")}
+                        onClick={() => setScanFor(v.key)}><ScanBarcode /></Button>
+                    </div>
+                  </Field>
                 </div>
               );
             })}
+            {/* One scanner for the whole grid; it writes into whichever variant asked. */}
+            <BarcodeScanner
+              open={scanFor !== null}
+              onClose={() => setScanFor(null)}
+              onDetected={(code) => { if (scanFor) setVar(scanFor, { barcode: code }); }}
+            />
           </div>
 
           {/* Stock arriving with this save is a delivery, settled here the same way the receive

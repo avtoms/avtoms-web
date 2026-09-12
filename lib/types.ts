@@ -411,8 +411,51 @@ export interface Product {
   // against the template list for the picture: it lives on the template rather than being
   // copied here, so replacing a bad photo fixes it everywhere at once.
   templateId?: string;
+  // The tax classifier code (MXIK, 17 digits) and the registry package the goods are counted
+  // in. The names ride beside the codes so a receipt can be printed without asking the tax
+  // service, which is not always up. All empty until somebody picks one.
+  mxikCode?: string;
+  mxikName?: string;
+  packageCode?: string;
+  packageName?: string;
   properties?: ProductProperty[];
   variants?: ProductVariant[];
+}
+
+// One MXIK search result. path is the registry's hierarchy ("Group > Class > Position"), shown
+// so two similarly named codes can be told apart; gtin is set when the hit came from a barcode.
+export interface MxikHit {
+  code: string; // 17 digits
+  name: string;
+  brand?: string;
+  path?: string;
+  gtin?: string;
+}
+
+// What a lookup took the query for — a 17-digit code, a barcode, or a name — and what it found.
+// kind "gtin" with no items is a barcode the registry does not know: common for imported parts,
+// and an answer rather than an error.
+export interface MxikLookup {
+  kind: "mxik" | "gtin" | "text";
+  items: MxikHit[];
+  total: number;
+}
+
+// A package ("qadoq") the registry declares for a code: the unit a receipt line counts it in.
+export interface MxikPackage {
+  code: string;
+  name: string;
+}
+
+// A code's registry record. active=false is a code the tax committee has retired: products
+// already carrying it keep it, but new documents must not use it.
+export interface MxikDetails {
+  code: string;
+  name: string;
+  path?: string;
+  brand?: string;
+  active: boolean;
+  packages: MxikPackage[];
 }
 
 // A per-shop counterparty — chiefly a supplier ("yetkazib beruvchi") the shop
@@ -505,6 +548,9 @@ export interface ProductVariant {
   fxUnitPrice?: FxAmount;
   active: boolean;
   attributes?: VariantAttribute[];
+  // The barcode on the goods (EAN-8, UPC-A/EAN-13, GTIN-14). Per variant, because a 1 L and a
+  // 4 L can of the same oil carry different ones; unique within a shop.
+  barcode?: string;
 }
 
 // Which value a variant has for one property, e.g. {property:"Size", value:"M"}.

@@ -463,6 +463,67 @@ export const STR: Record<string, Triple> = {
   ],
   edit_product: ["Mahsulotni tahrirlash", "Маҳсулотни таҳрирлаш", "Редактировать товар"],
 
+  // ── barcodes and the tax classifier (MXIK) ──
+  // The barcode is read off the goods; the MXIK is the tax committee's code for what the goods
+  // are, which a fiscal receipt and an e-invoice line need. Both are optional on a product.
+  scan_cta: ["Skanerlash", "Сканерлаш", "Сканировать"],
+  scan_title: ["Shtrix-kodni skanerlash", "Штрих-кодни сканерлаш", "Сканирование штрих-кода"],
+  scan_camera: ["Kamera bilan skanerlash", "Камера билан сканерлаш", "Сканировать камерой"],
+  scan_aim: ["Kamerani shtrix-kodga qarating", "Камерани штрих-кодга қаратинг", "Наведите камеру на штрих-код"],
+  scan_starting: ["Kamera yoqilmoqda…", "Камера ёқилмоқда…", "Включаем камеру…"],
+  scan_denied: [
+    "Kameraga ruxsat berilmadi. Brauzer sozlamalarida ruxsat bering yoki kodni qo'lda kiriting.",
+    "Камерага рухсат берилмади. Браузер созламаларида рухсат беринг ёки кодни қўлда киритинг.",
+    "Доступ к камере запрещён. Разрешите его в настройках браузера или введите код вручную.",
+  ],
+  scan_no_camera: [
+    "Kamera topilmadi. Kodni qo'lda kiriting.",
+    "Камера топилмади. Кодни қўлда киритинг.",
+    "Камера не найдена. Введите код вручную.",
+  ],
+  // Opened over plain http (a LAN address, say) the browser hides the camera altogether.
+  scan_insecure: [
+    "Kamera faqat xavfsiz (https) ulanishda ishlaydi. Kodni qo'lda kiriting.",
+    "Камера фақат хавфсиз (https) уланишда ишлайди. Кодни қўлда киритинг.",
+    "Камера работает только по защищённому соединению (https). Введите код вручную.",
+  ],
+  scan_failed: [
+    "Kamerani ishga tushirib bo'lmadi. Kodni qo'lda kiriting.",
+    "Камерани ишга тушириб бўлмади. Кодни қўлда киритинг.",
+    "Не удалось запустить камеру. Введите код вручную.",
+  ],
+  scan_manual: ["Yoki kodni qo'lda kiriting", "Ёки кодни қўлда киритинг", "Или введите код вручную"],
+  scan_manual_ph: ["8 yoki 12–14 raqam", "8 ёки 12–14 рақам", "8 или 12–14 цифр"],
+  scan_bad_code: [
+    "Shtrix-kod 8 yoki 12–14 raqamdan iborat bo'lishi kerak",
+    "Штрих-код 8 ёки 12–14 рақамдан иборат бўлиши керак",
+    "Штрих-код должен состоять из 8 или 12–14 цифр",
+  ],
+  scan_in_stock: ["Bu mahsulot omborda bor", "Бу маҳсулот омборда бор", "Этот товар уже на складе"],
+  barcode: ["Shtrix-kod", "Штрих-код", "Штрих-код"],
+  mxik: ["MXIK (soliq kodi)", "МХИК (солиқ коди)", "ИКПУ (налоговый код)"],
+  mxik_hint: [
+    "Chek va hisob-fakturaga chiqadi. Ixtiyoriy.",
+    "Чек ва ҳисоб-фактурага чиқади. Ихтиёрий.",
+    "Печатается в чеке и счёте-фактуре. Необязательно.",
+  ],
+  mxik_ph: ["Nomi, MXIK yoki shtrix-kod", "Номи, МХИК ёки штрих-код", "Название, ИКПУ или штрих-код"],
+  mxik_nothing: ["Hech narsa topilmadi", "Ҳеч нарса топилмади", "Ничего не найдено"],
+  mxik_unknown_code: ["Bunday MXIK kodi yo'q", "Бундай МХИК коди йўқ", "Такого кода ИКПУ нет"],
+  // A barcode the registry does not know is ordinary — most imported parts were never
+  // registered by their GTIN — so this is a pointer to the name search, not an error.
+  mxik_gtin_miss: [
+    "Soliq bazasida bu shtrix-kod yo'q — MXIKni nom bo'yicha tanlang",
+    "Солиқ базасида бу штрих-код йўқ — МХИКни ном бўйича танланг",
+    "Этого штрих-кода нет в налоговой базе — выберите ИКПУ по названию",
+  ],
+  mxik_inactive: [
+    "aktiv emas — yangi hujjatlarda ishlatmang",
+    "актив эмас — янги ҳужжатларда ишлатманг",
+    "не активен — не используйте в новых документах",
+  ],
+  mxik_package: ["Qadoq (o'lchov birligi)", "Қадоқ (ўлчов бирлиги)", "Упаковка (единица измерения)"],
+
   // Stocking from the super admin's ready-made catalogue: the short way in, next to the
   // hand-built form that stays for everything nobody has catalogued.
   tpl_add_from_catalog: ["Katalogdan qo'shish", "Каталогдан қўшиш", "Добавить из каталога"],

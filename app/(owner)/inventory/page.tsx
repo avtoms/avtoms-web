@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus } from "lucide-react";
+import { Plus, ScanBarcode } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -18,7 +18,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
-import { ProductForm } from "@/components/product-form";
+import { ProductForm, type ProductPrefill } from "@/components/product-form";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 import { TemplatePicker } from "@/components/template-picker";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, unitLabel, qtyUnit } from "@/components/catalog-fields";
@@ -71,7 +72,7 @@ const attrLabelOf = (defs: PropertyDefinition[], lang: Lang, prop: string, value
 export default function InventoryPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
 
   const [list, setList] = useState<Product[]>([]);
@@ -87,7 +88,9 @@ export default function InventoryPage() {
   // the picture on a row comes from for anything already stocked that way.
   const [templates, setTemplates] = useState<ProductTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null } | null>(null);
+  const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null; prefill?: ProductPrefill } | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false); // the registry lookup after a read
   const [fromCatalog, setFromCatalog] = useState(false);
   const [managing, setManaging] = useState<Product | null>(null);
 
@@ -159,10 +162,50 @@ export default function InventoryPage() {
   // Margin against the sell price, which is the number a shop prices against.
   const marginPct = wh.sell > 0 ? Math.round((wh.margin / wh.sell) * 1000) / 10 : 0;
 
+  // A barcode read at the warehouse screen. Three outcomes, cheapest first:
+  //  - a variant here already carries it: open that product, because the goods are in stock and
+  //    the job at hand is a delivery or a count, not a second card for the same thing;
+  //  - the tax registry knows it: open a new product with its name, brand and MXIK filled in;
+  //  - neither (usual for imported parts), or the registry is unreachable: open a new product
+  //    with just the barcode, and the MXIK search waiting to be done by name.
+  const onScanned = async (code: string) => {
+    const own = list.find((p) => (p.variants ?? []).some((v) => v.barcode === code));
+    if (own) {
+      setManaging(own);
+      toast(t("scan_in_stock"), { icon: "check", tone: "accent" });
+      return;
+    }
+    setScanBusy(true);
+    try {
+      const r = await api.mxikLookup(code, lang);
+      const hit = r.kind === "gtin" ? r.items[0] : undefined;
+      if (hit) {
+        // The package list lives on the code's record. Without it the code and name still
+        // stand, and the form offers the packages once the service answers.
+        const mxik = await api.mxikDetails(hit.code, lang)
+          .then((d) => ({ mxikCode: d.code, mxikName: d.name, packageCode: d.packages[0]?.code ?? "", packageName: d.packages[0]?.name ?? "" }))
+          .catch(() => ({ mxikCode: hit.code, mxikName: hit.name, packageCode: "", packageName: "" }));
+        setEditing({ mode: "new", product: null, prefill: { name: hit.name, brand: hit.brand, mxik, barcode: code } });
+        return;
+      }
+      setEditing({ mode: "new", product: null, prefill: { barcode: code, searchMxik: true } });
+    } catch (e) {
+      // The goods still have to go on the shelf when the tax service is down: say what failed,
+      // then carry on without it.
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+      setEditing({ mode: "new", product: null, prefill: { barcode: code, searchMxik: true } });
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
-      accessorFn: (p) => `${p.name || ""} ${p.brand || ""}`,
+      // The variants' barcodes ride along in the searchable text, so a code typed, pasted or
+      // scanned by a USB reader into the table's search box finds its product. They come after
+      // the name, so the column still sorts by name.
+      accessorFn: (p) => `${p.name || ""} ${p.brand || ""} ${(p.variants ?? []).map((v) => v.barcode ?? "").join(" ")}`,
       header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
@@ -294,10 +337,18 @@ export default function InventoryPage() {
           // product; the catalogue answers that itself and offers the hand-built form when the
           // answer is no. With an empty catalogue this still opens the picker, which is then
           // nothing but that offer.
+          //
+          // Scanning sits beside it rather than being a second way to add: a scan of something
+          // already on the shelf opens that product instead of starting a new one.
           toolbar={
-            <Button onClick={() => setFromCatalog(true)}>
-              <Plus /> {t("add_part_cta")}
-            </Button>
+            <>
+              <Button variant="secondary" disabled={scanBusy} onClick={() => setScanOpen(true)}>
+                {scanBusy ? <Spinner /> : <ScanBarcode />} {t("scan_cta")}
+              </Button>
+              <Button onClick={() => setFromCatalog(true)}>
+                <Plus /> {t("add_part_cta")}
+              </Button>
+            </>
           }
           columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock"), value: t("wh_value_col") }}
           pageSize={12}
@@ -307,6 +358,7 @@ export default function InventoryPage() {
         open={!!editing}
         mode={editing?.mode ?? "new"}
         product={editing?.product ?? null}
+        prefill={editing?.prefill}
         shopId={shopId}
         definitions={definitions}
         brands={brands}
@@ -331,6 +383,7 @@ export default function InventoryPage() {
         // Stocking from the catalogue brings goods in, so the supplier balances move with it.
         onSaved={() => { load(); loadContragents(); }}
       />
+      <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={onScanned} />
       <ManageModal
         product={managing}
         definitions={definitions}

@@ -4,7 +4,7 @@
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
-  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, BankAccount, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount, ProductTemplate,
+  MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, BankAccount, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount, ProductTemplate, MxikLookup, MxikDetails,
 } from "./types";
 import {
   langToProto, kindToProto, woStateToProto, paymentToProto, discountToProto, roleToProto, REPORT_KINDS,
@@ -243,6 +243,11 @@ export type ProductInput = {
   // also stamps it when the save folds into a product of the same name and brand that had
   // none, so a product typed by hand and later restocked from the catalogue picks it up.
   templateId?: string;
+  // The tax classifier code and the registry package, each with its name. See Product.
+  mxikCode?: string;
+  mxikName?: string;
+  packageCode?: string;
+  packageName?: string;
   properties: ProductProperty[];
   // Stock arriving with this save is a delivery from supplierId: paidAmount is what was handed
   // over now, the rest becomes debt on their account. skipDebt records the stock and leaves the
@@ -266,6 +271,7 @@ export type ProductInput = {
     fxUnitPrice?: FxAmount;
     active: boolean;
     attributes: VariantAttribute[];
+    barcode?: string;
   }[];
 };
 
@@ -301,6 +307,12 @@ const productBody = (p: ProductInput) => ({
   name: p.name, description: p.description ?? "", category: p.category ?? "",
   unit: p.unit ?? "", supplier: p.supplier ?? "", supplierId: p.supplierId ?? "", brand: p.brand ?? "",
   ...(p.templateId ? { templateId: p.templateId } : {}),
+  // Sent whenever the caller states it, blank included, so taking a code off on an edit takes it
+  // off. Left out when the caller says nothing: the server reads a missing mxikCode as "keep
+  // what is stored", and a save that never looked at the classification must not wipe it.
+  ...(p.mxikCode !== undefined
+    ? { mxikCode: p.mxikCode, mxikName: p.mxikName ?? "", packageCode: p.packageCode ?? "", packageName: p.packageName ?? "" }
+    : {}),
   paidAmount: String(p.paidAmount ?? 0),
   skipDebt: p.skipDebt ?? false,
   ...(p.parts?.length ? { parts: p.parts.map(partToWire) } : {}),
@@ -318,6 +330,8 @@ const productBody = (p: ProductInput) => ({
   variants: p.variants.map((v) => ({
     id: v.id ?? "", sku: v.sku ?? "", quantityOnHand: v.quantityOnHand, reorderLevel: v.reorderLevel,
     unitCost: String(v.unitCost), unitPrice: String(v.unitPrice), active: v.active,
+    // Same rule as mxikCode: absent keeps the stored barcode, "" clears it.
+    ...(v.barcode !== undefined ? { barcode: v.barcode } : {}),
     ...(v.fxUnitCost ? { fxUnitCost: v.fxUnitCost } : {}),
     ...(v.fxUnitPrice ? { fxUnitPrice: v.fxUnitPrice } : {}),
     attributes: v.attributes,
@@ -737,6 +751,19 @@ export const api = {
       .then((r) => r.changes ?? []),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
+
+  // ── MXIK: the tax committee's product classifier ──
+  // One search box, three kinds of query: the gateway tells a 17-digit code, a barcode and a
+  // name apart and says which it took the query for. A barcode the registry does not know comes
+  // back as kind "gtin" with no items — an answer, not an error. The lists are defaulted because
+  // an empty Go slice can arrive as null.
+  mxikLookup: (q: string, lang: Lang) =>
+    call<MxikLookup>("GET", "/v1/mxik/lookup" + qs({ q, lang }))
+      .then((r) => ({ ...r, items: r.items ?? [], total: Number(r.total) || 0 })),
+  // 404 for a code the registry does not have; 502 when the tax service itself is down.
+  mxikDetails: (code: string, lang: Lang) =>
+    call<MxikDetails>("GET", `/v1/mxik/${encodeURIComponent(code)}` + qs({ lang }))
+      .then((d) => ({ ...d, packages: d.packages ?? [] })),
 
   // ── the super admin's ready-made products ──
   // The grid a shop stocks from, and where a stocked product's picture comes from. Active
