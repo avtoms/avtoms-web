@@ -1,86 +1,67 @@
 "use client";
-// Work order detail wired to the live backend. Loads api.getWorkOrder; line items, assign
-// mechanic, state transitions, invoice generation + fiscal QR + mark-paid. Re-fetches after
-// every mutation. Rebuilt on the shadcn kit; all data/logic preserved.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+// Work order detail, laid out after the redesign. The header carries the order's number, its
+// status and how long it has been open, with the buttons that move it on. Under it, a stepper
+// through the shop's own status flow says when each step happened. Then the car, the client
+// and the mechanic side by side; the jobs with their materials tucked under them, who is doing
+// each and how far it has got; the internal note beside the totals. On the right: how the
+// client has been kept informed, when the car is due back next, and everything that happened.
+//
+// Taking the money opens a panel with the receipt the client will see on the left and the
+// payment on the right. Every dialog the screen had — lines, discount, mechanic, approval
+// link, next service, odometer, cancel with returns — is still here (see ./_parts).
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Pencil, Users, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins, Bell, Gauge, Split } from "lucide-react";
-import { StateBadge, QR, Empty, useIsMobile } from "@/components/ui";
-import { Card, CardContent } from "@/components/ui-kit/card";
+import {
+  ArrowLeft, Plus, Pencil, Trash2, Send, Receipt, Printer, Check, CreditCard, Banknote, Wallet, HandCoins,
+  Bell, Phone, MessageSquare, MoreHorizontal, Wrench, Package, Clock, X, Landmark, ArrowRight,
+} from "lucide-react";
+import { StateBadge, Empty, useIsMobile } from "@/components/ui";
+import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
 import { Button } from "@/components/ui-kit/button";
-import { UserAvatar } from "@/components/ui-kit/avatar";
-import { Textarea } from "@/components/ui-kit/textarea";
-import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
-import { Spinner, Separator, Skeleton } from "@/components/ui-kit/misc";
+import { Textarea } from "@/components/ui-kit/textarea";
+import { Spinner, Separator, Skeleton, Switch } from "@/components/ui-kit/misc";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui-kit/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
-import { SearchSelect } from "@/components/ui-kit/search-select";
-import { ProductForm } from "@/components/product-form";
-import { ServicePicker } from "@/components/service-options";
-import { ProductPicker, variantLabel } from "@/components/product-picker";
-import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui-kit/dropdown-menu";
+import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { useStaffNames } from "@/lib/use-staff";
-import { useServiceNames } from "@/lib/use-services";
 import { auditAction, auditDetail } from "@/lib/system-text";
-import { money, num, shortDate, vatBreakdown, orderLabel } from "@/lib/format";
+import { money, num, shortDate, vatBreakdown, orderLabel, minutesBetween } from "@/lib/format";
 import {
-  woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto,
-  STATE_LABEL, LINE_ITEM_KINDS, type WoState, type LineItemKind, type PaymentMethod, type DiscountKind,
+  woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto, enabledSet,
+  reminderStateFromProto, STATE_LABEL, type WoState, type PaymentMethod,
 } from "@/lib/enums";
-import type { WorkOrder, Staff, MenuItem, AuditEntry, Product, PropertyDefinition, CatalogTerm, Contragent, LineItem, MaterialReturn } from "@/lib/types";
-
-// A single stocked variant, flattened with its product context, for the material picker.
-type PickVariant = { id: string; name: string; unit?: string; unitPrice?: string; unitCost?: string; quantityOnHand: number };
-
-// Flatten a product list to its active variants; each row's name combines the
-// product name with the variant's property values (e.g. "T-Shirt · M · Red").
-function flattenVariants(products: Product[]): PickVariant[] {
-  const out: PickVariant[] = [];
-  for (const p of products) {
-    for (const v of p.variants ?? []) {
-      if (!v.active || !v.id) continue;
-      const label = (v.attributes ?? []).map((a) => a.value).join(" · ");
-      out.push({
-        id: v.id,
-        name: label ? `${p.name} · ${label}` : p.name,
-        unit: p.unit,
-        unitPrice: v.unitPrice,
-        unitCost: v.unitCost,
-        quantityOnHand: v.quantityOnHand,
-      });
-    }
-  }
-  return out;
-}
-import { MoneyInput, UnitSelect, qtyUnit, unitLabel } from "@/components/catalog-fields";
-import { SuggestInput } from "@/components/suggest-input";
+import type { WorkOrder, Staff, AuditEntry, LineItem, MaterialReturn, Customer, ServiceReminder, Invoice, ShopCard } from "@/lib/types";
+import { qtyUnit } from "@/components/catalog-fields";
 import { PlatePreview } from "@/components/plate";
 import { CarImage } from "@/components/car-image";
 import { FiscalCheck } from "@/components/fiscal-check";
 import { SplitPayment } from "@/components/split-payment";
 import { useShopFlow, useShopProfile } from "@/lib/shop";
-import { SecTitle, Row } from "../../_shared";
+import { Row, StaffDot } from "../../_shared";
+import {
+  NONE, ApprovalModal, EditLineItemModal, OrderDiscountModal, AddLineItemModal, AssignModal,
+  NextServiceModal, OdometerField, type LineItemInput,
+} from "./_parts";
 
-const NONE = "__none"; // Radix Select forbids empty item values; sentinel for "unassigned".
-
-function menuName(m: MenuItem, lang: string): string {
-  return lang === "uzc" ? m.nameUzCyrl : lang === "ru" ? m.nameRu : m.nameUzLatn;
-}
-
-type LineItemInput = {
-  kind: LineItemKind; description: string; unitPrice: number; quantity: number;
-  cost?: number; menuItemId?: string; menuOptionId?: string; defaultPrice?: number; variantId?: string; consumedQty?: number;
-  // The unit of measure, as a symbol. It goes over the wire as its own field so the line can
-  // be read in any language; it is never appended to `description`.
-  unit?: string;
+const CANONICAL: WoState[] = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed"];
+const TRANSITION_TO = /(?:→|->)\s*([a-z_]+)/;
+const TRANSITION_FROM = /^([a-z_]+)\s*(?:→|->)/;
+const hhmm = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
+const isToday = (iso?: string) => !!iso && new Date(iso).toDateString() === new Date().toDateString();
 
 export default function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -90,14 +71,21 @@ export default function WorkOrderDetailPage() {
   const { lang, t } = useLang();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const who = useStaffNames();
 
   const [wo, setWo] = useState<WorkOrder | null>(null);
-  const { transitions: flowTransitions } = useShopFlow();
+  const { enabled, transitions: flowTransitions } = useShopFlow();
   const [loading, setLoading] = useState(true);
   const [mechanics, setMechanics] = useState<Staff[]>([]);
   const [busy, setBusy] = useState(false);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [year, setYear] = useState<number | undefined>(undefined);
+  const [visits, setVisits] = useState<number | undefined>(undefined);
+  const [reminders, setReminders] = useState<ServiceReminder[]>([]);
 
   const [addItem, setAddItem] = useState(false);
+  const [addMode, setAddMode] = useState<"menu" | "custom">("menu");
   const [editItem, setEditItem] = useState<LineItem | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [invoice, setInvoice] = useState(false);
@@ -108,10 +96,10 @@ export default function WorkOrderDetailPage() {
   // at any other time means someone has to remember to go and ask it, which is why the
   // reminders list was mostly empty.
   const [nextService, setNextService] = useState(false);
+  const deepLinked = useRef(false);
 
   // The materials that actually left the warehouse on this order — the only things that can
-  // come back if it is called off. An order with none of them gets the plain confirm, because
-  // there is nothing to ask about. Memoised because the dialog seeds its inputs from this list.
+  // come back if it is called off. An order with none of them gets the plain confirm.
   const returnable = useMemo<ReturnableMaterial[]>(() => returnableMaterials(wo ?? {}), [wo]);
 
   const load = useCallback(async () => {
@@ -126,6 +114,54 @@ export default function WorkOrderDetailPage() {
   useEffect(() => {
     api.listStaff(shopId).then((s) => setMechanics(s.filter((x) => x.role === "ROLE_MECHANIC" && x.active))).catch(() => {});
   }, [shopId]);
+
+  // The history feeds three things on this screen — the stepper's times, the client card's
+  // approval line and the history itself — so it is fetched once, here.
+  const auditKey = wo ? `${wo.state}|${(wo.lineItems ?? []).length}|${wo.assignedMechanicId ?? ""}|${wo.notes ?? ""}|${wo.discountAmount ?? ""}` : "";
+  useEffect(() => {
+    if (!wo) return;
+    let alive = true;
+    api.getAuditLog(id)
+      .then((e) => { if (alive) setAudit([...e].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))); })
+      .catch(() => {});
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, auditKey]);
+
+  // Who the client is and what the car has behind it. Each is best-effort: a person who may
+  // work orders but not read the client book still gets the order, just without these lines.
+  const vehicleId = wo?.vehicleId;
+  const customerId = wo?.customerId;
+  useEffect(() => {
+    if (!customerId) return;
+    let alive = true;
+    api.getCustomer(customerId).then((c) => { if (alive) setCustomer(c); }).catch(() => {});
+    api.listVehicles(customerId).then((vs) => { if (alive) setYear(vs.find((v) => v.id === vehicleId)?.year || undefined); }).catch(() => {});
+    return () => { alive = false; };
+  }, [customerId, vehicleId]);
+  const loadReminders = useCallback(() => {
+    if (!vehicleId) return;
+    api.listReminders(shopId, vehicleId).then(setReminders).catch(() => {});
+  }, [shopId, vehicleId]);
+  useEffect(() => {
+    if (!vehicleId) return;
+    let alive = true;
+    api.serviceBook(vehicleId).then((b) => { if (alive) setVisits(b.visits || undefined); }).catch(() => {});
+    loadReminders();
+    return () => { alive = false; };
+  }, [vehicleId, loadReminders]);
+
+  // Arriving from the board's or the dashboard's "take the payment" / "bill it" button opens
+  // the payment panel straight away, once, and then forgets it was asked.
+  useEffect(() => {
+    if (!wo || deepLinked.current) return;
+    const p = new URLSearchParams(window.location.search);
+    if (!p.get("pay") && !p.get("invoice")) return;
+    deepLinked.current = true;
+    const s = woStateFromProto(wo.state);
+    if (s === "ready" || s === "invoiced" || s === "closed") setInvoice(true);
+    window.history.replaceState(null, "", `/work-orders/${id}`);
+  }, [wo, id]);
 
   const err = (e: unknown) => toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
 
@@ -194,6 +230,7 @@ export default function WorkOrderDetailPage() {
   const total = wo.total != null ? num(wo.total) : subtotal - orderDiscount; // VAT disabled
   const totalCost = num(wo.totalCost);
   const totalMargin = wo.totalMargin != null ? num(wo.totalMargin) : subtotal - orderDiscount - totalCost;
+  const marginPct = total > 0 ? Math.round((totalMargin / total) * 100) : 0;
   const orderDiscKind = discountFromProto(wo.discountKind);
   const orderDiscLabel = orderDiscKind === "percent" ? ` · ${num(wo.discountValue) / 100}%` : "";
   const grossSubtotal = items.reduce((s, it) => {
@@ -204,180 +241,261 @@ export default function WorkOrderDetailPage() {
   }, 0);
   const totalDiscount = Math.max(0, grossSubtotal - subtotal);
   const discountPct = grossSubtotal > 0 ? Math.round((totalDiscount / grossSubtotal) * 100) : 0;
+  const worksSum = items.filter((it) => !kindIsMaterial(kindFromProto(it.kind))).reduce((s, it) => s + num(it.unitPrice) * (it.quantity || 0), 0);
+  const materialsSum = items.filter((it) => kindIsMaterial(kindFromProto(it.kind))).reduce((s, it) => s + num(it.unitPrice) * (it.quantity || 0), 0);
+  const services = items.filter((it) => !kindIsMaterial(kindFromProto(it.kind)));
+  const servicesDone = services.filter((it) => lineStatusFromProto(it.status) === "done").length;
   const editable = ["draft", "estimated", "approved", "in_progress", "ready"].includes(state);
+  const finished = state === "closed" || state === "canceled";
   const mech = mechanics.find((m) => m.id === wo.assignedMechanicId);
+  const mechName = mech?.name || who(wo.assignedMechanicId);
 
   // The shop's own flow, not the full lifecycle: a shop that switched off a status must
   // not be offered it here, because the server derives its legal moves from the same set
-  // and rejects the hop. The board has always done this; the detail page had not.
+  // and rejects the hop.
   const allowed = flowTransitions[state] || [];
   const canCancel = allowed.includes("canceled");
-  const forwardTargets = allowed.filter((x) => x !== "canceled");
-  const hasBar = forwardTargets.length > 0 || canCancel || state === "ready" || state === "invoiced" || state === "closed";
+  const forwardTargets = allowed.filter((x) => x !== "canceled" && !(state === "ready" && x === "invoiced"));
+  const payable = state === "ready" || state === "invoiced";
+
+  // How long the order has been open, "1 soat 20 daqiqa".
+  const openedMins = minutesBetween(wo.createdAt);
+  const openedFor = openedMins >= 60 * 24
+    ? `${Math.floor(openedMins / 1440)} ${t("dur_day")}`
+    : `${Math.floor(openedMins / 60) ? `${Math.floor(openedMins / 60)} ${t("hours_short")} ` : ""}${Math.round(openedMins % 60)} ${t("dur_min")}`;
+
+  // Jobs with the materials tucked under them. The order has no link from a material to its
+  // job, but materials added with a job from the price list land right after it — so a
+  // material follows the job above it, and one with no job above it stands on its own.
+  type Group = { head: LineItem; kids: LineItem[] };
+  const groups: Group[] = [];
+  for (const it of items) {
+    const mat = kindIsMaterial(kindFromProto(it.kind));
+    const last = groups[groups.length - 1];
+    if (mat && last && !kindIsMaterial(kindFromProto(last.head.kind))) last.kids.push(it);
+    else groups.push({ head: it, kids: [] });
+  }
+
+  const nextReminder = reminders
+    .filter((r) => reminderStateFromProto(r.state) === "pending")
+    .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"))[0];
+
+  const primaryForward = forwardTargets[0];
+  const forwardLabel = (s: WoState) => t(STATE_LABEL[s]);
+
+  // ── header actions (desktop) / sticky bar (phone) ──
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="secondary" size="icon" aria-label={t("nav_more")}><MoreHorizontal /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[220px]">
+        {editable && <DropdownMenuItem onClick={() => setDiscount(true)}>{orderDiscount > 0 ? t("edit_discount") : t("add_discount")}</DropdownMenuItem>}
+        <DropdownMenuItem onClick={() => setNextService(true)}><Bell /> {t("next_service")}</DropdownMenuItem>
+        {forwardTargets.slice(1).map((s) => (
+          <DropdownMenuItem key={s} disabled={busy} onClick={() => doTransition(s)}><ArrowRight /> {forwardLabel(s)}</DropdownMenuItem>
+        ))}
+        {canCancel && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmCancel(true)}><X /> {t("cancel_wo")}</DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  const primaryButtons = (size: "default" | "lg" = "default") => (
+    <>
+      {state === "estimated" && <Button variant="secondary" size={size} disabled={busy} onClick={requestApproval}><Send /> {t("wo_send_customer")}</Button>}
+      {(state === "invoiced" || state === "closed") && <Button variant="secondary" size={size} onClick={() => setInvoice(true)}><Printer /> {t("print")}</Button>}
+      {payable && <Button size={size} disabled={busy} onClick={() => setInvoice(true)}><Receipt /> {state === "ready" ? t("act_invoice") : t("act_take_payment")}</Button>}
+      {primaryForward && (
+        <Button size={size} variant={payable ? "secondary" : "default"} disabled={busy} onClick={() => doTransition(primaryForward)}>
+          <Check /> {forwardLabel(primaryForward)}
+        </Button>
+      )}
+    </>
+  );
 
   return (
-    <div className="flex flex-col gap-4" style={{ paddingBottom: hasBar ? 90 : 16 }}>
-      {/* header */}
-      <div className="flex flex-col gap-3.5">
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" size="icon" onClick={() => router.push("/work-orders")} aria-label={t("back") || "Back"}><ArrowLeft /></Button>
-          <div className="flex flex-1 flex-wrap items-center gap-2.5">
-            <h1 className="font-mono text-[22px] font-extrabold tracking-[-0.02em] text-foreground">{orderLabel(wo)}</h1>
+    <div className="flex flex-col gap-4" style={{ paddingBottom: isMobile ? 96 : 16 }}>
+      <PageHeader
+        title={
+          <div className="flex min-w-0 items-center gap-3">
+            <Button variant="secondary" size="icon" onClick={() => router.push("/work-orders")} aria-label={t("back")}><ArrowLeft /></Button>
+            <h1 className="font-mono text-[21px] font-bold tracking-[-0.02em] text-foreground touch:text-[18px]">{orderLabel(wo)}</h1>
             <StateBadge state={state} />
+            {!isMobile && wo.createdAt && (
+              <span className="truncate text-[13px] text-muted-foreground">
+                {t("wo_opened")} {shortDate(wo.createdAt)} · {hhmm(wo.createdAt)}{!finished && ` · ${openedFor}`}
+              </span>
+            )}
           </div>
-        </div>
-        <Card className="p-4">
-          <div className="flex flex-wrap items-center gap-3.5">
+        }
+        actions={!isMobile ? <>{menu}{primaryButtons()}</> : menu}
+      />
+
+      <Stepper state={state} enabled={enabled} audit={audit} done={servicesDone} total={services.length} compact={isMobile} />
+
+      {/* car · client · mechanic */}
+      <Card className="p-0">
+        <div className="grid divide-y divide-border md:grid-cols-[1.35fr_1fr_1fr] md:divide-x md:divide-y-0">
+          <div className="flex items-center gap-3.5 p-4">
             <CarImage src={wo.vehicleImageUrl} make={wo.make} size={52} />
-            <div className="min-w-[140px] flex-1">
-              <div className="text-[16px] font-bold text-foreground">{[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}</div>
-              <div className="mt-1 flex flex-wrap items-center gap-2.5">
+            <div className="min-w-0">
+              <div className="truncate text-[16.5px] font-bold text-foreground">
+                {[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}
+                {year ? <span className="font-medium text-muted-foreground"> · {year}</span> : null}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
                 {wo.plate ? <PlatePreview plate={wo.plate} size="sm" /> : <span className="font-mono text-[12.5px] text-muted-foreground">{wo.vehicleId.slice(0, 8)}</span>}
-                {wo.customerName && <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Users className="size-3.5" />{wo.customerName}</span>}
                 {/* This visit's line in the service book. Here rather than on the new-order
-                    form because that form is for finding the car; this is where the car is
-                    already identified and somebody is standing next to it. */}
+                    form because this is where the car is identified and somebody is next to it. */}
                 <OdometerField wo={wo} onSaved={setWo} />
               </div>
             </div>
           </div>
-        </Card>
-      </div>
-
-      <div className="grid items-start gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <div className="flex flex-col gap-4">
-          {/* line items */}
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-              <SecTitle>{t("line_items")}</SecTitle>
-              {editable && <Button variant="soft" size="sm" onClick={() => setAddItem(true)}><Plus /> {t("add_item")}</Button>}
+          <div className="min-w-0 p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("customer")}</div>
+            <div className="mt-1 truncate text-[15px] font-bold text-foreground">{wo.customerName || "—"}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              {wo.customerPhone && <a href={`tel:${wo.customerPhone}`} className="font-mono text-[13px] text-ink-2 hover:underline">{wo.customerPhone}</a>}
+              {visits ? <span className="rounded-full bg-secondary px-2 py-0.5 text-[11.5px] font-semibold text-ink-2">{visits}{t("wo_visit")}</span> : null}
             </div>
-            <div>
-              {items.length === 0 && <div className="p-5"><Empty icon="list" text={t("empty")} /></div>}
-              {items.map((it, i) => {
-                const kind = kindFromProto(it.kind);
-                const defPrice = num(it.defaultPrice);
-                const discount = defPrice > num(it.unitPrice) ? (defPrice - num(it.unitPrice)) * (it.quantity || 0) : 0;
-                return (
-                  <div key={it.id ?? i} className="flex items-center gap-3 border-b border-border px-5 py-3 last:border-0">
-                    <Badge tone={kindIsMaterial(kind) ? "info" : "neutral"}>{t(kind)}</Badge>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[14.5px] font-semibold text-foreground">{it.description}</div>
-                      <div className="font-mono text-[12.5px] text-muted-foreground">
-                        {money(it.unitPrice)} × {qtyUnit(t, it.quantity, it.unit)}
-                        {discount > 0 && <span className="ml-1.5 text-muted-foreground line-through">{money(defPrice)}</span>}
-                      </div>
-                      {kind === "service" && (editable ? (
-                        <div className="mt-1.5 max-w-[220px]">
-                          <Select value={it.assignedMechanicId || NONE} disabled={busy} onValueChange={(v) => it.id && doAssignLine(it.id, v === NONE ? "" : v)}>
-                            <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={NONE}>{t("unassigned")}</SelectItem>
-                              {mechanics.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ) : it.assignedMechanicId ? (
-                        <div className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"><Users className="size-3.5" />{mechanics.find((m) => m.id === it.assignedMechanicId)?.name ?? "—"}</div>
-                      ) : null)}
-                      {kind === "service" && (() => {
-                        const ls = lineStatusFromProto(it.status);
-                        const m = ls === "done" ? { tone: "ok" as const, label: t("ln_done") }
-                          : ls === "in_progress" ? { tone: "warn" as const, label: t("ln_inprogress") }
-                          : { tone: "neutral" as const, label: t("ln_pending") };
-                        return <div className="mt-1.5"><Badge tone={m.tone} dot>{m.label}</Badge></div>;
-                      })()}
-                    </div>
-                    <div className="text-right">
-                      <span className="font-mono text-[14.5px] font-bold text-foreground">{money(num(it.unitPrice) * (it.quantity || 0))}</span>
-                      {discount > 0 && <div className="font-mono text-[11px] text-success">−{money(discount)} {t("discount").toLowerCase()}</div>}
-                    </div>
-                    {editable && it.id && <Button variant="ghost" size="icon-sm" onClick={() => setEditItem(it)} aria-label={t("edit")} disabled={busy}><Pencil /></Button>}
-                    {editable && <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive-soft" onClick={() => doRemoveItem(it.id)} aria-label={t("remove")} disabled={busy}><Trash2 /></Button>}
+          </div>
+          <div className="flex min-w-0 items-start justify-between gap-3 p-4">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("wo_resp_mech")}</div>
+              {wo.assignedMechanicId ? (
+                <div className="mt-1.5 flex items-center gap-2.5">
+                  <StaffDot id={wo.assignedMechanicId} name={mechName} size={32} />
+                  <div className="min-w-0">
+                    <div className="truncate text-[14.5px] font-bold text-foreground">{mechName || "—"}</div>
+                    {mech?.phone && <div className="truncate font-mono text-[12px] text-muted-foreground">{mech.phone}</div>}
                   </div>
-                );
-              })}
+                </div>
+              ) : <div className="mt-1.5 text-[14px] text-muted-foreground">{t("unassigned")}</div>}
             </div>
-            <div className="bg-secondary/60 px-5 py-3.5">
+            {!finished && (
+              <button onClick={() => setAssigning(true)} className="shrink-0 text-[13px] font-semibold text-primary-emphasis hover:underline">
+                {wo.assignedMechanicId ? t("wo_change") : t("assign")}
+              </button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid items-start gap-4 lg:grid-cols-[1fr_340px]">
+        {/* ── jobs and parts ── */}
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[15px] font-bold tracking-[-0.02em] text-foreground">{t("line_items")}</span>
+              <span className="text-[12.5px] text-muted-foreground">{items.length} {t("wo_rows")}</span>
+            </div>
+            {editable && (
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={() => { setAddMode("menu"); setAddItem(true); }}>{t("wo_from_price")}</Button>
+                <Button variant="soft" size="sm" onClick={() => { setAddMode("custom"); setAddItem(true); }}><Plus /> {t("add_item")}</Button>
+              </div>
+            )}
+          </div>
+
+          {items.length === 0 ? (
+            <div className="p-5"><Empty icon="list" text={t("empty")} /></div>
+          ) : (
+            <div>
+              {!isMobile && (
+                <div className="grid grid-cols-[minmax(0,1fr)_170px_70px_110px_120px_36px] items-center gap-3 border-b border-border bg-secondary/40 px-5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                  <span>{t("col_desc")}</span><span>{t("col_doer")}</span><span className="text-right">{t("col_qty")}</span>
+                  <span className="text-right">{t("col_price")}</span><span className="text-right">{t("total")}</span><span />
+                </div>
+              )}
+              {groups.map((g, gi) => (
+                <div key={g.head.id ?? gi} className="border-b border-border last:border-0">
+                  {renderLine(g.head, false)}
+                  {g.kids.map((k, ki) => <React.Fragment key={k.id ?? `${gi}-${ki}`}>{renderLine(k, true)}</React.Fragment>)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* the internal note ←→ the money */}
+          <div className="grid gap-5 border-t border-border bg-secondary/40 px-5 py-4 md:grid-cols-[1fr_300px]">
+            <InlineNote wo={wo} onSaved={setWo} />
+            <div className="flex flex-col">
+              <Row label={t("sum_works")} value={money(worksSum)} mono />
+              <Row label={t("materials")} value={money(materialsSum)} mono />
               {totalDiscount > 0 && (
                 <>
                   <Row label={t("before_discount")} value={money(grossSubtotal)} mono />
                   <Row label={`${t("discount")} · ${discountPct}%`} value={<span className="text-success">−{money(totalDiscount)}</span>} mono />
-                  <Separator className="my-1.5" />
                 </>
               )}
-              {orderDiscount > 0 && (
-                <>
-                  <Row label={t("subtotal")} value={money(subtotal)} mono />
-                  <Row label={`${t("order_discount")}${orderDiscLabel}`} value={<span className="text-success">−{money(orderDiscount)}</span>} mono />
-                  <Separator className="my-1.5" />
-                </>
-              )}
-              <Row label={t("total")} value={money(total) + " " + t("soum")} mono strong />
-              {editable && (
-                <button onClick={() => setDiscount(true)} className="mt-2 inline-flex min-h-11 items-center text-[12.5px] font-semibold text-primary-emphasis hover:underline sm:min-h-0">
-                  {orderDiscount > 0 ? t("edit_discount") : `+ ${t("add_discount")}`}
-                </button>
-              )}
+              <div className="flex items-baseline justify-between gap-3 py-[3px]">
+                <span className="text-[14px] font-medium text-ink-2">{t("discount")}{orderDiscount > 0 ? orderDiscLabel : ""}</span>
+                {orderDiscount > 0 ? (
+                  <button onClick={() => editable && setDiscount(true)} className="font-mono text-[14.5px] font-semibold text-success">−{money(orderDiscount)}</button>
+                ) : editable ? (
+                  <button onClick={() => setDiscount(true)} className="text-[13px] font-semibold text-primary-emphasis hover:underline">+ {t("wo_add_draft").toLowerCase()}</button>
+                ) : <span className="font-mono text-[14.5px] text-muted-foreground">0</span>}
+              </div>
+              <Separator className="my-2" />
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[15px] font-bold text-foreground">{t("total")}</span>
+                <span className="font-mono text-[24px] font-bold tracking-[-0.02em] text-foreground">{money(total)} <span className="text-[14px] font-medium text-muted-foreground">{t("soum")}</span></span>
+              </div>
               {totalCost > 0 && (
-                <>
-                  <Separator className="my-1.5" />
-                  <Row label={t("expense")} value={money(totalCost)} mono />
-                  <Row label={t("margin")} value={money(totalMargin)} mono />
-                </>
+                <div className="mt-1 text-right text-[12px] text-muted-foreground">
+                  {t("cost")} {money(totalCost)} · {t("margin")} {money(totalMargin)} ({marginPct}%)
+                </div>
               )}
             </div>
-          </Card>
+          </div>
+        </Card>
 
-          <NotesCard wo={wo} onSaved={setWo} />
-        </div>
-
-        {/* side column */}
+        {/* ── side column ── */}
         <div className="flex flex-col gap-3.5">
+          <ContactCard wo={wo} customer={customer} audit={audit} state={state} />
           <Card className="p-4">
-            <SecTitle right={state !== "closed" && state !== "canceled" ? <button onClick={() => setAssigning(true)} className="-my-2 inline-flex min-h-11 items-center px-1 text-[13px] font-semibold text-primary-emphasis hover:underline sm:my-0 sm:min-h-0 sm:px-0">{t("assign")}</button> : undefined}>{t("mechanic")}</SecTitle>
-            {mech ? (
-              <div className="flex items-center gap-2.5">
-                <UserAvatar name={mech.name} className="size-9" />
-                <div><div className="text-[14px] font-semibold text-foreground">{mech.name}</div><div className="font-mono text-[12px] text-muted-foreground">{mech.phone}</div></div>
+            <div className="mb-2.5 flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("next_service")}</span>
+              <button onClick={() => setNextService(true)} className="text-[13px] font-semibold text-primary-emphasis hover:underline">+ {t("wo_add_draft")}</button>
+            </div>
+            {nextReminder ? (
+              <div className="flex items-start gap-2.5 rounded-[10px] bg-secondary/70 px-3 py-2.5">
+                <Bell className="mt-0.5 size-4 shrink-0 text-primary-emphasis" />
+                <div className="min-w-0">
+                  <div className="text-[14px] font-semibold text-foreground">{nextReminder.title}</div>
+                  <div className="text-[12.5px] leading-snug text-muted-foreground">
+                    {[nextReminder.dueDate ? shortDate(nextReminder.dueDate) : "", nextReminder.dueMileage ? `${Number(nextReminder.dueMileage).toLocaleString("ru-RU")} km` : ""].filter(Boolean).join(` ${t("next_or")} `)}
+                    {nextReminder.dueDate && nextReminder.dueMileage ? ` — ${t("next_first")}` : ""}
+                  </div>
+                </div>
               </div>
-            ) : <span className="text-[14px] text-muted-foreground">{t("unassigned")}</span>}
+            ) : <div className="text-[13px] text-muted-foreground">{t("next_none")}</div>}
           </Card>
-          <AuditCard woId={id} refresh={`${state}|${items.length}|${wo.assignedMechanicId ?? ""}`} />
+          <HistoryCard audit={audit} lang={lang} who={who} />
+          {canCancel && (
+            <button onClick={() => setConfirmCancel(true)} className="self-start px-1 text-[13.5px] font-semibold text-destructive hover:underline">{t("cancel_wo")}</button>
+          )}
         </div>
       </div>
 
-      {/* sticky action bar */}
-      {hasBar && (
-        <div
-          className="fixed bottom-0 right-0 z-50 border-t border-border bg-[color-mix(in_oklch,var(--bg),transparent_8%)] p-3.5 backdrop-blur-md"
-          style={{ left: isMobile ? 0 : 260, paddingBottom: isMobile ? "calc(14px + env(safe-area-inset-bottom))" : 14 }}
-        >
-          {/* The AI launcher is fixed to the bottom-right corner at 56px + 20px of inset, and
-              this bar ends in the same corner — so without this reserve the last action sits
-              underneath it and its middle is unclickable. It was the close button hiding
-              under there, which is the one this screen most needs to work. */}
-          <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-end gap-2.5" style={{ paddingRight: 64 }}>
-            {canCancel && <Button variant="ghost" size={isMobile ? "sm" : "default"} disabled={busy} onClick={() => setConfirmCancel(true)} className="mr-auto text-destructive hover:bg-destructive-soft">{t("cancel_wo")}</Button>}
-            {state === "estimated" && <Button variant="soft" size={isMobile ? "sm" : "default"} disabled={busy} onClick={requestApproval}><Send /> {t("request_approval")}</Button>}
-            {(state === "ready" || state === "invoiced") && <Button size={isMobile ? "default" : "lg"} disabled={busy} onClick={() => setInvoice(true)}><Receipt /> {state === "ready" ? t("generate_invoice") : t("invoice")}</Button>}
-            {/* Dismissed by accident, or thought of later — a closed order can still set one. */}
-            {state === "closed" && <Button variant="soft" size={isMobile ? "default" : "lg"} onClick={() => setNextService(true)}><Bell /> {t("next_service")}</Button>}
-            {forwardTargets.map((target) => {
-              if (state === "ready" && target === "invoiced") return null;
-              return <Button key={target} size={isMobile ? "default" : "lg"} disabled={busy} onClick={() => doTransition(target)}>{t(STATE_LABEL[target])}</Button>;
-            })}
-          </div>
+      {/* phone: the actions sit where the thumb is */}
+      {isMobile && (payable || primaryForward || state === "estimated" || state === "closed") && (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card p-3" style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
+          <div className="flex flex-wrap items-center justify-end gap-2" style={{ paddingRight: 64 }}>{primaryButtons()}</div>
         </div>
       )}
 
-      <AddLineItemModal open={addItem} onClose={() => setAddItem(false)} onAdd={doAddItems} shopId={shopId} lang={lang} busy={busy} />
+      <AddLineItemModal open={addItem} initialMode={addMode} onClose={() => setAddItem(false)} onAdd={doAddItems} shopId={shopId} lang={lang} busy={busy} />
       <EditLineItemModal item={editItem} onClose={() => setEditItem(null)} onSave={doUpdateItem} busy={busy} />
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
-      <InvoiceModal open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} onChange={load} />
+      <PaymentPanel open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} customer={customer} onChange={load} />
       <OrderDiscountModal open={discount} onClose={() => setDiscount(false)} wo={wo} onSaved={() => { setDiscount(false); load(); }} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
-      <NextServiceModal open={nextService} onClose={() => setNextService(false)} wo={wo} shopId={shopId} />
+      <NextServiceModal open={nextService} onClose={() => { setNextService(false); loadReminders(); }} wo={wo} shopId={shopId} />
       {/* An order that drew stock has to say what became of it before it can be called off;
           one that drew none has nothing to settle and keeps the plain confirm. */}
       {returnable.length > 0 ? (
@@ -405,477 +523,268 @@ export default function WorkOrderDetailPage() {
       )}
     </div>
   );
+
+  // One row of the jobs table: a job with its status and who is doing it, or a material with
+  // where it came from. A plain function called in place rather than a component, so a
+  // refresh re-renders the row instead of remounting it (which would close an open menu).
+  function renderLine(it: LineItem, nested: boolean) {
+    const kind = kindFromProto(it.kind);
+    const material = kindIsMaterial(kind);
+    const defPrice = num(it.defaultPrice);
+    const lineDiscount = defPrice > num(it.unitPrice) ? (defPrice - num(it.unitPrice)) * (it.quantity || 0) : 0;
+    const ls = lineStatusFromProto(it.status);
+    const status = ls === "done" ? { tone: "ok" as const, label: t("ln_done") }
+      : ls === "in_progress" ? { tone: "warn" as const, label: t("ln_inprogress") }
+      : { tone: "neutral" as const, label: t("ln_pending") };
+    const actions = editable && it.id ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={t("edit")} disabled={busy}><MoreHorizontal /></Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setEditItem(it)}><Pencil /> {t("edit")}</DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onClick={() => doRemoveItem(it.id)}><Trash2 /> {t("remove")}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : <span />;
+    const doer = !material ? (editable ? (
+      <Select value={it.assignedMechanicId || NONE} disabled={busy} onValueChange={(v) => it.id && doAssignLine(it.id, v === NONE ? "" : v)}>
+        <SelectTrigger size="sm" className="w-full">
+          <span className="flex min-w-0 items-center gap-2">
+            {it.assignedMechanicId && <StaffDot id={it.assignedMechanicId} name={who(it.assignedMechanicId)} size={20} />}
+            <SelectValue />
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>{t("unassigned")}</SelectItem>
+          {mechanics.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    ) : it.assignedMechanicId ? (
+      <span className="inline-flex items-center gap-2 text-[13px] text-foreground"><StaffDot id={it.assignedMechanicId} name={who(it.assignedMechanicId)} size={20} />{who(it.assignedMechanicId) || "—"}</span>
+    ) : <span className="text-[13px] text-muted-foreground">—</span>) : <span />;
+    const icon = material
+      ? <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-info-soft text-info"><Package className="size-4" /></span>
+      : <span className={cn("grid size-8 shrink-0 place-items-center rounded-[8px]", ls === "done" ? "bg-success-soft text-success" : ls === "in_progress" ? "bg-warning-soft text-warning" : "bg-primary-soft text-primary-emphasis")}>
+          {ls === "done" ? <Check className="size-4" /> : ls === "in_progress" ? <Clock className="size-4" /> : <Wrench className="size-4" />}
+        </span>;
+    const desc = (
+      <div className="min-w-0">
+        <div className={cn("text-foreground", nested ? "text-[13.5px] font-medium" : "text-[14.5px] font-semibold")}>
+          {it.description}
+          {material && it.variantId && <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 align-middle text-[11px] font-semibold text-muted-foreground">{t("from_stock_chip")}</span>}
+        </div>
+        {!material && <div className="mt-1"><Badge tone={status.tone} dot>{status.label}</Badge></div>}
+      </div>
+    );
+    const price = (
+      <div className="text-right font-mono text-[13.5px] text-ink-2">
+        {money(it.unitPrice)}
+        {lineDiscount > 0 && <div className="text-[11.5px] text-muted-foreground line-through">{money(defPrice)}</div>}
+      </div>
+    );
+    const lineTotal = (
+      <div className="text-right">
+        <div className={cn("font-mono text-foreground", nested ? "text-[13.5px] font-medium" : "text-[14.5px] font-bold")}>{money(num(it.unitPrice) * (it.quantity || 0))}</div>
+        {lineDiscount > 0 && <div className="font-mono text-[11px] text-success">−{money(lineDiscount)}</div>}
+      </div>
+    );
+
+    if (isMobile) {
+      return (
+        <div className={cn("flex items-start gap-3 px-4 py-3", nested && "pl-12")}>
+          {!nested && icon}
+          <div className="min-w-0 flex-1">
+            {desc}
+            <div className="mt-1 font-mono text-[12.5px] text-muted-foreground">{money(it.unitPrice)} × {qtyUnit(t, it.quantity, it.unit)}</div>
+            {!material && <div className="mt-2 max-w-[240px]">{doer}</div>}
+          </div>
+          {lineTotal}
+          {actions}
+        </div>
+      );
+    }
+    return (
+      <div className={cn("grid grid-cols-[minmax(0,1fr)_170px_70px_110px_120px_36px] items-center gap-3 px-5", nested ? "py-2 pl-[68px]" : "py-3")}>
+        <div className="flex min-w-0 items-center gap-3">{!nested && icon}{desc}</div>
+        <div className="min-w-0">{doer}</div>
+        <div className="text-right font-mono text-[13.5px] text-ink-2">{qtyUnit(t, it.quantity, it.unit)}</div>
+        {price}
+        {lineTotal}
+        {actions}
+      </div>
+    );
+  }
 }
 
-/* ── audit log ── */
-function AuditCard({ woId, refresh }: { woId: string; refresh: string }) {
-  const { t, lang } = useLang();
-  const who = useStaffNames();
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
+/* ── the status flow, with when each step happened ── */
+function Stepper({ state, enabled, audit, done, total, compact }: {
+  state: WoState; enabled?: string[]; audit: AuditEntry[]; done: number; total: number; compact: boolean;
+}) {
+  const { t } = useLang();
+  const on = enabledSet(enabled);
+  const steps = CANONICAL.filter((s) => on.has(s) || s === state);
+  // When the order reached each status: the latest audit entry that moved it there.
+  const reachedAt = new Map<WoState, string>();
+  let canceledFrom: WoState | undefined;
+  for (const e of [...audit].reverse()) {
+    if (e.action !== "state") continue;
+    const to = TRANSITION_TO.exec(e.detail || "")?.[1];
+    if (!to) continue;
+    const s = woStateFromProto(to);
+    reachedAt.set(s, e.createdAt);
+    if (s === "canceled") canceledFrom = woStateFromProto(TRANSITION_FROM.exec(e.detail || "")?.[1]);
+  }
+  const approvedAt = audit.find((e) => e.action === "approved")?.createdAt;
+  const current = state === "canceled" ? (canceledFrom ?? "draft") : state;
+  const idx = steps.indexOf(current);
+  const label = (s: WoState) => (s === "invoiced" ? t("step_invoice") : t(STATE_LABEL[s]));
+  const sub = (s: WoState, i: number) => {
+    if (i < idx || (i === idx && state === "closed")) {
+      if (s === "approved" && approvedAt) return `Telegram, ${hhmm(approvedAt)}`;
+      const at = reachedAt.get(s);
+      return at ? (isToday(at) ? hhmm(at) : shortDate(at)) : "";
+    }
+    if (i === idx && s === "in_progress" && total > 0) return `${done}/${total} ${t("jobs_short")}`;
+    return "";
+  };
 
-  useEffect(() => {
-    let cancelled = false;
-    api.getAuditLog(woId)
-      .then((e) => { if (!cancelled) setEntries([...e].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [woId, refresh]);
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1 px-1">
+        {steps.map((s, i) => (
+          <React.Fragment key={s}>
+            <span className={cn("size-3 shrink-0 rounded-full", i < idx || (i === idx && state === "closed") ? "bg-success" : i === idx ? (state === "canceled" ? "bg-destructive" : "bg-warning ring-4 ring-warning/20") : "bg-secondary border border-border")} />
+            {i < steps.length - 1 && <span className={cn("h-0.5 flex-1 rounded-full", i < idx ? "bg-success" : "bg-border")} />}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex min-w-[720px] items-start">
+        {steps.map((s, i) => {
+          const passed = i < idx || (i === idx && state === "closed");
+          const cur = i === idx && !passed;
+          return (
+            <React.Fragment key={s}>
+              <div className="flex min-w-0 shrink-0 items-start gap-2">
+                <span className={cn(
+                  "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border-2",
+                  passed ? "border-success bg-success text-white" : cur ? (state === "canceled" ? "border-destructive bg-destructive-soft text-destructive" : "border-warning bg-warning-soft text-warning ring-4 ring-warning/15") : "border-border bg-card",
+                )}>
+                  {passed ? <Check className="size-3.5" strokeWidth={3} /> : cur ? (state === "canceled" ? <X className="size-3" strokeWidth={3} /> : <span className="size-2 rounded-full bg-current" />) : null}
+                </span>
+                <div className="min-w-0">
+                  <div className={cn("whitespace-nowrap text-[13px]", passed ? "font-semibold text-success" : cur ? "font-bold text-warning" : "font-medium text-muted-foreground")}>{label(s)}</div>
+                  {sub(s, i) && <div className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">{sub(s, i)}</div>}
+                </div>
+              </div>
+              {i < steps.length - 1 && <span className={cn("mx-3 mt-3.5 h-0.5 min-w-6 flex-1 rounded-full", i < idx ? "bg-success" : "bg-border")} />}
+            </React.Fragment>
+          );
+        })}
+        {state === "canceled" && (
+          <span className="ml-4 mt-0.5 shrink-0 rounded-full bg-destructive-soft px-2.5 py-1 text-[12px] font-bold text-destructive">{t("st_canceled")}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
-  if (entries.length === 0) return null;
-
+/* ── how the client has been kept informed ── */
+function ContactCard({ wo, customer, audit, state }: { wo: WorkOrder; customer: Customer | null; audit: AuditEntry[]; state: WoState }) {
+  const { t } = useLang();
+  const linked = !!customer?.telegramChatId;
+  const approved = audit.find((e) => e.action === "approved");
+  const declined = audit.find((e) => e.action === "declined");
+  const phone = wo.customerPhone || customer?.phone || "";
+  const handle = (customer?.telegramHandle || "").replace(/^@/, "");
+  const messageHref = handle ? `https://t.me/${handle}` : phone ? `sms:${phone}` : undefined;
   return (
     <Card className="p-4">
-      <SecTitle>{t("audit_log")}</SecTitle>
-      <div className="mt-1 flex flex-col gap-2.5">
-        {entries.map((e) => (
-          <div key={e.id} className="flex gap-2.5">
-            <div className="mt-1.5 size-[7px] shrink-0 rounded-full bg-primary-emphasis" />
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-semibold text-foreground">
-                {/* Both halves are the server's words, and both are shown in the reader's
-                    language — the detail only where the server composed it, since a line
-                    item's description belongs to whoever typed it. */}
-                {auditAction(lang, e.action)}
-                {auditDetail(lang, e.action, e.detail) ? <span className="font-normal text-ink-2"> · {auditDetail(lang, e.action, e.detail)}</span> : null}
-              </div>
-              <div className="font-mono text-[11.5px] text-muted-foreground">
-                {new Date(e.createdAt).toLocaleString()}{who(e.actorId) ? " · " + who(e.actorId) : ""}
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("contact_title")}</span>
+        {customer && <Badge tone={linked ? "ok" : "neutral"}>{linked ? t("tg_linked") : t("tg_not_linked")}</Badge>}
+      </div>
+      <div className="mb-3 flex flex-col gap-1.5 text-[13.5px]">
+        {approved ? (
+          <div className="flex items-center gap-2 text-foreground"><Check className="size-4 text-success" />{t("est_approved")}<span className="ml-auto font-mono text-[12px] text-muted-foreground">{hhmm(approved.createdAt)}</span></div>
+        ) : declined ? (
+          <div className="flex items-center gap-2 text-foreground"><X className="size-4 text-destructive" />{t("est_declined")}<span className="ml-auto font-mono text-[12px] text-muted-foreground">{hhmm(declined.createdAt)}</span></div>
+        ) : state === "estimated" ? (
+          <div className="flex items-center gap-2 text-ink-2"><Clock className="size-4 text-warning" />{t("est_waiting")}</div>
+        ) : state === "draft" ? (
+          <div className="flex items-center gap-2 text-ink-2"><Clock className="size-4 text-muted-foreground" />{t("est_not_sent")}</div>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="secondary" size="sm" asChild={!!phone} disabled={!phone}>
+          {phone ? <a href={`tel:${phone}`}><Phone /> {t("call")}</a> : <span><Phone /> {t("call")}</span>}
+        </Button>
+        <Button variant="secondary" size="sm" asChild={!!messageHref} disabled={!messageHref}>
+          {messageHref ? <a href={messageHref} target={handle ? "_blank" : undefined} rel="noreferrer"><MessageSquare /> {t("msg")}</a> : <span><MessageSquare /> {t("msg")}</span>}
+        </Button>
       </div>
     </Card>
   );
 }
 
-/* ── estimate approval (Telegram) ── */
-function ApprovalModal({ approval, onClose }: { approval: { deepLink: string; botUsername: string } | null; onClose: () => void }) {
+/* ── everything that happened to the order ── */
+function HistoryCard({ audit, lang, who }: { audit: AuditEntry[]; lang: string; who: (id?: string) => string }) {
   const { t } = useLang();
-  const { toast } = useToast();
-  const configured = !!approval?.deepLink;
-  const copy = () => { if (approval?.deepLink) { navigator.clipboard?.writeText(approval.deepLink); toast(t("copied"), { icon: "check" }); } };
+  const [all, setAll] = useState(false);
+  if (audit.length === 0) return null;
+  const dot = (a: string) => a === "approved" ? "bg-success" : a === "declined" ? "bg-destructive" : a === "state" ? "bg-primary" : a === "materials_returned" ? "bg-warning" : "bg-ink-3";
+  const shown = all ? audit : audit.slice(0, 6);
   return (
-    <Dialog open={!!approval} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[420px]">
-        <DialogHeader><DialogTitle>{t("request_approval")}</DialogTitle></DialogHeader>
-        <DialogBody className="py-1">
-          {!configured ? (
-            <div className="text-[13.5px] leading-relaxed text-ink-2">{t("telegram_not_configured")}</div>
-          ) : (
-            <div className="flex flex-col items-center gap-3.5 pb-1">
-              <div className="text-center text-[13.5px] leading-relaxed text-ink-2">{t("approval_share_hint")}</div>
-              <div className="rounded-[12px] border border-border bg-white p-3"><QR data={approval!.deepLink} size={180} /></div>
-              <div className="flex w-full gap-2">
-                <Input value={approval!.deepLink} readOnly className="flex-1 font-mono text-[12px]" onFocus={(e) => e.currentTarget.select()} />
-                <Button variant="soft" onClick={copy}><Check /> {t("copy")}</Button>
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("history")}</span>
+        {isToday(audit[0]?.createdAt) && <span className="text-[12px] text-muted-foreground">{t("today").toLowerCase()}</span>}
+      </div>
+      <div className="flex flex-col gap-3">
+        {shown.map((e) => {
+          const detail = auditDetail(lang as "uz", e.action, e.detail);
+          const actor = who(e.actorId);
+          return (
+            <div key={e.id} className="flex gap-2.5">
+              <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", dot(e.action))} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] text-foreground">
+                  {auditAction(lang as "uz", e.action)}
+                  {detail ? <span className="text-ink-2"> · {detail}</span> : null}
+                </div>
+                <div className="font-mono text-[11.5px] text-muted-foreground">
+                  {isToday(e.createdAt) ? hhmm(e.createdAt) : `${shortDate(e.createdAt)} ${hhmm(e.createdAt)}`}{actor ? ` · ${actor}` : ""}
+                </div>
               </div>
-              <a href={approval!.deepLink} target="_blank" rel="noreferrer" className="w-full">
-                <Button className="w-full"><Send /> {t("open_in_telegram")}</Button>
-              </a>
             </div>
-          )}
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
+          );
+        })}
+      </div>
+      {audit.length > 6 && (
+        <button onClick={() => setAll((v) => !v)} className="mt-3 text-[13px] font-semibold text-primary-emphasis hover:underline">
+          {all ? t("dash_more") : t("full_log")}
+        </button>
+      )}
+    </Card>
   );
 }
 
-/* ── add line item ── */
-// Edit an existing line item in place (draft/editable states). Changes description, agreed
-// price, unit cost and quantity; stock for a material line is reconciled by the backend.
-function EditLineItemModal({ item, onClose, onSave, busy }: {
-  item: LineItem | null; onClose: () => void; onSave: (lineItemId: string, fields: { description: string; unitPrice: number; quantity: number; cost: number; consumedQty: number }) => void; busy: boolean;
-}) {
-  const { t } = useLang();
-  const [desc, setDesc] = useState("");
-  const [price, setPrice] = useState("");
-  const [cost, setCost] = useState("");
-  const [qty, setQty] = useState("1");
-  useEffect(() => {
-    if (item) { setDesc(item.description); setPrice(String(num(item.unitPrice))); setCost(String(num(item.cost))); setQty(String(item.quantity || 1)); }
-  }, [item]);
-  if (!item) return null;
-  // A material may carry a fractional quantity (e.g. 3.5 L); a service stays whole.
-  const material = kindIsMaterial(kindFromProto(item.kind));
-
-  const save = () => {
-    if (!desc.trim() || !price) return;
-    const quantity = material ? (parseFloat(qty) || 1) : (parseInt(qty, 10) || 1);
-    // Keep the exact stock draw unless it tracked the billing quantity (a directly-picked
-    // material), in which case follow the new quantity. Bundled recipe amounts stay fixed.
-    const oldQty = item.quantity || 0;
-    const oldConsumed = item.consumedQty ?? 0;
-    const consumedQty = item.variantId ? (oldConsumed === oldQty ? quantity : oldConsumed) : 0;
-    onSave(item.id!, { description: desc.trim(), unitPrice: parseInt(price, 10) || 0, quantity, cost: parseInt(cost, 10) || 0, consumedQty });
-  };
-
-  return (
-    <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[440px]">
-        <DialogHeader><DialogTitle>{t("edit")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex flex-col gap-3.5 py-1">
-          <Field label={t("description")}><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t("description")} /></Field>
-          <div className="grid grid-cols-[1fr_76px] gap-2.5">
-            <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-            <Field label={t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(material ? /[^\d.]/g : /\D/g, ""))} inputMode={material ? "decimal" : "numeric"} className="text-center font-mono" /></Field>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// OrderDiscountModal sets or clears the whole-order discount (fixed so'm or percent).
-function OrderDiscountModal({ open, onClose, wo, onSaved }: {
-  open: boolean; onClose: () => void; wo: WorkOrder; onSaved: () => void;
-}) {
-  const { t } = useLang();
-  const { toast } = useToast();
-  const [kind, setKind] = useState<Exclude<DiscountKind, "none">>("percent");
-  const [value, setValue] = useState(""); // fixed: so'm; percent: percent number (may be decimal)
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const k = discountFromProto(wo.discountKind);
-    if (k === "percent") { setKind("percent"); setValue(String(num(wo.discountValue) / 100)); }
-    else if (k === "fixed") { setKind("fixed"); setValue(String(num(wo.discountValue))); }
-    else { setKind("percent"); setValue(""); }
-  }, [open, wo]);
-
-  const existing = discountFromProto(wo.discountKind) !== "none";
-
-  const submit = async (clear: boolean) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (clear) {
-        await api.setOrderDiscount(wo.id, "none", 0);
-      } else {
-        // percent → basis points (100 = 1%); fixed → so'm as entered.
-        const v = kind === "percent" ? Math.round((parseFloat(value) || 0) * 100) : (parseInt(value, 10) || 0);
-        await api.setOrderDiscount(wo.id, kind, v);
-      }
-      toast(t("save"), { icon: "check" });
-      onSaved();
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[420px]">
-        <DialogHeader><DialogTitle>{t("order_discount")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex flex-col gap-3.5 py-1">
-          <Tabs value={kind} onValueChange={(v) => setKind(v as Exclude<DiscountKind, "none">)}>
-            <TabsList className="w-full">
-              <TabsTrigger value="percent" className="flex-1">{t("discount_percent")}</TabsTrigger>
-              <TabsTrigger value="fixed" className="flex-1">{t("discount_fixed")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Field label={t("discount_value")}>
-            {kind === "percent" ? (
-              <Input value={value} inputMode="decimal" placeholder="10"
-                onChange={(e) => setValue(e.target.value.replace(/[^\d.]/g, ""))} className="text-center font-mono" />
-            ) : (
-              <MoneyInput value={value} onChange={setValue} />
-            )}
-          </Field>
-        </DialogBody>
-        <DialogFooter>
-          {existing && <Button variant="ghost" className="text-destructive hover:bg-destructive-soft mr-auto" disabled={busy} onClick={() => submit(true)}>{t("remove_discount")}</Button>}
-          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy} onClick={() => submit(false)}>{busy ? <Spinner /> : t("save")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy }: {
-  open: boolean; onClose: () => void; onAdd: (items: LineItemInput[]) => void; shopId: string; lang: string; busy: boolean;
-}) {
-  const { t } = useLang();
-  const [mode, setMode] = useState<"menu" | "custom">("menu");
-  const [catalog, setCatalog] = useState<"services" | "materials">("services");
-  const [picked, setPicked] = useState(false);
-  const [kind, setKind] = useState<LineItemKind>("service");
-  const [desc, setDesc] = useState("");
-  const [price, setPrice] = useState("");
-  const [cost, setCost] = useState("");
-  const [qty, setQty] = useState("1");
-  // The unit the picked material is measured in, carried as its own value all the way to the
-  // server. Blank for a service, and for a material somebody typed rather than picked.
-  const [unit, setUnit] = useState("");
-  const [from, setFrom] = useState<{ menuItemId: string; menuOptionId: string; defaultPrice: number }>({ menuItemId: "", menuOptionId: "", defaultPrice: 0 });
-  const [fromVariant, setFromVariant] = useState(""); // warehouse variant to consume, if picked from stock
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [parts, setParts] = useState<PickVariant[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [mats, setMats] = useState<{ on: boolean; mat: import("@/lib/types").MenuMaterial }[]>([]);
-  type Extra = { name: string; qty: string; unit: string; cost: string; price: string; variantId: string };
-  const [extras, setExtras] = useState<Extra[]>([]);
-  const addExtra = () => setExtras((s) => [...s, { name: "", qty: "1", unit: "pcs", cost: "", price: "", variantId: "" }]);
-  const setExtra = (i: number, patch: Partial<Extra>) => setExtras((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
-  const delExtra = (i: number) => setExtras((s) => s.filter((_, j) => j !== i));
-  // Warehouse catalog: extra materials can be picked from (or created in) the warehouse.
-  const [defs, setDefs] = useState<PropertyDefinition[]>([]);
-  const [brands, setBrands] = useState<CatalogTerm[]>([]);
-  const [categories, setCategories] = useState<CatalogTerm[]>([]);
-  const [contragents, setContragents] = useState<Contragent[]>([]);
-  const [creating, setCreating] = useState(false);
-  const variantOptions = parts.map((p) => ({ value: p.id, label: p.name }));
-
-  const reset = () => { setPicked(false); setKind("service"); setDesc(""); setPrice(""); setCost(""); setQty("1"); setUnit(""); setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: 0 }); setFromVariant(""); setMats([]); setExtras([]); };
-
-  const loadProducts = useCallback(() => { api.listProducts(shopId).then((ps) => { setProducts(ps); setParts(flattenVariants(ps)); }).catch(() => {}); }, [shopId]);
-  const loadContragents = useCallback(() => { api.listContragents().then(setContragents).catch(() => {}); }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    setMode("menu"); setCatalog("services"); reset();
-    api.listMenuItems(shopId).then((m) => setMenu(m.filter((x) => x.active))).catch(() => {});
-    loadProducts();
-    api.listPropertyDefinitions().then(setDefs).catch(() => {});
-    api.listCatalogTerms("brand").then(setBrands).catch(() => {});
-    api.listCatalogTerms("category").then(setCategories).catch(() => {});
-    loadContragents();
-  }, [open, shopId, loadProducts, loadContragents]);
-
-  // Pick a warehouse variant for an extra material row: fill name/unit/cost/price and link it.
-  const pickExtraVariant = (i: number, variantId: string) => {
-    const v = parts.find((x) => x.id === variantId);
-    if (!v) { setExtra(i, { variantId: "" }); return; }
-    setExtra(i, { variantId: v.id, name: v.name, unit: v.unit || "pcs", cost: String(num(v.unitCost)), price: String(num(v.unitPrice)) });
-  };
-
-  // A service with options is added as one of them: the line reads "Moy almashtirish ·
-  // Krossover", it is priced at that option, and it carries the option's id so the order still
-  // says which one was sold after the price list has moved on.
-  const pickMenu = (m: MenuItem, option?: import("@/lib/types").MenuItemOption) => {
-    const price = option ? num(option.price) : num(m.defaultPrice);
-    const cost = option ? num(option.cost) : num(m.defaultCost);
-    setPicked(true); setKind("service"); setUnit(""); // a service is not measured in litres
-    setDesc(option ? `${menuName(m, lang)} · ${option.name}` : menuName(m, lang));
-    setPrice(String(price)); setCost(String(cost));
-    setFrom({ menuItemId: m.id, menuOptionId: option?.id ?? "", defaultPrice: price });
-    setFromVariant("");
-    setMats((m.materials ?? []).map((mat) => ({ on: true, mat }))); setExtras([]); setMode("custom");
-  };
-  const pickPart = (p: PickVariant) => {
-    setPicked(true); setKind("material"); setDesc(p.name); setUnit(p.unit || "");
-    setPrice(String(num(p.unitPrice))); setCost(String(num(p.unitCost)));
-    setFrom({ menuItemId: "", menuOptionId: "", defaultPrice: num(p.unitPrice) }); setFromVariant(p.id); setMats([]); setExtras([]); setMode("custom");
-  };
-  const matLine = (mat: import("@/lib/types").MenuMaterial): LineItemInput => {
-    const q = mat.quantity || 1;
-    // Bundled recipe material: billed as a per-unit price × its (possibly fractional) recipe
-    // quantity, and drawn from stock at that exact amount via consumed_qty.
-    return {
-      kind: "material", description: mat.name, unit: mat.unit, unitPrice: num(mat.unitPrice), quantity: q,
-      cost: num(mat.unitCost), defaultPrice: num(mat.unitPrice),
-      variantId: mat.variantId || undefined,
-      consumedQty: mat.variantId ? q : undefined,
-    };
-  };
-  const addCustom = () => {
-    if (!desc.trim() || !price) return;
-    // Services are whole units; a material may be fractional (e.g. 3.5 L). Quantity is a real
-    // number now, so the line total is unit_price × quantity and, for a stock material, exactly
-    // that amount is drawn from the warehouse (consumed_qty).
-    const q = kind === "material" ? (parseFloat(qty) || 1) : (parseInt(qty, 10) || 1);
-    const items: LineItemInput[] = [{
-      kind, description: desc.trim(), unit: kind === "material" ? unit : "",
-      unitPrice: parseInt(price, 10) || 0, quantity: q, cost: parseInt(cost, 10) || 0,
-      menuItemId: from.menuItemId || undefined, menuOptionId: from.menuOptionId || undefined,
-      defaultPrice: from.defaultPrice || undefined,
-      variantId: kind === "material" && fromVariant ? fromVariant : undefined,
-      consumedQty: kind === "material" && fromVariant ? q : undefined,
-    }];
-    if (kind === "service") {
-      for (const m of mats) if (m.on) items.push(matLine(m.mat));
-      for (const e of extras) {
-        if (!e.name.trim()) continue;
-        const eqty = parseFloat(e.qty) || 1;
-        items.push({
-          kind: "material", description: e.name.trim(), unit: e.unit,
-          unitPrice: parseInt(e.price, 10) || 0, quantity: eqty, cost: parseInt(e.cost, 10) || 0,
-          variantId: e.variantId || undefined,
-          consumedQty: e.variantId ? eqty : undefined,
-        });
-      }
-    }
-    onAdd(items);
-  };
-
-  const agreed = parseInt(price, 10) || 0;
-  const discount = from.defaultPrice > agreed ? from.defaultPrice - agreed : 0;
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[460px]">
-        <DialogHeader><DialogTitle>{t("add_item")}</DialogTitle></DialogHeader>
-        <DialogBody className="py-1">
-          <Tabs value={mode} onValueChange={(v) => { const nv = v as "menu" | "custom"; if (nv === "custom" && mode === "menu") reset(); setMode(nv); }} className="mb-4">
-            <TabsList className="w-full"><TabsTrigger value="menu" className="flex-1">{t("from_menu")}</TabsTrigger><TabsTrigger value="custom" className="flex-1">{t("custom_item")}</TabsTrigger></TabsList>
-          </Tabs>
-          {mode === "menu" ? (
-            <div className="flex flex-col gap-2.5">
-              <Tabs value={catalog} onValueChange={(v) => setCatalog(v as "services" | "materials")}>
-                <TabsList className="w-full"><TabsTrigger value="services" className="flex-1">{t("services")}</TabsTrigger><TabsTrigger value="materials" className="flex-1">{t("materials")}</TabsTrigger></TabsList>
-              </Tabs>
-              {catalog === "services" ? (
-                <div className="max-h-[340px] overflow-y-auto">
-                  {menu.length === 0 ? <Empty icon="list" text={t("empty")} />
-                    : <ServicePicker items={menu} nameOf={(m) => menuName(m, lang)} disabled={busy} onPick={pickMenu} />}
-                </div>
-              ) : (
-                  /* Products first, variants on tap: a flat list of every variant of every
-                     product is hundreds of rows to scroll to reach one filter. */
-                  <ProductPicker
-                    products={products}
-                    onPick={(prod, v) => pickPart({
-                      id: v.id!,
-                      name: variantLabel(v) ? `${prod.name} · ${variantLabel(v)}` : prod.name,
-                      unit: prod.unit,
-                      unitPrice: v.unitPrice,
-                      unitCost: v.unitCost,
-                      quantityOnHand: num(v.quantityOnHand),
-                    })}
-                    maxHeight={300}
-                    emptyText={t("empty")}
-                  />
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3.5">
-              {!picked && (
-                <Tabs value={kind} onValueChange={(v) => setKind(v as LineItemKind)}>
-                  <TabsList className="w-full">{LINE_ITEM_KINDS.map((k) => <TabsTrigger key={k} value={k} className="flex-1">{t(k)}</TabsTrigger>)}</TabsList>
-                </Tabs>
-              )}
-              {/* A custom line is usually a job the shop does often but never put on the menu.
-                  Offering the menu here means it is at least written the same way each time. */}
-              <Field label={t("description")}>
-                <SuggestInput value={desc} options={menu.map((m) => menuName(m, lang))} onChange={setDesc} placeholder={t("description")} />
-              </Field>
-              <div className="grid grid-cols-[1fr_76px] gap-2.5">
-                <Field label={t("sell_price")}><MoneyInput value={price} onChange={setPrice} /></Field>
-                {/* Services are billed in whole units; a separately-added material may be
-                    fractional (e.g. 3.5 L of oil), so it accepts a decimal quantity. */}
-                {/* Naming the unit on the label is how "4" stops being ambiguous — four
-                    litres, not four bottles — without it being written into the item's name. */}
-                <Field label={unit ? `${t("qty")}, ${unitLabel(t, unit)}` : t("qty")}><Input value={qty} onChange={(e) => setQty(e.target.value.replace(kind === "material" ? /[^\d.]/g : /\D/g, ""))} inputMode={kind === "material" ? "decimal" : "numeric"} className="text-center font-mono" /></Field>
-              </div>
-              {from.defaultPrice > 0 && (
-                <div className="flex justify-between gap-2 text-[12.5px] text-muted-foreground">
-                  <span>{t("menu_price")}: <span className="font-mono">{money(from.defaultPrice)}</span></span>
-                  {discount > 0 && <span className="text-primary-emphasis">{t("discount")}: −{money(discount)}</span>}
-                </div>
-              )}
-              {kind === "service" && (
-                <div className="flex flex-col gap-1.5 border-t border-border pt-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{t("materials_needed")}</span>
-                    <div className="flex items-center gap-1.5">
-                      <Button variant="ghost" size="sm" onClick={() => setCreating(true)}><Plus /> {t("new_product")}</Button>
-                      <Button variant="soft" size="sm" onClick={addExtra}><Plus /> {t("add_material")}</Button>
-                    </div>
-                  </div>
-                  {mats.map((m, i) => (
-                    <button key={i} type="button" onClick={() => setMats((s) => s.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))}
-                      className={cn("flex items-center gap-2.5 rounded-[9px] border px-2.5 py-2 text-left transition-colors", m.on ? "border-primary bg-primary-soft" : "border-border bg-card")}>
-                      <span className={cn("grid size-[18px] shrink-0 place-items-center rounded-[5px] border-[1.5px]", m.on ? "border-primary-emphasis bg-primary-emphasis" : "border-input")}>{m.on && <Check className="size-3 text-white" />}</span>
-                      <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-foreground">{m.mat.name}{m.mat.unit ? ` · ${m.mat.quantity} ${m.mat.unit}` : m.mat.quantity > 1 ? ` ×${m.mat.quantity}` : ""}</span>
-                      <span className="font-mono text-[12.5px] font-bold text-ink-2">{money(Math.round(num(m.mat.unitPrice) * (m.mat.quantity || 1)))}</span>
-                    </button>
-                  ))}
-                  {extras.map((e, i) => (
-                    <div key={i} className="flex flex-col gap-2.5 rounded-[10px] border border-border bg-secondary/30 p-2.5">
-                      {/* warehouse picker + remove */}
-                      <div className="flex items-end gap-2">
-                        <Field label={t("from_warehouse")} className="flex-1">
-                          <SearchSelect
-                            value={e.variantId}
-                            options={variantOptions}
-                            placeholder={t("choose_from_warehouse")}
-                            onChange={(v) => pickExtraVariant(i, v)}
-                          />
-                        </Field>
-                        <Button variant="ghost" size="icon" onClick={() => delExtra(i)} aria-label="remove" className="mb-0.5 shrink-0 text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
-                      </div>
-                      {/* material name (auto-filled from the warehouse; editable for ad-hoc) */}
-                      <Field label={t("material_name")}>
-                        <Input value={e.name} placeholder={t("material_name")} onChange={(ev) => setExtra(i, { name: ev.target.value, variantId: "" })} />
-                      </Field>
-                      <div className="grid grid-cols-3 items-end gap-2">
-                        <Field label={t("qty")}>
-                          <Input value={e.qty} inputMode="decimal" onChange={(ev) => setExtra(i, { qty: ev.target.value.replace(/[^\d.]/g, "") })} className="h-10 text-center font-mono" />
-                        </Field>
-                        <Field label={t("unit")}>
-                          <UnitSelect value={e.unit} onChange={(v) => setExtra(i, { unit: v })} style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
-                        </Field>
-                        <Field label={t("price")}>
-                          <MoneyInput value={e.price} onChange={(v) => setExtra(i, { price: v })} placeholder={t("price")} hideHint style={{ height: 40, paddingTop: 0, paddingBottom: 0 }} />
-                        </Field>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </DialogBody>
-        {mode === "custom" && (
-          <DialogFooter>
-            <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-            <Button disabled={busy} onClick={addCustom}><Plus /> {t("add")}</Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
-
-      {/* Create a warehouse product without leaving the line-item editor. */}
-      <ProductForm
-        open={creating}
-        mode="new"
-        product={null}
-        shopId={shopId}
-        definitions={defs}
-        brands={brands}
-        categories={categories}
-        contragents={contragents}
-        onContragentsChange={loadContragents}
-        onClose={() => setCreating(false)}
-        onSaved={loadProducts}
-      />
-    </Dialog>
-  );
-}
-
-/* ── assign mechanic ── */
-// NotesCard is the order's free-text note: what the customer asked for, what to watch for
-// next time, who collected it. Internal to the shop — it is not printed on the customer's
-// check or sent with their copy — and editable at any point in the order's life, because
-// the useful moment to write one is often after the work is finished.
-function NotesCard({ wo, onSaved }: { wo: WorkOrder; onSaved: (w: WorkOrder) => void }) {
+/* ── the internal note, beside the totals ── */
+// Internal to the shop — never printed on the client's check or sent with their copy — and
+// editable at any point in the order's life, because the useful moment to write one is often
+// after the work is finished.
+function InlineNote({ wo, onSaved }: { wo: WorkOrder; onSaved: (w: WorkOrder) => void }) {
   const { t } = useLang();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(wo.notes ?? "");
   const [saving, setSaving] = useState(false);
-
-  // Re-sync when the order reloads under us, but never while the user is mid-edit —
-  // a background refresh must not eat what they are typing.
+  // Re-sync when the order reloads under us, but never while somebody is typing.
   useEffect(() => { if (!editing) setDraft(wo.notes ?? ""); }, [wo.notes, editing]);
-
   const save = async () => {
     if (saving) return;
     setSaving(true);
@@ -885,89 +794,52 @@ function NotesCard({ wo, onSaved }: { wo: WorkOrder; onSaved: (w: WorkOrder) => 
       toast(t("save"), { icon: "check" });
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
-
   const has = (wo.notes ?? "").trim().length > 0;
-  if (!editing && !has) {
-    return (
-      <Card className="p-4">
-        <button onClick={() => { setDraft(""); setEditing(true); }}
-          className="flex min-h-11 w-full items-center gap-2 text-left text-[13.5px] font-semibold text-muted-foreground hover:text-foreground sm:min-h-0">
-          <Plus className="size-4" /> {t("add_note")}
-        </button>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <SecTitle>{t("notes")}</SecTitle>
-        {!editing && (
-          <button onClick={() => setEditing(true)}
-            className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">{t("edit")}</button>
-        )}
+    <div className="min-w-0">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("note_hidden")}</span>
+        {!editing && <button onClick={() => { setDraft(wo.notes ?? ""); setEditing(true); }} className="text-[12.5px] font-semibold text-primary-emphasis hover:underline">{has ? t("edit") : `+ ${t("add_note")}`}</button>}
       </div>
       {editing ? (
-        <div className="flex flex-col gap-2.5">
-          <Textarea value={draft} rows={4} maxLength={4000} autoFocus
-            placeholder={t("note_placeholder")}
+        <div className="flex flex-col gap-2">
+          <Textarea value={draft} rows={3} maxLength={4000} autoFocus placeholder={t("note_placeholder")}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.target.value)} />
           <div className="flex items-center gap-2">
-            <Button disabled={saving} onClick={save}>{saving ? <Spinner /> : t("save")}</Button>
-            <Button variant="secondary" disabled={saving}
-              onClick={() => { setDraft(wo.notes ?? ""); setEditing(false); }}>{t("cancel")}</Button>
-            <span className="ml-auto text-[12px] text-muted-foreground">{t("note_internal_hint")}</span>
+            <Button size="sm" disabled={saving} onClick={save}>{saving ? <Spinner /> : t("save")}</Button>
+            <Button size="sm" variant="secondary" disabled={saving} onClick={() => { setDraft(wo.notes ?? ""); setEditing(false); }}>{t("cancel")}</Button>
           </div>
         </div>
+      ) : has ? (
+        <div className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink-2">{wo.notes}</div>
       ) : (
-        <div className="whitespace-pre-wrap text-[14px] text-ink-2">{wo.notes}</div>
+        <div className="text-[13px] text-muted-foreground">{t("note_internal_hint")}</div>
       )}
-    </Card>
+    </div>
   );
 }
 
-function AssignModal({ open, onClose, mechanics, current, onPick }: { open: boolean; onClose: () => void; mechanics: Staff[]; current?: string; onPick: (id: string) => void }) {
-  const { t } = useLang();
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[400px]">
-        <DialogHeader><DialogTitle>{t("assign")}</DialogTitle></DialogHeader>
-        <DialogBody className="py-1">
-          <div className="flex flex-col gap-2 pb-1">
-            {mechanics.length === 0 && <Empty icon="team" text={t("empty")} />}
-            {mechanics.map((m) => (
-              <button key={m.id} onClick={() => onPick(m.id)} className={cn("flex items-center gap-3 rounded-[9px] border bg-card px-3 py-2.5 text-left transition-colors hover:bg-secondary", current === m.id ? "border-primary" : "border-border")}>
-                <UserAvatar name={m.name} className="size-9" />
-                <div className="flex-1"><div className="text-[14.5px] font-semibold text-foreground">{m.name}</div><div className="font-mono text-[12px] text-muted-foreground">{m.phone}</div></div>
-                {current === m.id && <Check className="size-[18px] text-primary-emphasis" />}
-              </button>
-            ))}
-          </div>
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ── invoice / fiscalize / pay ── */
-function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: boolean; onClose: () => void; wo: WorkOrder; shopId: string; total: number; onChange: () => void }) {
+/* ── taking the money: the receipt beside the payment ── */
+function PaymentPanel({ open, onClose, wo, shopId, total, customer, onChange }: {
+  open: boolean; onClose: () => void; wo: WorkOrder; shopId: string; total: number; customer: Customer | null; onChange: () => void;
+}) {
   const shopProfile = useShopProfile();
   const { t } = useLang();
   const { toast } = useToast();
-  const [inv, setInv] = useState<import("@/lib/types").Invoice | null>(null);
+  const { session } = useAuth();
+  const [inv, setInv] = useState<Invoice | null>(null);
   const [busy, setBusy] = useState(false);
-  const [cards, setCards] = useState<import("@/lib/types").ShopCard[]>([]);
-  const [cardMode, setCardMode] = useState(false);   // card sub-panel is open
-  const [splitMode, setSplitMode] = useState(false); // several payments on one bill
-  const [pickedCard, setPickedCard] = useState("");  // chosen saved-card id
-  const [adhoc, setAdhoc] = useState("");            // typed one-off number
+  const [cards, setCards] = useState<ShopCard[]>([]);
+  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [received, setReceived] = useState("");
+  const [split, setSplit] = useState(false);
+  const [pickedCard, setPickedCard] = useState("");
+  const [adhoc, setAdhoc] = useState("");
 
   useEffect(() => {
-    if (!open) { setInv(null); setCardMode(false); setPickedCard(""); setAdhoc(""); return; }
+    if (!open) { setInv(null); setMethod("cash"); setReceived(""); setSplit(false); setPickedCard(""); setAdhoc(""); return; }
     let cancelled = false;
     (async () => {
       setBusy(true);
@@ -988,100 +860,149 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
         if (!cancelled) setBusy(false);
       }
     })();
-    // load the shop's receiving cards for the card-payment picker (best effort)
+    // the shop's receiving cards for the card payment (best effort)
     api.listShopCards().then((c) => { if (!cancelled) setCards(c.filter((x) => x.active !== false)); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [open, wo.id, shopId, total, onChange, t, toast]);
+  }, [open, wo.id, shopId, total, onChange, t, toast, wo.state]);
 
-  const pay = async (method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
+  const due = inv ? Math.max(0, num(inv.total) - num(inv.paidAmount)) : total;
+  const got = parseInt(received.replace(/\D/g, ""), 10) || 0;
+  const change = method === "cash" && got > due ? got - due : 0;
+  const short = method === "cash" && got > 0 && got < due;
+  // The notes a cashier is actually handed for this bill: the exact sum, then the next round
+  // figures above it.
+  const quick = Array.from(new Set([100_000, 500_000, 1_000_000].map((s) => Math.ceil(due / s) * s).filter((v) => v > due))).slice(0, 3);
+
+  const pay = async (m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
     if (!inv || busy) return;
     setBusy(true);
-    try { const updated = await api.markPaid(inv.id, method, card); setInv(updated); toast(t("paid"), { icon: "money" }); onChange(); }
+    try { const updated = await api.markPaid(inv.id, m, card); setInv(updated); toast(t("paid"), { icon: "money" }); onChange(); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };
-
-  // The same bill, settled several ways at once. Recorded together or not at all, so a
-  // half-applied split can never leave the day's takings wrong.
+  // The same bill, settled several ways at once. Recorded together or not at all.
   const paySplit = async (parts: PaymentPart[]) => {
     if (!inv || busy) return;
     setBusy(true);
-    try {
-      const updated = await api.payInvoice(inv.id, parts);
-      setInv(updated);
-      setSplitMode(false);
-      toast(t("paid"), { icon: "money" });
-      onChange();
-    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+    try { const updated = await api.payInvoice(inv.id, parts); setInv(updated); setSplit(false); toast(t("paid"), { icon: "money" }); onChange(); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };
-
-  const payCard = () => {
-    const chosen = cards.find((c) => c.id === pickedCard);
-    const number = chosen ? chosen.cardNumber : adhoc.trim();
-    if (!number) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
-    pay("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number });
+  const confirm = () => {
+    if (method === "card") {
+      const chosen = cards.find((c) => c.id === pickedCard);
+      const number = chosen ? chosen.cardNumber : adhoc.trim();
+      if (!number) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
+      void pay("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number });
+      return;
+    }
+    void pay(method);
   };
+
+  const METHODS: { key: PaymentMethod; icon: React.ReactNode; label: string }[] = [
+    { key: "cash", icon: <Banknote className="size-5" />, label: t("pay_cash") },
+    { key: "card", icon: <CreditCard className="size-5" />, label: t("pay_card") },
+    { key: "transfer", icon: <Landmark className="size-5" />, label: t("pay_transfer") },
+    { key: "credit", icon: <HandCoins className="size-5" />, label: t("pay_credit") },
+  ];
+  const linked = !!customer?.telegramChatId;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[620px]">
-        <DialogHeader><DialogTitle>{t("invoice") + (inv ? " · " + inv.id.slice(0, 8) : "")}</DialogTitle></DialogHeader>
-        <DialogBody className="py-1">
-          {!inv ? (
-            <div className="flex justify-center py-8"><Spinner className="size-6" /></div>
-          ) : (
-            <div className="flex flex-col gap-4 pb-1">
-              <FiscalCheck invoice={inv} wo={wo} shop={shopProfile} />
-              {inv.paid && inv.cardNumber && (
-                <div className="flex items-center gap-2 rounded-[9px] border border-border bg-secondary px-3 py-2 text-[13px]">
-                  <CreditCard className="size-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{t("received_on")}</span>
-                  <span className="ml-auto font-mono font-semibold">{inv.cardNumber}</span>
+      <DialogContent side="right" wide className="p-0">
+        {!inv ? (
+          <>
+            <DialogHeader><DialogTitle>{t("act_take_payment")}</DialogTitle></DialogHeader>
+            <div className="flex flex-1 justify-center py-16"><Spinner className="size-6" /></div>
+          </>
+        ) : (
+          <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[1fr_1fr] md:overflow-hidden">
+            {/* what the client will see */}
+            <div className="flex min-h-0 flex-col gap-3 bg-secondary/60 p-5 md:overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("check_customer_sees")}</span>
+                <Badge tone="ok">{t("fiscal_badge")}</Badge>
+              </div>
+              <div className="overflow-hidden rounded-[12px] border border-border shadow-[var(--shadow)]">
+                <FiscalCheck invoice={inv} wo={wo} shop={shopProfile} />
+              </div>
+              <Button variant="secondary" onClick={() => window.open(`/print-invoice/${inv.id}`, "_blank")}><Printer /> {t("print")}</Button>
+            </div>
+
+            {/* taking it */}
+            <div className="flex min-h-0 flex-col gap-4 p-5 md:overflow-y-auto">
+              <div className="pr-10">
+                <DialogTitle>{inv.paid ? t("paid") : t("act_take_payment")}</DialogTitle>
+                <div className="mt-0.5 text-[13px] text-muted-foreground">
+                  {[orderLabel(wo), [wo.make, wo.model].filter(Boolean).join(" "), wo.customerName].filter(Boolean).join(" · ")}
                 </div>
-              )}
-              {!inv.paid && splitMode && (
-                <SplitPayment
-                  total={num(inv.total)} cards={cards} busy={busy} allowCredit
-                  onBack={() => setSplitMode(false)} onPay={paySplit}
-                />
-              )}
-              {!inv.paid && !cardMode && !splitMode && (
-                <div>
-                  <div className="mb-2 text-[12.5px] font-semibold text-muted-foreground">{t("mark_paid")} · {t("payment_method")}</div>
-                  <div className="flex flex-col gap-2.5">
-                    <div className="grid grid-cols-3 gap-2.5">
-                      <Button variant="soft" disabled={busy} onClick={() => pay("cash")}><Banknote /> {t("pay_cash")}</Button>
-                      <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard /> {t("pay_card")}</Button>
-                      <Button variant="soft" disabled={busy} onClick={() => pay("other")}><Wallet /> {t("pay_other")}</Button>
+              </div>
+
+              {inv.paid ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3 rounded-[12px] bg-success-soft p-4 text-success">
+                    <Check className="size-6" />
+                    <div>
+                      <div className="text-[15px] font-bold">{t("paid")}</div>
+                      <div className="font-mono text-[13px]">{money(num(inv.total))} {t("soum")}</div>
                     </div>
-                    {/* Letting the car go before the money arrives. The order closes and the
-                        work counts as earned, but the amount lands on the owner's account
-                        instead of in the till — the customer's copy goes out as a bill. */}
-                    <Button variant="soft" disabled={busy} onClick={() => pay("credit")}>
-                      <HandCoins /> {t("pay_credit")}
-                    </Button>
-                    <p className="text-[11.5px] leading-snug text-muted-foreground">{t("credit_hint")}</p>
-                    {/* One tap covers the common case above; this is the way out for the
-                        customer who pays some of it now and leaves the rest owing. */}
-                    <button disabled={busy} onClick={() => setSplitMode(true)}
-                      className="mt-0.5 flex items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border py-2 text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
-                      <Split className="size-4" />{t("split_payment")}
+                  </div>
+                  {inv.cardNumber && (
+                    <div className="flex items-center gap-2 rounded-[9px] border border-border bg-secondary px-3 py-2 text-[13px]">
+                      <CreditCard className="size-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{t("received_on")}</span>
+                      <span className="ml-auto font-mono font-semibold">{inv.cardNumber}</span>
+                    </div>
+                  )}
+                  <div className="text-[12.5px] text-muted-foreground">{linked ? t("receipt_auto_tg") : t("receipt_no_tg")}</div>
+                </div>
+              ) : split ? (
+                <SplitPayment total={due} cards={cards} busy={busy} allowCredit onBack={() => setSplit(false)} onPay={paySplit} />
+              ) : (
+                <>
+                  <div>
+                    <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("payment_method")}</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {METHODS.map((m) => (
+                        <button key={m.key} onClick={() => setMethod(m.key)} aria-pressed={method === m.key}
+                          className={cn(
+                            "flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-[12px] border text-[13px] font-semibold transition-colors",
+                            method === m.key ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border bg-card text-ink-2 hover:bg-secondary",
+                          )}>
+                          {m.icon}{m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => void pay("other")} disabled={busy} className="mt-1.5 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">
+                      <Wallet className="size-3.5" /> {t("other_method")}
                     </button>
                   </div>
-                </div>
-              )}
-              {!inv.paid && cardMode && (
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[12.5px] font-semibold text-muted-foreground">{t("pay_card")} · {t("select_card")}</div>
-                    <button className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => { setCardMode(false); setPickedCard(""); setAdhoc(""); }}>← {t("back")}</button>
-                  </div>
-                  {cards.length > 0 && (
-                    <div className="flex flex-col gap-1.5">
+
+                  {method === "cash" && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("received_amount")}</span>
+                        <span className="text-[12.5px] text-muted-foreground">{t("to_pay")}: <span className="font-mono font-bold text-foreground">{money(due)}</span></span>
+                      </div>
+                      <div className="relative">
+                        <Input value={received ? money(got) : ""} inputMode="numeric" placeholder={money(due)}
+                          onChange={(e) => setReceived(e.target.value.replace(/\D/g, ""))}
+                          className="h-14 pr-14 font-mono text-[24px] font-bold" />
+                        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[14px] text-muted-foreground">{t("soum")}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setReceived(String(due))} className="rounded-[9px] border border-primary/40 bg-primary-soft px-3 py-1.5 font-mono text-[13px] font-semibold text-primary-emphasis">{t("exact")}: {money(due)}</button>
+                        {quick.map((v) => (
+                          <button key={v} onClick={() => setReceived(String(v))} className="rounded-[9px] border border-border bg-card px-3 py-1.5 font-mono text-[13px] font-semibold text-foreground hover:bg-secondary">{money(v)}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {method === "card" && (
+                    <div className="flex flex-col gap-2">
                       {cards.map((c) => (
-                        <button key={c.id} disabled={busy}
-                          onClick={() => { setPickedCard(c.id); setAdhoc(""); }}
+                        <button key={c.id} disabled={busy} onClick={() => { setPickedCard(c.id); setAdhoc(""); }}
                           className={cn("flex items-center gap-3 rounded-[9px] border px-3 py-2.5 text-left transition-colors", pickedCard === c.id ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary")}>
                           <CreditCard className="size-4 text-muted-foreground" />
                           <div className="min-w-0 flex-1">
@@ -1091,218 +1012,57 @@ function InvoiceModal({ open, onClose, wo, shopId, total, onChange }: { open: bo
                           {pickedCard === c.id && <Check className="size-[17px] text-primary-emphasis" />}
                         </button>
                       ))}
+                      <Input value={adhoc} inputMode="numeric" placeholder={cards.length > 0 ? `${t("new_card")} · 8600 0000 0000 0000` : "8600 0000 0000 0000"}
+                        onChange={(e) => { setAdhoc(e.target.value); if (e.target.value) setPickedCard(""); }} className="font-mono" />
                     </div>
                   )}
-                  <Field label={cards.length > 0 ? t("new_card") : t("card_number")}>
-                    <Input value={adhoc} inputMode="numeric" placeholder="8600 0000 0000 0000"
-                      onChange={(e) => { setAdhoc(e.target.value); if (e.target.value) setPickedCard(""); }}
-                      className="font-mono" />
-                  </Field>
-                  <Button disabled={busy || (!pickedCard && !adhoc.trim())} onClick={payCard}>
-                    {busy ? <Spinner /> : <>{t("mark_paid")}</>}
-                  </Button>
-                </div>
+
+                  {method === "credit" && <p className="text-[12.5px] leading-snug text-muted-foreground">{t("credit_hint")}</p>}
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className={cn("rounded-[12px] p-3", change > 0 ? "bg-success-soft" : short ? "bg-destructive-soft" : "bg-secondary")}>
+                      <div className={cn("text-[11px] font-bold uppercase tracking-[0.06em]", change > 0 ? "text-success" : short ? "text-destructive" : "text-muted-foreground")}>{short ? t("amount_short") : t("change_due")}</div>
+                      <div className={cn("font-mono text-[20px] font-bold", change > 0 ? "text-success" : short ? "text-destructive" : "text-foreground")}>
+                        {short ? `−${money(due - got)}` : money(change)} <span className="text-[13px] font-medium">{t("soum")}</span>
+                      </div>
+                    </div>
+                    <div className="rounded-[12px] bg-secondary p-3">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("pay_cashier")}</div>
+                      <div className="truncate text-[14.5px] font-semibold text-foreground">{session?.staff.name || "—"}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 rounded-[12px] border border-border p-3">
+                    <div>
+                      <div className="text-[14px] font-semibold text-foreground">{t("split_payment")}</div>
+                      <div className="text-[12.5px] text-muted-foreground">{t("split_hint_short")}</div>
+                    </div>
+                    <Switch checked={split} onCheckedChange={setSplit} />
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("receipt_send")}</div>
+                    <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+                      <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-semibold", linked ? "border-primary/40 bg-primary-soft text-primary-emphasis" : "border-border text-muted-foreground")}>
+                        {linked && <Check className="size-3.5" />} Telegram
+                      </span>
+                      {wo.customerPhone && <span className="font-mono text-muted-foreground">{wo.customerPhone}</span>}
+                    </div>
+                    <div className="mt-1.5 text-[12px] text-muted-foreground">{linked ? t("receipt_auto_tg") : t("receipt_no_tg")}</div>
+                  </div>
+
+                  <div className="mt-auto flex flex-col gap-2 pt-2">
+                    <Button size="lg" disabled={busy || short || (method === "card" && !pickedCard && !adhoc.trim())} onClick={confirm}>
+                      {busy ? <Spinner /> : <>{t("confirm_payment")} — {money(due)} {t("soum")}</>}
+                    </Button>
+                    <p className="text-center text-[12px] text-muted-foreground">{t("pay_fiscal_note")}</p>
+                  </div>
+                </>
               )}
-              <div className="flex gap-2.5">
-                <Button variant="secondary" size="sm" className="flex-1" onClick={() => toast(t("sent"), { icon: "send" })}><Send /> {t("notify_customer")}</Button>
-                <Button variant="secondary" size="sm" className="flex-1" onClick={() => window.open(`/print-invoice/${inv.id}`, "_blank")}><Printer /> {t("print")}</Button>
-              </div>
             </div>
-          )}
-        </DialogBody>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-/* ── next service, asked at the moment the car goes back ── */
-// A reminder is set as an INTERVAL — every 6 months, every 10 000 km — rather than as a date,
-// because that is how a shop actually thinks about servicing and how the customer will hear
-// it. The date and odometer target are worked out from the interval and shown, so nobody has
-// to do the arithmetic or trust that it was done right.
-//
-// Both bounds are honoured: whichever comes first is when the reminder is due. Only the date
-// can fire on its own, since the shop does not see the car's odometer in between visits — the
-// km target is what the reminder tells the customer when it does.
-//
-// The chips are the shop's own price list where there is one — this dialog opens straight
-// after a job that is on that list, so the next one almost always is too. These generic ones
-// are the fallback for a shop that has not filled its price list in yet.
-const NEXT_PRESETS: { key: string; months: number; km: number }[] = [
-  { key: "preset_oil", months: 6, km: 10000 },
-  { key: "preset_inspection", months: 12, km: 0 },
-  { key: "preset_air_filter", months: 12, km: 15000 },
-];
-
-function NextServiceModal({ open, onClose, wo, shopId }: {
-  open: boolean; onClose: () => void; wo: WorkOrder; shopId: string;
-}) {
-  const { t } = useLang();
-  const { toast } = useToast();
-  const [title, setTitle] = useState("");
-  const [months, setMonths] = useState("6");
-  const [km, setKm] = useState("10000");
-  const [currentKm, setCurrentKm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const services = useServiceNames();
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle(t("preset_oil"));
-    setMonths("6");
-    setKm("10000");
-    // The odometer the gateway carried over from the vehicle, so the usual case is one tap.
-    setCurrentKm(num(wo.mileage) > 0 ? String(num(wo.mileage)) : "");
-  }, [open, wo.mileage, t]);
-
-  const m = parseInt(months, 10) || 0;
-  const k = parseInt(km, 10) || 0;
-  const cur = parseInt(currentKm, 10) || 0;
-  // Its own services first; the generic list only while it has none.
-  const chips: { label: string; months?: number; km?: number }[] = services.length > 0
-    ? services.slice(0, 6).map((name) => ({ label: name }))
-    : NEXT_PRESETS.map((p) => ({ label: t(p.key), months: p.months, km: p.km }));
-  const due = m > 0 ? new Date(new Date().setMonth(new Date().getMonth() + m)) : null;
-  const dueKm = k > 0 && cur > 0 ? cur + k : 0;
-
-  const save = async () => {
-    if (!title.trim() || busy || (m <= 0 && k <= 0)) return;
-    setBusy(true);
-    try {
-      await api.createReminder(shopId, {
-        title: title.trim(),
-        vehicleId: wo.vehicleId,
-        customerName: wo.customerName ?? "",
-        phone: wo.customerPhone ?? "",
-        plate: wo.plate ?? "",
-        dueDate: due ? due.toISOString() : undefined,
-        dueMileage: dueKm,
-        repeatMonths: m,
-        repeatKm: k,
-      });
-      // The same reading is this visit's line in the service book. Handing the car back is
-      // the moment somebody actually looks at the dashboard, so it is the honest place to
-      // take it. Best-effort: the reminder is already saved and is what was asked for.
-      //
-      // It is deliberately not written back to the VEHICLE's mileage: that would mean
-      // re-sending every one of its other fields, and getting one wrong would quietly blank
-      // real data. The book only needs the reading against the visit.
-      if (cur > 0) {
-        try { await api.setOdometer(wo.id, cur); } catch { /* the reminder is what mattered */ }
-      }
-      toast(t("reminders_saved"), { icon: "check" });
-      onClose();
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[440px]">
-        <DialogHeader><DialogTitle>{t("next_service")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex flex-col gap-3.5 py-1">
-          <p className="text-[12.5px] leading-snug text-muted-foreground">{t("next_service_hint")}</p>
-
-          <div className="flex flex-wrap gap-1.5">
-            {chips.map((c) => (
-              <Button key={c.label} type="button" variant="secondary" size="sm"
-                onClick={() => {
-                  setTitle(c.label);
-                  // A price-list service says nothing about how often it comes round, so the
-                  // interval already on screen is kept rather than blanked — it is the one
-                  // thing in this dialog that cannot be worked out from the job just done.
-                  if (c.months !== undefined) { setMonths(String(c.months)); setKm(c.km ? String(c.km) : ""); }
-                }}>
-                {c.label}
-              </Button>
-            ))}
-          </div>
-
-          <Field label={t("reminder_title")} hint={services.length > 0 ? t("from_price_list") : undefined}>
-            <SuggestInput value={title} options={services} max={20} onChange={setTitle} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("every_months")}>
-              <Input value={months} inputMode="numeric" className="font-mono" placeholder="6"
-                onChange={(e) => setMonths(e.target.value.replace(/\D/g, ""))} />
-            </Field>
-            <Field label={t("every_km")}>
-              <Input value={km} inputMode="numeric" className="font-mono" placeholder="10000"
-                onChange={(e) => setKm(e.target.value.replace(/\D/g, ""))} />
-            </Field>
-          </div>
-          <Field label={t("current_km")} hint={wo.plate}>
-            <Input value={currentKm} inputMode="numeric" className="font-mono"
-              onChange={(e) => setCurrentKm(e.target.value.replace(/\D/g, ""))} />
-          </Field>
-
-          {/* What the interval actually works out to, so it is checked rather than trusted. */}
-          {(due || dueKm > 0) && (
-            <div className="flex items-baseline justify-between rounded-[10px] bg-secondary/60 px-3.5 py-2.5">
-              <span className="text-[12.5px] font-semibold text-muted-foreground">{t("due_at")}</span>
-              <span className="font-mono text-[13.5px] font-bold text-foreground">
-                {[due ? shortDate(due.toISOString()) : "", dueKm > 0 ? `${dueKm.toLocaleString("ru-RU")} km` : ""]
-                  .filter(Boolean).join(" · ")}
-              </span>
-            </div>
-          )}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("skip_reminder")}</Button>
-          <Button disabled={busy || !title.trim() || (m <= 0 && k <= 0)} onClick={save}>
-            {busy ? <Spinner /> : <><Bell /> {t("add_next_service")}</>}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ── the reading for this visit ── */
-// Editable for the whole life of the order, and after it: the reliable moment to read a
-// dashboard is whenever the car is actually there, which is rarely when a form is open.
-// Empty says so in words instead of showing 0 km, which would read as a fact about the car.
-function OdometerField({ wo, onSaved }: { wo: WorkOrder; onSaved: (wo: WorkOrder) => void }) {
-  const { t } = useLang();
-  const { toast } = useToast();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const odo = num(wo.odometer);
-
-  const save = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      onSaved(await api.setOdometer(wo.id, parseInt(value, 10) || 0));
-      setEditing(false);
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
-    } finally { setBusy(false); }
-  };
-
-  if (editing) {
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <Gauge className="size-3.5 text-muted-foreground" />
-        <Input value={value} inputMode="numeric" autoFocus placeholder="82000"
-          className="h-7 w-[110px] font-mono text-[12.5px]"
-          onChange={(e) => setValue(e.target.value.replace(/\D/g, ""))}
-          onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") setEditing(false); }} />
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save()}>{busy ? <Spinner /> : <Check />}</Button>
-      </span>
-    );
-  }
-  return (
-    <button
-      onClick={() => { setValue(odo > 0 ? String(odo) : ""); setEditing(true); }}
-      className="inline-flex min-h-11 items-center gap-1.5 rounded-[7px] px-2 py-0.5 text-[12.5px] text-muted-foreground hover:bg-secondary hover:text-foreground sm:min-h-0 sm:px-1"
-    >
-      <Gauge className="size-3.5" />
-      {odo > 0
-        ? <span className="font-mono font-semibold text-foreground">{odo.toLocaleString("ru-RU")} km</span>
-        : <span>{t("sb_no_reading")}</span>}
-    </button>
   );
 }

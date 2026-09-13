@@ -27,8 +27,8 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 }
 
 function DialogContent({
-  className, children, showClose = true, side = "left", ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean; side?: "left" | "right" }) {
+  className, children, showClose = true, side = "left", wide = false, ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean; side?: "left" | "right"; wide?: boolean }) {
   return (
     <DialogPrimitive.Portal>
       <DialogOverlay />
@@ -39,8 +39,10 @@ function DialogContent({
           "admin-portal fixed top-0 z-[201] flex h-svh flex-col bg-card text-foreground shadow-[var(--shadow-lg)] outline-none",
           side === "left" ? "left-0 rounded-r-[18px] border-r border-border" : "right-0 rounded-l-[18px] border-l border-border",
           // Wide drawer — overrides any max-w-* a caller passed (old centered-modal widths).
+          // `wide` is for a panel that shows two things side by side (the receipt beside the
+          // payment form), which 720px cannot hold without squeezing both.
           className,
-          "w-[min(720px,96vw)] max-w-none",
+          wide ? "w-[min(1040px,98vw)] max-w-none" : "w-[min(720px,96vw)] max-w-none",
         )}
         {...props}
       >

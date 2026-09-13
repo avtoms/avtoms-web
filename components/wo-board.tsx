@@ -1,22 +1,51 @@
 "use client";
 // Shared work-order board: column buckets, drag-and-drop between columns, a per-card
-// "move to" dropdown, and a mobile column switcher. Used by both the mechanic shop-floor
+// "move to" menu, and a mobile column switcher. Used by both the mechanic shop-floor
 // board (app/m) and the owner pipeline board (app/(owner)/work-orders).
 // The owner of *what a move means* (timers, valid transitions) stays with the caller via
 // onMove — this component only renders and routes drag/click intents.
+//
+// The owner board hands over a little more per card: who is on the job, a badge when it has
+// been waiting too long, a line of context, and the one button that moves the order on (bill
+// it, take the payment). It also folds the finished states into a narrow rail on the right,
+// so the live queue gets the width and the archive is one click away rather than gone.
 import React, { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, ClipboardList, Timer } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Timer } from "lucide-react";
 import { useIsMobile } from "@/components/ui";
 import { useLang } from "@/components/providers";
 import { woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, STATE_LABEL, TRANSITIONS, type WoState } from "@/lib/enums";
 import { PlatePreview } from "@/components/plate";
-import { CarImage } from "@/components/car-image";
 import { money, num, orderLabel, shortDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { WorkOrder } from "@/lib/types";
 
 export type Tone = "accent" | "warn" | "ok";
 export type ColDef = { key: WoState; label: string; tone: Tone; accent: string; soft: string };
+
+// What the caller adds to a card. Everything is optional: the mechanic board passes none of it.
+export type CardExtras = {
+  mechanicId?: string;
+  mechanicName?: string;
+  badge?: { tone: "warn" | "danger" | "ok" | "neutral"; label: string } | null;
+  meta?: string;
+  action?: React.ReactNode;
+};
+
+const BADGE: Record<NonNullable<CardExtras["badge"]>["tone"], string> = {
+  warn: "bg-warning-soft text-warning",
+  danger: "bg-destructive-soft text-destructive",
+  ok: "bg-success-soft text-success",
+  neutral: "bg-secondary text-ink-2",
+};
+
+// The same colour per person on every screen, so a board is read by colour before names.
+const STAFF_COLORS = ["#0f9488", "#8b5cf6", "#d97706", "#2563eb", "#db2777", "#16a34a", "#dc2626", "#0891b2"];
+function staffColor(id?: string): string {
+  if (!id) return "var(--ink-3)";
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return STAFF_COLORS[h % STAFF_COLORS.length];
+}
 
 // Live ticking elapsed time (mm:ss or h:mm:ss) since a timer's start, refreshing each second.
 function useElapsedLabel(startedAt?: string): string | null {
@@ -46,39 +75,52 @@ function serviceProgress(wo: WorkOrder): { done: number; total: number } | null 
 
 type MoveTarget = { key: WoState; label: string; accent: string };
 
-// ── per-card status dropdown ──
+// ── per-card status menu ──
 // `targets` are the LEGAL next states for this card (driven by the state machine, not the
 // board layout) so the menu never offers an illegal move and can reach off-board states
-// like Closed/Canceled. The button shows the current state styled by its column.
-function StatusMenu({ currentCol, targets, onMove, disabled }: {
-  currentCol: ColDef; targets: MoveTarget[]; onMove: (s: WoState) => void; disabled: boolean;
+// like Closed/Canceled. Full form: a pill naming the current state. Compact form (owner
+// board): a small "…" button, because there the column already says what state the card is in.
+function StatusMenu({ currentCol, targets, onMove, disabled, compact, label }: {
+  currentCol: ColDef; targets: MoveTarget[]; onMove: (s: WoState) => void; disabled: boolean; compact?: boolean; label: string;
 }) {
   const [open, setOpen] = useState(false);
   const dead = disabled || targets.length === 0;
+  if (compact && targets.length === 0) return null;
   return (
-    <div className="relative max-w-full shrink-0">
-      <button
-        disabled={dead}
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold whitespace-nowrap outline-none",
-          dead ? "cursor-default" : "cursor-pointer hover:brightness-[0.97]",
-          // A status pill is a badge as much as a button, so it keeps its shape and takes its
-          // 44px from an invisible ::after — padding here would turn every card's badge into a
-          // slab. Not applied when it is dead: there is nothing to press.
-          // The pill itself is 23px, so it takes 12 either side to clear 44.
-          !dead && "touch:relative touch:after:absolute touch:after:-inset-y-3 touch:after:inset-x-0 touch:after:content-['']",
-        )}
-        style={{ background: currentCol.soft, color: currentCol.accent }}
-      >
-        <span className="size-1.5 shrink-0 rounded-full bg-current" />
-        <span className="truncate">{currentCol.label}</span>
-        {targets.length > 0 && <ChevronDown className="size-3 shrink-0" />}
-      </button>
+    <div className="relative max-w-full shrink-0" onClick={(e) => e.stopPropagation()}>
+      {compact ? (
+        <button
+          disabled={dead}
+          aria-label={label}
+          title={label}
+          onClick={() => setOpen((o) => !o)}
+          className="-mr-1 grid size-7 touch:size-11 place-items-center rounded-[7px] text-muted-foreground outline-none hover:bg-secondary hover:text-foreground disabled:opacity-40"
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      ) : (
+        <button
+          disabled={dead}
+          onClick={() => setOpen((o) => !o)}
+          className={cn(
+            "inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold whitespace-nowrap outline-none",
+            dead ? "cursor-default" : "cursor-pointer hover:brightness-[0.97]",
+            // A status pill is a badge as much as a button, so it keeps its shape and takes its
+            // 44px from an invisible ::after — padding here would turn every card's badge into a
+            // slab. Not applied when it is dead: there is nothing to press.
+            !dead && "touch:relative touch:after:absolute touch:after:-inset-y-3 touch:after:inset-x-0 touch:after:content-['']",
+          )}
+          style={{ background: currentCol.soft, color: currentCol.accent }}
+        >
+          <span className="size-1.5 shrink-0 rounded-full bg-current" />
+          <span className="truncate">{currentCol.label}</span>
+          {targets.length > 0 && <ChevronDown className="size-3 shrink-0" />}
+        </button>
+      )}
       {open && (
         <>
           <div onClick={() => setOpen(false)} className="fixed inset-0 z-[90]" />
-          <div className="an-modal-in absolute left-0 top-[calc(100%+6px)] z-[91] min-w-[180px] rounded-[12px] border border-border bg-card p-1.5 shadow-[var(--shadow-lg)]">
+          <div className={cn("an-modal-in absolute top-[calc(100%+6px)] z-[91] min-w-[180px] rounded-[12px] border border-border bg-card p-1.5 shadow-[var(--shadow-lg)]", compact ? "right-0" : "left-0")}>
             {targets.map((tg) => (
               <button
                 key={tg.key}
@@ -97,104 +139,101 @@ function StatusMenu({ currentCol, targets, onMove, disabled }: {
 }
 
 // ── work-order card ──
-function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragStart, onDragEnd }: {
+function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragStart, onDragEnd, extras, compactMenu }: {
   wo: WorkOrder; col: ColDef; targets: MoveTarget[]; busy: boolean; dragging: boolean;
   t: (k: string) => string;
   onOpen: () => void; onMove: (s: WoState) => void;
   onDragStart: () => void; onDragEnd: () => void;
+  extras?: CardExtras; compactMenu?: boolean;
 }) {
   const running = col.key === "in_progress";
   const elapsed = useElapsedLabel(running ? wo.activeTimerStartedAt : undefined);
   const prog = serviceProgress(wo);
   const pct = prog ? Math.round((prog.done / prog.total) * 100) : 0;
-  const customer = wo.customerName || "";
-  const initial = customer.trim().charAt(0).toUpperCase();
+  const car = [wo.make, wo.model].filter(Boolean).join(" ");
+  const badge = extras?.badge;
+  const mech = extras?.mechanicName;
 
   return (
     <div
       draggable={!busy}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", wo.id); onDragStart(); }}
       onDragEnd={onDragEnd}
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
       className={cn(
-        "an-card-hover relative flex flex-col gap-2.5 rounded-[14px] border border-border bg-card py-3.5 pl-4 pr-3.5",
+        "an-card-hover relative flex flex-col gap-2 rounded-[12px] border bg-card p-3.5 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30",
         "transition-[box-shadow,opacity,transform] duration-100",
-        dragging ? "cursor-grabbing opacity-50 shadow-[var(--shadow-lg)]" : busy ? "cursor-wait opacity-70 shadow-[var(--shadow)]" : "cursor-grab shadow-[var(--shadow)]",
+        badge?.tone === "danger" ? "border-destructive/45" : badge?.tone === "warn" ? "border-warning/55" : "border-border",
+        dragging ? "cursor-grabbing opacity-50 shadow-[var(--shadow-lg)]" : busy ? "cursor-wait opacity-70 shadow-[var(--shadow)]" : "cursor-pointer shadow-[var(--shadow)]",
       )}
     >
-      {/* accent bar — rounded to match the card so no overflow:hidden is needed (which would
-          clip the status dropdown) */}
-      <span className="absolute inset-y-0 left-0 w-1 rounded-l-[14px]" style={{ background: col.accent }} />
-
-      {/* order number ←→ status control */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 font-mono text-[12px] font-bold text-muted-foreground">
-          <ClipboardList className="size-3.5 shrink-0" />
-          <span className="truncate">{orderLabel(wo)}</span>
-        </span>
-        <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} />
-      </div>
-
-      {/* vehicle — the make's logo makes a card recognisable at a glance; CarImage falls back
-          to a brand monogram, then the car glyph, keeping this column's tint either way */}
-      <div className="flex items-center gap-2.5">
-        <CarImage src={wo.vehicleImageUrl} make={wo.make} size={38} radius={10} bg={col.soft} fg={col.accent} />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-          <div className="w-full truncate text-[14px] font-bold tracking-[-0.01em] text-foreground">
-            {[wo.make, wo.model].filter(Boolean).join(" ") || t("vehicle")}
-          </div>
-          {wo.plate && <PlatePreview plate={wo.plate} size="sm" />}
+      {/* number ←→ what is wrong, or who is on it */}
+      <div className="flex min-h-6 items-center justify-between gap-2">
+        <span className="min-w-0 truncate font-mono text-[12.5px] font-semibold text-muted-foreground">{orderLabel(wo)}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {badge ? (
+            <span className={cn("rounded-full px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap", BADGE[badge.tone])}>{badge.label}</span>
+          ) : extras?.mechanicId ? (
+            <span title={mech} className="grid size-6 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: staffColor(extras.mechanicId) }}>
+              {(mech || "?").charAt(0).toUpperCase()}
+            </span>
+          ) : null}
+          {compactMenu ? (
+            <StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} compact label={t("wo_move")} />
+          ) : null}
         </div>
       </div>
+      {!compactMenu && (
+        <div className="-mt-1"><StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} label={t("wo_move")} /></div>
+      )}
 
-      {/* how far this order's services have got — hidden once everything is finished */}
-      {prog && pct < 100 && (
-        <div className="flex items-center gap-2">
-          <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-secondary">
+      {wo.plate && <div><PlatePreview plate={wo.plate} size="sm" /></div>}
+
+      <div className="min-w-0">
+        <div className="truncate text-[15px] font-bold tracking-[-0.01em] text-foreground">{car || t("vehicle")}</div>
+        {wo.customerName && <div className="truncate text-[12.5px] text-muted-foreground">{wo.customerName}</div>}
+      </div>
+
+      {/* how far this order's services have got */}
+      {prog && (
+        <div className="flex flex-col gap-1">
+          <div className="h-[5px] overflow-hidden rounded-full bg-secondary">
             <div className="h-full rounded-full transition-[width] duration-200" style={{ width: `${pct}%`, background: col.accent }} />
           </div>
-          <span className="font-mono text-[11px] font-bold text-muted-foreground">{pct}%</span>
         </div>
       )}
 
-      {/* customer ←→ price */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium text-ink-2">
-          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary-soft text-[9px] font-extrabold text-primary-emphasis">{initial || "—"}</span>
-          <span className="truncate">{customer || "—"}</span>
-        </span>
-        <span className="shrink-0 font-mono text-[13.5px] font-extrabold text-foreground">{money(num(wo.total))}</span>
+      {/* context ←→ price */}
+      <div className="flex items-end justify-between gap-2">
+        <div className="min-w-0 text-[11.5px] leading-snug text-muted-foreground">
+          {running && elapsed ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 font-mono font-bold text-warning">
+              <span className="an-pulse size-1.5 rounded-full bg-current" />
+              <Timer className="size-3" />
+              {elapsed}
+            </span>
+          ) : (
+            <span className="line-clamp-2">
+              {[prog ? `${prog.done}/${prog.total} ${t("jobs_short")}` : "", extras?.meta || shortDateTime(wo.createdAt)].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </div>
+        <span className="shrink-0 font-mono text-[14px] font-bold text-foreground">{money(num(wo.total))}</span>
       </div>
 
-      {/* footer: what is happening now ←→ open */}
-      <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
-        {running && elapsed ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2 py-1 font-mono text-[11.5px] font-bold text-warning">
-            <span className="an-pulse size-1.5 rounded-full bg-current" />
-            <Timer className="size-3.5" />
-            {elapsed}
-          </span>
-        ) : (
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] font-semibold text-muted-foreground">
-            <CalendarDays className="size-3.5 shrink-0" />
-            <span className="truncate">{shortDateTime(wo.createdAt)}</span>
-          </span>
-        )}
-        <button
-          onClick={onOpen}
-          className="-my-2 inline-flex min-h-11 shrink-0 items-center gap-0.5 px-1 text-[12.5px] font-bold text-primary-emphasis outline-none hover:underline sm:my-0 sm:min-h-0 sm:px-0"
-        >
-          {t("open")} <ChevronRight className="size-3.5" />
-        </button>
-      </div>
+      {extras?.action && <div onClick={(e) => e.stopPropagation()}>{extras.action}</div>}
     </div>
   );
 }
 
 // WorkOrderBoard renders the column buckets for the given orders. onMove fires when a card
-// is dragged to another column or a target is chosen from its status dropdown; the caller
+// is dragged to another column or a target is chosen from its status menu; the caller
 // decides what a transition means (and whether to reload). Orders whose state is not one of
 // `cols` are simply not shown (the board is the active pipeline; archives live in the list).
-export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emptyLabel, moveTargets }: {
+export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emptyLabel, moveTargets, extras, compactMenu, rail, addTo }: {
   orders: WorkOrder[];
   cols: ColDef[];
   busyId: string | null;
@@ -206,12 +245,19 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   // the state machine permits; pass a wider set (e.g. the full TRANSITIONS, including
   // off-board Closed/Canceled) for the owner board.
   moveTargets?: (current: WoState) => WoState[];
+  extras?: (wo: WorkOrder) => CardExtras;
+  compactMenu?: boolean;
+  // States folded into a narrow rail at the right edge until clicked open.
+  rail?: { states: WoState[]; label: string };
+  // A "+ add" button at the foot of one column (the owner board's drafts).
+  addTo?: { state: WoState; label: string; onClick: () => void };
 }) {
   const { t } = useLang();
   const isMobile = useIsMobile();
   const [col, setCol] = useState<WoState>(cols[0]?.key);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<WoState | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
 
   const byState = (s: WoState) => orders.filter((w) => woStateFromProto(w.state) === s);
@@ -231,21 +277,26 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   const cardProps = (w: WorkOrder, c: ColDef) => ({
     wo: w, col: c, targets: targetsFor(c.key), busy: busyId === w.id, t,
     onOpen: () => onOpen(w.id), onMove: (s: WoState) => onMove(w.id, s),
+    extras: extras?.(w), compactMenu,
   });
+
+  const addButton = (c: ColDef) => addTo && addTo.state === c.key ? (
+    <button onClick={addTo.onClick}
+      className="flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-input py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-card hover:text-foreground">
+      <Plus className="size-4" /> {addTo.label}
+    </button>
+  ) : null;
 
   // ── mobile: column switcher + stacked cards ──
   if (isMobile) {
     // One column is visible at a time here, so landing on an empty one is a dead end: the
     // screen says "no orders" while the orders sit a tap away in a column nobody can see. So
     // the chosen column holds only while it has something, and otherwise the first that does.
-    //
-    // The trade-off is deliberate — somebody staring at an empty column on purpose gets moved
-    // — and it is the right way round now that the board can be filtered to a day, which
-    // regularly leaves the column they were last looking at empty.
     const chosen = cols.find((c) => c.key === col) ? col : cols[0]?.key;
     const firstWithWork = cols.find((c) => byState(c.key).length > 0)?.key;
     const active = byState(chosen).length > 0 || !firstWithWork ? chosen : firstWithWork;
     const items = byState(active);
+    const activeCol = cols.find((c) => c.key === active);
     return (
       <div className="flex flex-col gap-3.5">
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -275,21 +326,27 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
             const c = cols.find((x) => x.key === woStateFromProto(w.state))!;
             return <WOCard key={w.id} {...cardProps(w, c)} dragging={false} onDragStart={() => {}} onDragEnd={() => {}} />;
           })}
+          {activeCol && addButton(activeCol)}
         </div>
       </div>
     );
   }
 
   // ── desktop: board with drag & drop; scrolls horizontally when columns are many ──
+  const railStates = rail?.states ?? [];
+  const mainCols = railOpen ? cols : cols.filter((c) => !railStates.includes(c.key));
+  const railCount = railStates.reduce((s, k) => s + byState(k).length, 0);
+  const showRail = !!rail && !railOpen && cols.some((c) => railStates.includes(c.key));
+  const template = `repeat(${mainCols.length}, minmax(${compactMenu ? 190 : 260}px, 1fr))${showRail ? " 44px" : ""}`;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="overflow-x-auto pb-1">
-        {/* A few columns (the mechanic's three) share the full width; many columns (the owner's
-            eight) hold the 260px floor and let the row scroll instead of squeezing the cards. */}
-        <div className="grid items-start gap-4" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(260px, 1fr))` }}>
-          {cols.map((c) => {
+        <div className="grid items-start gap-3" style={{ gridTemplateColumns: template }}>
+          {mainCols.map((c) => {
             const items = byState(c.key);
             const isOver = overCol === c.key;
+            const inRail = railStates.includes(c.key);
             return (
               <div
                 key={c.key}
@@ -298,32 +355,49 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
                 onDrop={(e) => { e.preventDefault(); dropOn(c.key); }}
                 className="flex flex-col gap-2.5"
               >
-                <div className="flex items-center justify-between rounded-[12px] px-3.5 py-2.5" style={{ background: c.soft, color: c.accent }}>
-                  <span className="inline-flex items-center gap-2 text-[13.5px] font-bold tracking-[-0.01em]">
-                    <span className="size-2 rounded-full bg-current" /> {c.label}
+                <div className="flex items-center justify-between gap-2 rounded-[10px] px-3 py-2" style={{ background: c.soft, color: c.accent }}>
+                  <span className="inline-flex min-w-0 items-center gap-2 text-[13.5px] font-bold tracking-[-0.01em]">
+                    <span className="size-2 shrink-0 rounded-full bg-current" /> <span className="truncate">{c.label}</span>
                   </span>
-                  <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-card px-1.5 font-mono text-[12.5px] font-extrabold" style={{ color: c.accent }}>
-                    {items.length}
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="font-mono text-[12.5px] font-bold">{items.length}</span>
+                    {inRail && (
+                      <button onClick={() => setRailOpen(false)} aria-label={t("back")} className="grid size-6 place-items-center rounded-[6px] hover:bg-card/70">
+                        <ChevronRight className="size-3.5" />
+                      </button>
+                    )}
                   </span>
                 </div>
                 <div
                   className={cn(
-                    "flex min-h-[120px] flex-col gap-2.5 rounded-[14px] p-2.5 outline-2 outline-dashed transition-colors duration-100",
+                    "flex min-h-[120px] flex-col gap-2.5 rounded-[12px] p-2 outline-2 outline-dashed transition-colors duration-100",
                     isOver ? "" : "bg-secondary/60 outline-transparent",
                   )}
                   style={isOver ? { background: c.soft, outlineColor: c.accent } : undefined}
                 >
-                  {items.length === 0 ? (
+                  {items.length === 0 && addTo?.state !== c.key ? (
                     <div className="py-6 text-center text-[12.5px] font-medium text-muted-foreground">
                       {isOver ? t("drop_here") : emptyLabel}
                     </div>
                   ) : items.map((w) => (
                     <WOCard key={w.id} {...cardProps(w, c)} dragging={dragId === w.id} onDragStart={() => startDrag(w.id)} onDragEnd={endDrag} />
                   ))}
+                  {addButton(c)}
                 </div>
               </div>
             );
           })}
+          {showRail && (
+            <button
+              onClick={() => setRailOpen(true)}
+              title={rail!.label}
+              className="flex min-h-[260px] flex-col items-center gap-3 rounded-[12px] bg-secondary/60 py-3 text-muted-foreground transition-colors hover:bg-secondary"
+            >
+              <span className="grid size-7 place-items-center rounded-[8px] bg-card shadow-[var(--shadow)]"><ChevronLeft className="size-4" /></span>
+              <span className="rounded-full bg-success-soft px-1.5 font-mono text-[12px] font-bold text-success">{railCount}</span>
+              <span className="text-[12.5px] font-semibold [writing-mode:vertical-rl]">{rail!.label}</span>
+            </button>
+          )}
         </div>
       </div>
       {hint && <div className="text-center text-[12px] text-muted-foreground">{hint}</div>}
