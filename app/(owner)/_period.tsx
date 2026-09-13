@@ -22,8 +22,9 @@ export type { Range };
 // them by this path.
 export { monthRange, dayRange, currentMonth, lastNMonths, todayYMD, shiftDay };
 
-const isoFrom = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 0, 0, 0)).toISOString();
-const isoTo = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 23, 59, 59)).toISOString();
+// Local midnight, like every other window (see lib/range.ts).
+const isoFrom = (y: number, m: number, d: number) => new Date(y, m, d, 0, 0, 0).toISOString();
+const isoTo = (y: number, m: number, d: number) => new Date(y, m, d, 23, 59, 59).toISOString();
 
 // usePeriod owns the selection and derives the window from it. Callers render <PeriodPicker>
 // with the returned state and pass `range` to the API.

@@ -26,8 +26,16 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
   );
 }
 
+// innerPopupOpen reports whether a searchable dropdown inside a dialog is open. Those lists are
+// drawn inline rather than as Radix layers, so Radix does not know about them and took Escape as
+// "close the dialog" — throwing away everything typed into the form. While one is open, Escape
+// is the list's.
+export function innerPopupOpen(): boolean {
+  return typeof document !== "undefined" && !!document.querySelector('[data-popup-open="true"]');
+}
+
 function DialogContent({
-  className, children, showClose = true, side = "left", wide = false, ...props
+  className, children, showClose = true, side = "left", wide = false, onEscapeKeyDown, ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean; side?: "left" | "right"; wide?: boolean }) {
   return (
     <DialogPrimitive.Portal>
@@ -44,6 +52,10 @@ function DialogContent({
           className,
           wide ? "w-[min(1040px,98vw)] max-w-none" : "w-[min(720px,96vw)] max-w-none",
         )}
+        onEscapeKeyDown={(e) => {
+          if (innerPopupOpen()) e.preventDefault();
+          onEscapeKeyDown?.(e);
+        }}
         {...props}
       >
         {children}

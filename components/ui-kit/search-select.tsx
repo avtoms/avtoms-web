@@ -50,7 +50,9 @@ export function SearchSelect({
   const pick = (v: string) => { onChange(v); setOpen(false); };
 
   return (
-    <div ref={ref} className="relative">
+    // data-popup-open tells an enclosing dialog that Escape belongs to this list while it is
+    // open (see innerPopupOpen in ./dialog) — the list is drawn inline, so Radix cannot know.
+    <div ref={ref} className="relative" data-popup-open={open ? "true" : undefined}>
       <button
         type="button"
         onClick={() => setOpen((x) => !x)}

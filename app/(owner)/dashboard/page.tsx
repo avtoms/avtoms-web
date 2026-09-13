@@ -29,6 +29,7 @@ import { useAutoRefresh } from "@/lib/use-refresh";
 import { compactMln, makeModel, minutesBetween, money, num, orderLabel } from "@/lib/format";
 import { apptStateFromProto, fiscalFromProto, paymentFromProto, woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
 import { dayRange, shiftDay, spanRange, todayYMD } from "@/lib/range";
+import { canWork } from "@/lib/use-staff";
 import { formatDayMonth, formatWeekday, weekdayShort } from "@/lib/i18n";
 import type { Appointment, Dashboard, Invoice, Product, ProfitAndLoss, Staff, Statistics, WorkOrder } from "@/lib/types";
 import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
@@ -90,7 +91,9 @@ export default function DashboardPage() {
       const [d, wos, p, invs, ap] = await Promise.all([
         api.dashboard(shopId),
         api.listWorkOrders(shopId),
-        api.getProfitLoss(shopId, today, today).catch(() => null),
+        // A window of instants, not two bare dates: the service refused "2026-09-12" as a
+        // bound, the error was swallowed, and today's profit read 0 beside real takings.
+        api.getProfitLoss(shopId, dayRange(today).from, dayRange(today).to).catch(() => null),
         canInvoices ? api.listInvoices(shopId).catch(() => null) : Promise.resolve(null),
         canAppts ? api.listAppointments(shopId, start.toISOString(), end.toISOString()).catch(() => null) : Promise.resolve(null),
       ]);
@@ -241,7 +244,7 @@ export default function DashboardPage() {
   const mechanics = useMemo(() => {
     const assigned = new Set(inShop.map((w) => w.assignedMechanicId).filter(Boolean) as string[]);
     return staff
-      .filter((s) => s.active && (s.role === "ROLE_MECHANIC" || assigned.has(s.id)))
+      .filter((s) => canWork(s) || (s.active && assigned.has(s.id)))
       .map((s) => ({
         id: s.id, name: s.name,
         jobs: inShop.filter((w) => w.assignedMechanicId === s.id).length,

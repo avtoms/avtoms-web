@@ -86,7 +86,22 @@ const AUDIT_KEY: Record<string, string> = {
   approved: "audit_approved",
   declined: "audit_declined",
   notes: "audit_notes",
+  lines_completed: "audit_lines_completed",
+  // Not written by the order's log: the screen weaves the bill's payments into it.
+  payment: "audit_payment",
 };
+
+// The few refusals the order service phrases for a person rather than a program, mapped to
+// the reader's language. Anything else passes through as the server said it.
+const SERVER_MESSAGES: [RegExp, string][] = [
+  [/add at least one line/i, "guard_lines"],
+  [/assign a mechanic before starting/i, "guard_mech"],
+];
+
+export function serverMessage(lang: Lang, msg: string): string {
+  for (const [re, key] of SERVER_MESSAGES) if (re.test(msg)) return translate(lang, key);
+  return msg;
+}
 
 export function auditAction(lang: Lang, action?: string): string {
   return translate(lang, AUDIT_KEY[(action ?? "").trim()] ?? "history");

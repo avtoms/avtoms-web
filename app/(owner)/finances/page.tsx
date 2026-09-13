@@ -36,7 +36,9 @@ import { PageHeader } from "@/components/page-header";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
 
-const dateStr = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+// dd.mm, the way dates are written in Uzbek and Russian alike (ru-RU is the locale every browser
+// carries that writes it so; the browser's own locale put "Sep 12" on an Uzbek screen).
+const dateStr = (iso: string) => new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 
 export default function FinancesPage() {
@@ -323,8 +325,8 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
   // For rendering the stamp: the symbol and decimal places come from the list, the rate and
   // the amount from the row itself, so the figure shown is the one that was recorded.
   const currencies = useCurrencies();
-  const fullDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "long", year: "numeric" }) : "—");
-  const recorded = e?.createdAt ? new Date(e.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const fullDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—");
+  const recorded = e?.createdAt ? new Date(e.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
   const remove = async () => {
     if (busy || !e) return; setBusy(true);

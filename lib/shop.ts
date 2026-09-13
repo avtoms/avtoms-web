@@ -72,14 +72,20 @@ export function useShopFlow(): { enabled: string[] | undefined; transitions: Rec
   return { enabled, transitions };
 }
 
+// Fired after the profile is saved, so everything showing it — the sidebar above all — reads
+// the new one rather than keeping the old name until a reload.
+export const SHOP_PROFILE_CHANGED = "an:shop-profile";
+
 export function useShopProfile(): ShopProfile {
   const [profile, setProfile] = useState<ShopProfile>(EMPTY);
   useEffect(() => {
     let alive = true;
-    api.getShopSettings()
+    const load = () => api.getShopSettings()
       .then((s) => { if (alive) setProfile(mergeShopProfile(s)); })
       .catch(() => { if (alive) setProfile(loadShopProfile()); });
-    return () => { alive = false; };
+    void load();
+    window.addEventListener(SHOP_PROFILE_CHANGED, load);
+    return () => { alive = false; window.removeEventListener(SHOP_PROFILE_CHANGED, load); };
   }, []);
   return profile;
 }

@@ -44,9 +44,11 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
   // gets a gap in the book rather than a made-up number — but asked for here, because the
   // car is standing in front of whoever is typing and never will be again.
   const [odo, setOdo] = useState("");
+  // Whether Create has been pressed on the new-client form — from then on, missing fields say so.
+  const [tried, setTried] = useState(false);
 
   React.useEffect(() => {
-    if (open) { setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); setOdo(""); }
+    if (open) { setTried(false); setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); setOdo(""); }
   }, [open]);
 
   // The shop's own cars, loaded once the dialog opens, so an empty box already offers
@@ -91,7 +93,10 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
 
   const createNew = async () => {
     if (busy) return;
-    if (!cf.phone.trim() || !vf.plate.trim()) { toast(t("error"), { icon: "alert", tone: "danger" }); return; }
+    // What is missing is said under the field that is missing it, not in a toast that names
+    // nothing (and that stacked up once per click).
+    setTried(true);
+    if (!cf.phone.trim() || !vf.plate.trim()) return;
     if (!isValidUzPhone(cf.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     if (!isValidPlateFor(vf.plate, vf.plateType)) { toast("Noto'g'ri davlat raqami", { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
@@ -147,7 +152,10 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
             <div className="flex flex-col gap-3.5">
               <Field label={t("name")}><Input value={cf.name} onChange={(e) => setCf({ ...cf, name: e.target.value })} /></Field>
               <div className="grid grid-cols-2 gap-3">
-                <PhoneField label={t("phone")} value={cf.phone} onChange={(p) => setCf({ ...cf, phone: p })} invalidHint={t("bad_phone")} />
+                <div className="flex flex-col gap-1">
+                  <PhoneField label={t("phone")} value={cf.phone} onChange={(p) => setCf({ ...cf, phone: p })} invalidHint={t("bad_phone")} />
+                  {tried && !cf.phone.trim() && <span className="text-[12px] font-medium text-destructive">{t("req_phone")}</span>}
+                </div>
                 <Field label={t("language")}>
                   <Select value={cf.language} onValueChange={(v) => setCf({ ...cf, language: v as Lang })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -163,7 +171,10 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
                   </TabsList>
                 </Tabs>
               </Field>
-              <PlateField value={vf.plate} onChange={(p) => setVf((s) => ({ ...s, plate: p }))} label={t("plate")} type={vf.plateType} />
+              <div className="flex flex-col gap-1">
+                <PlateField value={vf.plate} onChange={(p) => setVf((s) => ({ ...s, plate: p }))} label={t("plate")} type={vf.plateType} />
+                {tried && !vf.plate.trim() && <span className="text-[12px] font-medium text-destructive">{t("req_plate")}</span>}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <MakeModelPicker make={vf.make} model={vf.model} onChange={(mk, md) => setVf((s) => ({ ...s, make: mk, model: md }))} labels={{ make: t("make"), model: t("model") }} />
               </div>

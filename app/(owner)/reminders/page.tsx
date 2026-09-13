@@ -290,6 +290,9 @@ function AddModal({ open, onClose, shopId, titles, onCreated }: { open: boolean;
 
   const save = async () => {
     if (!f.title.trim() || busy) return;
+    // A reminder belongs to a car: two cars have two oil changes, and a mileage target means
+    // nothing without the odometer it is read from. A client with cars has to say which.
+    if (f.customerId && vehicles.length > 0 && !f.vehicleId) { toast(t("rem_pick_car"), { icon: "alert", tone: "danger" }); return; }
     // A recurring reminder needs an interval, otherwise there is nothing to advance by.
     if (f.repeat && repMonths <= 0 && repKm <= 0) { toast(t("rem_interval_hint"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);

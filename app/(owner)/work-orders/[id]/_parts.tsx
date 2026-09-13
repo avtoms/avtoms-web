@@ -613,7 +613,9 @@ export function NextServiceModal({ open, onClose, wo, shopId }: {
     setMonths("6");
     setKm("10000");
     // The odometer the gateway carried over from the vehicle, so the usual case is one tap.
-    setCurrentKm(num(wo.mileage) > 0 ? String(num(wo.mileage)) : "");
+    // This visit's own reading first — it is what somebody looked at on the dash today; the
+    // car's stored mileage is the fallback for an order where nobody wrote it down.
+    setCurrentKm(num(wo.odometer) > 0 ? String(num(wo.odometer)) : num(wo.mileage) > 0 ? String(num(wo.mileage)) : "");
   }, [open, wo.mileage, t]);
 
   const m = parseInt(months, 10) || 0;

@@ -172,6 +172,16 @@ async function ensureFreshToken(): Promise<void> {
   // (the token had not really expired) or 401s, where the reactive path retries.
 }
 
+// networkMessage is the sentence for a request that could not reach the server, in the language
+// the person chose (this layer has no React context, so it reads the stored choice).
+function networkMessage(): string {
+  let lang = "uz";
+  try { lang = localStorage.getItem("an_lang") || "uz"; } catch { /* private mode */ }
+  if (lang === "ru") return "Нет связи с сервером — проверьте интернет";
+  if (lang === "uzc") return "Сервер билан алоқа йўқ — интернетни текширинг";
+  return "Server bilan aloqa yo'q — internetni tekshiring";
+}
+
 async function call<T>(method: string, path: string, body?: unknown, auth = true, retried = false): Promise<T> {
   // Refresh ahead of expiry so a woken tab's whole burst of requests carries a valid token.
   if (auth) await ensureFreshToken();
@@ -180,12 +190,20 @@ async function call<T>(method: string, path: string, body?: unknown, auth = true
     const s = getSession();
     if (s?.token) headers["Authorization"] = `Bearer ${s.token}`;
   }
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(API_BASE + path, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+  } catch {
+    // The request never reached the server: no status, no body to explain itself. Said in
+    // words, so the screen does not answer a dropped connection with a bare "error" — or with
+    // nothing, while it quietly keeps showing what it had.
+    throw new ApiError(0, networkMessage());
+  }
   // Backstop for the cases ensureFreshToken cannot predict: a session with no stored expiry,
   // a token revoked server-side, or clock skew beyond the skew window.
   if (res.status === 401 && auth && !retried) {

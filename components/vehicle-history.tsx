@@ -73,8 +73,8 @@ export function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Veh
                       <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "calc(13.5px * var(--scale))" }}>{w.title}</div>
                       <div style={{ fontSize: 11.5, color: "var(--ink-3)", display: "flex", gap: 7, flexWrap: "wrap" }}>
                         {!!w.months && <span>{w.months} {t("months")}</span>}
-                        {!!Number(w.kmLimit) && <span style={{ fontFamily: "var(--font-mono)" }}>· {Number(w.kmLimit).toLocaleString()} km</span>}
-                        {w.expiresOn && <span>· {t("until")} {new Date(w.expiresOn).toLocaleDateString()}</span>}
+                        {!!Number(w.kmLimit) && <span style={{ fontFamily: "var(--font-mono)" }}>· {Number(w.kmLimit).toLocaleString("ru-RU")} km</span>}
+                        {w.expiresOn && <span>· {t("until")} {new Date(w.expiresOn).toLocaleDateString("ru-RU")}</span>}
                       </div>
                     </div>
                     <Badge tone={s === "active" ? "ok" : s === "expired" ? "warn" : "neutral"} dot>{t("warranty_" + s)}</Badge>

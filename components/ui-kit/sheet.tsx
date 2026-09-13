@@ -9,7 +9,7 @@ const SheetTrigger = SheetPrimitive.Trigger;
 const SheetClose = SheetPrimitive.Close;
 
 function SheetContent({
-  className, children, side = "left", showClose = true, ...props
+  className, children, side = "left", showClose = true, onEscapeKeyDown, ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & { side?: "left" | "right"; showClose?: boolean }) {
   return (
     <SheetPrimitive.Portal>
@@ -23,6 +23,11 @@ function SheetContent({
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
         )}
+        // Escape closes an open dropdown inside the sheet, not the sheet (see innerPopupOpen).
+        onEscapeKeyDown={(e) => {
+          if (typeof document !== "undefined" && document.querySelector('[data-popup-open="true"]')) e.preventDefault();
+          onEscapeKeyDown?.(e);
+        }}
         {...props}
       >
         {children}

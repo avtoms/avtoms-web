@@ -5,13 +5,14 @@
 // two different answers and people would stop trusting all three — so the arithmetic lives
 // here once and every screen asks it.
 //
-// Every window is bounded UTC midnight to UTC midnight. That is what makes thirty-one single
-// days add up to exactly the month above them. For a shop five hours ahead it covers 05:00 to
-// 05:00 local, which contains every hour a workshop actually trades.
+// Every window is bounded by local midnight — the shop's own day, which is the day the browser
+// at its counter is in. Thirty-one single days still add up to exactly the month above them.
+// (Windows used to be UTC days, which for a shop five hours ahead ran 05:00 to 05:00: a payment
+// taken at 01:00 counted towards the day before.)
 export type Range = { from: string; to: string };
 
-const isoFrom = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 0, 0, 0)).toISOString();
-const isoTo = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 23, 59, 59)).toISOString();
+const isoFrom = (y: number, m: number, d: number) => new Date(y, m, d, 0, 0, 0).toISOString();
+const isoTo = (y: number, m: number, d: number) => new Date(y, m, d, 23, 59, 59).toISOString();
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

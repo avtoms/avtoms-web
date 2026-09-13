@@ -26,7 +26,7 @@ import type { ShopCard, CompanyDetails } from "@/lib/types";
 import { CompanyFields } from "@/components/company-details";
 import { LANGS } from "@/lib/i18n";
 import { THEMES, FONTS, type ThemeName, type FontName, type Density } from "@/lib/theme";
-import { loadShopProfile, mergeShopProfile } from "@/lib/shop";
+import { loadShopProfile, mergeShopProfile, SHOP_PROFILE_CHANGED } from "@/lib/shop";
 import { SecTitle } from "../_shared";
 import { CurrencyRates } from "./_currency-rates";
 import { BankAccountsCard } from "./_bank-accounts";
@@ -48,7 +48,7 @@ const FLOW_HINT: Partial<Record<WoState, string>> = {
 };
 
 export default function SettingsPage() {
-  const { logout } = useAuth();
+  const { logout, session } = useAuth();
   const { lang, setLang, t } = useLang();
   const { theme, font, density, set } = useTheme();
   const { toast } = useToast();
@@ -109,6 +109,7 @@ export default function SettingsPage() {
       setShop(p); setLoadedShop(p);
       setCompany(s.company ?? {});
       saved();
+      window.dispatchEvent(new Event(SHOP_PROFILE_CHANGED));
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
@@ -153,6 +154,21 @@ export default function SettingsPage() {
     } finally {
       setSavingFlow(false);
     }
+  };
+
+  // Switching a status off while orders sit in it is allowed — they stay where they are and move
+  // on through the steps still in use — but it is not something to do by accident, so it asks.
+  const toggleFlow = async (s: WoState, on: boolean) => {
+    const next = new Set(flow);
+    if (on) next.delete(s); else next.add(s);
+    const shopId = session?.staff.shopId;
+    if (on && shopId) {
+      try {
+        const inIt = await api.listWorkOrders(shopId, s);
+        if (inIt.length > 0 && !window.confirm(`${inIt.length} ${t("flow_off_confirm")}`)) return;
+      } catch { /* the switch still works without the count */ }
+    }
+    void saveFlow(next);
   };
 
   const saveCompany = async () => {
@@ -244,7 +260,7 @@ export default function SettingsPage() {
                       return (
                         <label key={s} className={cn("flex cursor-pointer items-center gap-3 rounded-[12px] border px-4 py-3 transition-colors", on ? "border-border bg-card" : "border-border bg-secondary/40")}>
                           <Switch checked={on} disabled={savingFlow}
-                            onCheckedChange={() => { const n = new Set(flow); if (on) n.delete(s); else n.add(s); void saveFlow(n); }} />
+                            onCheckedChange={() => void toggleFlow(s, on)} />
                           <span className="min-w-0">
                             <span className={cn("block text-[14.5px] font-semibold", on ? "text-foreground" : "text-muted-foreground")}>{t(STATE_LABEL[s])}</span>
                             {FLOW_HINT[s] && <span className="block text-[12.5px] text-muted-foreground">{t(FLOW_HINT[s]!)}</span>}

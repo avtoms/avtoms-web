@@ -128,7 +128,7 @@ function NavList({ pathname, t, groups, counts, onNavigate }: {
     <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pb-2">
       {groups.map((g) => (
         <div key={g.titleKey}>
-          <div className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
+          <div className="px-3 pb-1.5 text-[11.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
             {t(g.titleKey)}
           </div>
           <div className="flex flex-col gap-0.5">
@@ -206,6 +206,14 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   );
 
   useEffect(() => { setDrawer(false); }, [pathname]);
+
+  // Each tab says where it is; every page used to carry the same title, so five orders open in
+  // five tabs could not be told apart. An order's and a client's own page name themselves.
+  const navTitle = (() => { const it = ALL_ITEMS.find((i) => itemActive(pathname, i)); return it ? t(it.labelKey) : t("app_name"); })();
+  useEffect(() => {
+    if (/^\/(work-orders|customers)\/[^/]+/.test(pathname)) return;
+    document.title = `${navTitle} — ${profile.name || t("app_name")}`;
+  }, [pathname, navTitle, profile.name, t]);
 
   if (!ready || !session) {
     return <div className="flex min-h-screen items-center justify-center bg-background"><Spinner className="size-7" /></div>;
@@ -328,7 +336,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             </div>
             <button onClick={signOut} aria-label={t("sign_out")} title={t("sign_out")} className="grid size-8 shrink-0 place-items-center rounded-[8px] text-muted-foreground hover:bg-card hover:text-destructive"><LogOut className="size-4" /></button>
           </div>
-          <div className="px-5 pb-3 text-[10.5px] font-medium text-muted-foreground/70">{BUILD_VERSION}</div>
+          <div className="px-5 pb-3 text-[11px] font-medium text-muted-foreground">{BUILD_VERSION}</div>
         </aside>
 
         <div className="flex min-w-0 flex-col">

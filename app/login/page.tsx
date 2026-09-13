@@ -217,7 +217,7 @@ export default function LoginPage() {
               <span className="text-[13.5px] font-semibold text-ink-2">{t("login_label")}</span>
               {/* Lower-cased as it is typed, matching how the server stores and compares it. */}
               <input value={loginName} onChange={(e) => setLoginName(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
-                onKeyDown={(e) => { if (e.key === "Enter") signIn(); }} placeholder="sardor"
+                onKeyDown={(e) => { if (e.key === "Enter") signIn(); }} placeholder="login"
                 autoComplete="username" autoCapitalize="none" autoCorrect="off" className={cn(inputCls, "font-mono")} />
             </label>
             <label className="flex flex-col gap-1.5">

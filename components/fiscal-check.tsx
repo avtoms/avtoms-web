@@ -170,6 +170,9 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
             <div><div className="inv-lbl">{t("discount")}</div><div className="v inv-mono inv-disc">{money(totalDiscount)}</div></div>
             <div><div className="inv-lbl">{t("margin")}</div><div className="v inv-mono" style={{ color: doxod >= 0 ? "#166534" : "#b91c1c" }}>{money(doxod)}</div></div>
           </div>
+          {/* The fiscal operator's own id for this receipt. For the shop's records; to a client
+              it is a meaningless string that looks like a fault on their check. */}
+          {invoice.fiscalReceiptId && <div className="inv-mono" style={{ fontSize: 11, color: "#a1a1aa", marginTop: 10 }}>OFD ID: {invoice.fiscalReceiptId}</div>}
         </div>
 
         <div className="inv-foot">
@@ -191,11 +194,12 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
               </div>
             ) : (
               <>
-                <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>{t("payment_method")}: {t(paymentLabelKey(payment))}</div>
+                {/* Only once there is a payment to describe: an unpaid bill read "Naqd" because
+                    an unset method decodes as cash. */}
+                {invoice.paid && <div style={{ fontSize: 12.5, color: "#52525b", marginTop: 8 }}>{t("payment_method")}: {t(paymentLabelKey(payment))}</div>}
                 {payment === "card" && invoice.cardNumber && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 4 }}>{t("received_on")}: {invoice.cardNumber}</div>}
               </>
             )}
-            {invoice.fiscalReceiptId && <div className="inv-mono" style={{ fontSize: 11.5, color: "#52525b", marginTop: 6 }}>OFD: {invoice.fiscalReceiptId}</div>}
             {fiscal === "pending" && <div style={{ fontSize: 11.5, color: "#a1a1aa", marginTop: 6 }}>{t("fiscalizing")}</div>}
             {shop.hours && <div style={{ fontSize: 12, color: "#71717a", marginTop: 8 }}>{shop.hours}</div>}
           </div>

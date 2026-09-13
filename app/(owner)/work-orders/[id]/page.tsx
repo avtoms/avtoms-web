@@ -33,12 +33,13 @@ import { cn } from "@/lib/utils";
 import { useLang, useToast, useAuth } from "@/components/providers";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { useStaffNames } from "@/lib/use-staff";
-import { auditAction, auditDetail } from "@/lib/system-text";
+import { canWork, useStaffNames } from "@/lib/use-staff";
+import { can } from "@/lib/perms";
+import { auditAction, auditDetail, serverMessage } from "@/lib/system-text";
 import { money, num, shortDate, vatBreakdown, orderLabel, minutesBetween } from "@/lib/format";
 import {
   woStateFromProto, kindFromProto, kindIsMaterial, lineStatusFromProto, discountFromProto, enabledSet,
-  reminderStateFromProto, STATE_LABEL, type WoState, type PaymentMethod,
+  reminderStateFromProto, paymentFromProto, paymentLabelKey, STATE_LABEL, type WoState, type PaymentMethod,
 } from "@/lib/enums";
 import type { WorkOrder, Staff, AuditEntry, LineItem, MaterialReturn, Customer, ServiceReminder, Invoice, ShopCard } from "@/lib/types";
 import { qtyUnit } from "@/components/catalog-fields";
@@ -112,7 +113,7 @@ export default function WorkOrderDetailPage() {
   // Other staff change these records while this tab sits open; refresh when it regains focus.
   useAutoRefresh(load);
   useEffect(() => {
-    api.listStaff(shopId).then((s) => setMechanics(s.filter((x) => x.role === "ROLE_MECHANIC" && x.active))).catch(() => {});
+    api.listStaff(shopId).then((s) => setMechanics(s.filter(canWork))).catch(() => {});
   }, [shopId]);
 
   // The history feeds three things on this screen — the stepper's times, the client card's
@@ -163,10 +164,63 @@ export default function WorkOrderDetailPage() {
     window.history.replaceState(null, "", `/work-orders/${id}`);
   }, [wo, id]);
 
-  const err = (e: unknown) => toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+  // Payments live on the bill, not in the order's own log, so they are read from there and
+  // woven into the history — "who took the money, how and when" is the line most looked for.
+  const [payments, setPayments] = useState<AuditEntry[]>([]);
+  const woState = wo ? woStateFromProto(wo.state) : null;
+  useEffect(() => {
+    if (!wo || (woState !== "invoiced" && woState !== "closed") || !can(session, "finance.manage")) { setPayments([]); return; }
+    let alive = true;
+    api.listInvoices(shopId).then((all) => {
+      const inv = all.find((i) => i.workOrderId === wo.id);
+      if (!alive || !inv) return;
+      setPayments((inv.payments ?? []).map((p, i) => ({
+        id: `pay-${p.id || i}`, workOrderId: wo.id, actorId: p.staffId, action: "payment",
+        detail: `${t(paymentLabelKey(paymentFromProto(p.method)))} · ${money(num(p.amount))} ${t("soum")}`,
+        createdAt: p.paidAt || inv.createdAt || "",
+      })));
+    }).catch(() => {});
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wo?.id, woState, shopId]);
+  const history = useMemo(
+    () => [...audit, ...payments].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")),
+    [audit, payments],
+  );
+
+  // A bill paid in full closes its order on the server. That is the moment the shop is asked
+  // when the car should come back — once the payment panel is put away, not over the receipt.
+  const prevState = useRef<WoState | null>(null);
+  const closedWhilePaying = useRef(false);
+  useEffect(() => {
+    if (!wo) return;
+    const s = woStateFromProto(wo.state);
+    if (invoice && prevState.current && prevState.current !== "closed" && s === "closed") closedWhilePaying.current = true;
+    prevState.current = s;
+  }, [wo, invoice]);
+
+  // The tab names the order, so five orders in five tabs can be told apart.
+  useEffect(() => {
+    if (wo) document.title = `${orderLabel(wo)} · ${[wo.make, wo.model].filter(Boolean).join(" ") || wo.plate || ""} — ${t("app_name")}`;
+  }, [wo, t]);
+
+  const err = (e: unknown) => toast(e instanceof ApiError ? serverMessage(lang, e.message) : t("error"), { icon: "alert", tone: "danger" });
 
   const doTransition = async (target: WoState, returns?: MaterialReturn[]) => {
-    if (busy) return; setBusy(true);
+    if (busy) return;
+    // The server holds these rules; they are checked here first so the answer is in the
+    // reader's language and leads straight to the fix.
+    const lines = wo?.lineItems ?? [];
+    if (target !== "draft" && target !== "canceled" && lines.length === 0) {
+      toast(t("guard_lines"), { icon: "alert", tone: "danger" });
+      return;
+    }
+    if (target === "in_progress" && !wo?.assignedMechanicId && !lines.some((li) => li.assignedMechanicId)) {
+      toast(t("guard_mech"), { icon: "alert", tone: "danger" });
+      setAssigning(true);
+      return;
+    }
+    setBusy(true);
     try {
       const updated = await api.transition(id, target, returns);
       setWo(updated);
@@ -475,7 +529,7 @@ export default function WorkOrderDetailPage() {
               </div>
             ) : <div className="text-[13px] text-muted-foreground">{t("next_none")}</div>}
           </Card>
-          <HistoryCard audit={audit} lang={lang} who={who} />
+          <HistoryCard audit={history} lang={lang} who={who} />
           {canCancel && (
             <button onClick={() => setConfirmCancel(true)} className="self-start px-1 text-[13.5px] font-semibold text-destructive hover:underline">{t("cancel_wo")}</button>
           )}
@@ -492,7 +546,11 @@ export default function WorkOrderDetailPage() {
       <AddLineItemModal open={addItem} initialMode={addMode} onClose={() => setAddItem(false)} onAdd={doAddItems} shopId={shopId} lang={lang} busy={busy} />
       <EditLineItemModal item={editItem} onClose={() => setEditItem(null)} onSave={doUpdateItem} busy={busy} />
       <AssignModal open={assigning} onClose={() => setAssigning(false)} mechanics={mechanics} current={wo.assignedMechanicId} onPick={doAssign} />
-      <PaymentPanel open={invoice} onClose={() => setInvoice(false)} wo={wo} shopId={shopId} total={total} customer={customer} onChange={load} />
+      <PaymentPanel open={invoice}
+        onClose={() => {
+          setInvoice(false);
+          if (closedWhilePaying.current) { closedWhilePaying.current = false; setNextService(true); }
+        }} wo={wo} shopId={shopId} total={total} customer={customer} onChange={load} />
       <OrderDiscountModal open={discount} onClose={() => setDiscount(false)} wo={wo} onSaved={() => { setDiscount(false); load(); }} />
       <ApprovalModal approval={approval} onClose={() => setApproval(null)} />
       <NextServiceModal open={nextService} onClose={() => { setNextService(false); loadReminders(); }} wo={wo} shopId={shopId} />
@@ -736,7 +794,7 @@ function HistoryCard({ audit, lang, who }: { audit: AuditEntry[]; lang: string; 
   const { t } = useLang();
   const [all, setAll] = useState(false);
   if (audit.length === 0) return null;
-  const dot = (a: string) => a === "approved" ? "bg-success" : a === "declined" ? "bg-destructive" : a === "state" ? "bg-primary" : a === "materials_returned" ? "bg-warning" : "bg-ink-3";
+  const dot = (a: string) => a === "approved" || a === "payment" ? "bg-success" : a === "declined" ? "bg-destructive" : a === "state" ? "bg-primary" : a === "materials_returned" ? "bg-warning" : "bg-ink-3";
   const shown = all ? audit : audit.slice(0, 6);
   return (
     <Card className="p-4">
@@ -861,7 +919,13 @@ function PaymentPanel({ open, onClose, wo, shopId, total, customer, onChange }: 
       }
     })();
     // the shop's receiving cards for the card payment (best effort)
-    api.listShopCards().then((c) => { if (!cancelled) setCards(c.filter((x) => x.active !== false)); }).catch(() => {});
+    // A shop with one receiving card has nothing to choose, so it is chosen.
+    api.listShopCards().then((c) => {
+      if (cancelled) return;
+      const active = c.filter((x) => x.active !== false);
+      setCards(active);
+      if (active.length === 1) setPickedCard(active[0].id);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [open, wo.id, shopId, total, onChange, t, toast, wo.state]);
 

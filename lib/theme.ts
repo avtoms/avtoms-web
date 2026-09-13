@@ -10,7 +10,7 @@ export const THEMES: Record<ThemeName, ThemeDef> = {
     label: "Workshop", dark: false,
     vars: {
       "--bg": "oklch(0.971 0.008 75)", "--surface": "oklch(0.995 0.004 85)", "--surface-2": "oklch(0.952 0.011 75)", "--surface-3": "oklch(0.925 0.014 72)",
-      "--ink": "oklch(0.235 0.012 62)", "--ink-2": "oklch(0.44 0.014 62)", "--ink-3": "oklch(0.60 0.014 65)",
+      "--ink": "oklch(0.235 0.012 62)", "--ink-2": "oklch(0.44 0.014 62)", "--ink-3": "oklch(0.51 0.014 65)",
       "--line": "oklch(0.892 0.012 72)", "--line-2": "oklch(0.83 0.014 70)",
       "--accent": "oklch(0.66 0.166 47)", "--accent-2": "oklch(0.60 0.172 45)", "--accent-ink": "oklch(0.99 0.005 80)", "--accent-soft": "oklch(0.945 0.05 62)",
       "--ok": "oklch(0.60 0.13 150)", "--ok-soft": "oklch(0.95 0.05 150)", "--warn": "oklch(0.71 0.145 72)", "--warn-soft": "oklch(0.95 0.06 75)",
@@ -23,7 +23,9 @@ export const THEMES: Record<ThemeName, ThemeDef> = {
     label: "Steel", dark: false,
     vars: {
       "--bg": "oklch(0.975 0.004 250)", "--surface": "oklch(1 0 0)", "--surface-2": "oklch(0.962 0.006 250)", "--surface-3": "oklch(0.935 0.009 250)",
-      "--ink": "oklch(0.245 0.022 258)", "--ink-2": "oklch(0.46 0.022 258)", "--ink-3": "oklch(0.61 0.02 258)",
+      // --ink-3 carries captions and labels; at 0.61 it read at about 3.8:1 on white, under
+      // the 4.5:1 small text needs — in a workshop, on a smudged screen, that is legibility.
+      "--ink": "oklch(0.245 0.022 258)", "--ink-2": "oklch(0.46 0.022 258)", "--ink-3": "oklch(0.52 0.022 258)",
       "--line": "oklch(0.905 0.009 250)", "--line-2": "oklch(0.85 0.012 250)",
       "--accent": "oklch(0.55 0.17 256)", "--accent-2": "oklch(0.49 0.18 258)", "--accent-ink": "oklch(0.99 0 0)", "--accent-soft": "oklch(0.95 0.04 256)",
       "--ok": "oklch(0.58 0.14 158)", "--ok-soft": "oklch(0.95 0.05 158)", "--warn": "oklch(0.70 0.15 70)", "--warn-soft": "oklch(0.95 0.06 72)",

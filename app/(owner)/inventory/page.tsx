@@ -769,7 +769,8 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
 
   const fmtDate = (iso: string) => {
     const d = new Date(iso);
-    return isNaN(d.getTime()) ? iso : d.toLocaleString(lang === "ru" ? "ru-RU" : "uz-UZ", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+    // ru-RU for every language: browsers ship no Uzbek date data and fell back to "26-09-12".
+    return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
   return (

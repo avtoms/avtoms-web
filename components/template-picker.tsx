@@ -577,7 +577,9 @@ function StockStep({
               <SearchSelect value={supplierId} placeholder={t("supplier")}
                 options={suppliers.map((c) => ({ value: c.id, label: c.name }))} onChange={setSupplierId} />
             </div>
-            <QuickSupplier brand={template.brand ?? ""} onCreated={onContragentsChange} onPicked={setSupplierId} />
+            {/* No brand passed down: a distributor selling twenty brands was being filed under
+                whichever one happened to be on the first box it delivered. */}
+            <QuickSupplier brand="" onCreated={onContragentsChange} onPicked={setSupplierId} />
           </div>
         </Field>
         {supplierId && arriving > 0 && !skipDebt && (

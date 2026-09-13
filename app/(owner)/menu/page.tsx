@@ -528,7 +528,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
                       <ChevronRight className="size-3.5 text-muted-foreground" />
                       <span className="font-mono font-bold text-foreground">{money(h.newPrice)}</span>
                       <span className="ml-auto truncate font-mono text-[11.5px] text-muted-foreground">
-                        {new Date(h.changedAt).toLocaleDateString()}{who(h.changedBy) ? " · " + who(h.changedBy) : ""}
+                        {new Date(h.changedAt).toLocaleDateString("ru-RU")}{who(h.changedBy) ? " · " + who(h.changedBy) : ""}
                       </span>
                     </div>
                   ))}

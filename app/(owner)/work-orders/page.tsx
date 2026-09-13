@@ -26,6 +26,8 @@ import { api, ApiError } from "@/lib/api";
 import { can } from "@/lib/perms";
 import { WO_STATES, STATE_LABEL, fiscalFromProto, visibleStates, woStateFromProto, type WoState } from "@/lib/enums";
 import { useShopFlow } from "@/lib/shop";
+import { canWork } from "@/lib/use-staff";
+import { serverMessage } from "@/lib/system-text";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { minutesBetween, money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import type { Invoice, MaterialReturn, Staff, WorkOrder } from "@/lib/types";
@@ -70,7 +72,7 @@ const norm = (s: string) => s.toLowerCase().replace(/[\s\-·]+/g, "");
 export default function WorkOrdersPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -119,7 +121,7 @@ export default function WorkOrdersPage() {
   useAutoRefresh(load);
 
   const staffName = useCallback((id?: string) => (id ? staff.find((s) => s.id === id)?.name ?? "" : ""), [staff]);
-  const mechanics = useMemo(() => staff.filter((s) => s.active && s.role === "ROLE_MECHANIC"), [staff]);
+  const mechanics = useMemo(() => staff.filter(canWork), [staff]);
   // The bill behind each invoiced order, when this person may read bills: it says whether the
   // money has come in and since when it has been waiting.
   const invByWo = useMemo(() => {
@@ -153,7 +155,7 @@ export default function WorkOrdersPage() {
       toast(t(STATE_LABEL[target]), { icon: "check" });
       await load();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+      toast(e instanceof ApiError ? serverMessage(lang, e.message) : t("error"), { icon: "alert", tone: "danger" });
     } finally {
       setBusyId(null);
     }

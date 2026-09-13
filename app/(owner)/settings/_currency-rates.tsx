@@ -68,7 +68,8 @@ function RateRow({ currency, onSaved }: { currency: Currency; onSaved: () => voi
 
   const when = (iso: string) => {
     const d = new Date(iso);
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString(lang === "ru" ? "ru-RU" : "uz-UZ");
+    // ru-RU for every language: browsers ship no Uzbek date data and fall back to year-first.
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString("ru-RU");
   };
 
   return (

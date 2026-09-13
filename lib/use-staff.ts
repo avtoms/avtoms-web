@@ -59,3 +59,12 @@ export function useStaffNames(): (id?: string) => string {
 
   return useCallback((id?: string) => (id ? byID[id] ?? "" : ""), [byID]);
 }
+
+/**
+ * canWork says whether somebody can be given a job. Mechanics can; so can the owner — in a
+ * one-person shop the owner IS the mechanic, and a picker that listed mechanics only had nobody
+ * in it — and so can anyone granted the right to work orders.
+ */
+export function canWork(s: Staff): boolean {
+  return s.active && (s.role === "ROLE_MECHANIC" || s.role === "ROLE_OWNER" || (s.effectivePermissions ?? []).includes("orders.edit"));
+}

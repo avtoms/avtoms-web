@@ -102,6 +102,7 @@ export default function CustomerPage() {
   }, [id, shopId, t, toast]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (cust) document.title = `${cust.walkIn ? t("walk_in") : cust.name} — ${t("app_name")}`; }, [cust, t]);
 
   // What the service book says was done on each visit, keyed by order — the order list itself
   // carries only the head of each order.

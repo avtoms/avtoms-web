@@ -101,6 +101,8 @@ export function SalesConsole() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { api.listShopCards().then((c) => setCards(c.filter((x) => x.active !== false))).catch(() => {}); }, []);
+  // A shop with one receiving card has nothing to choose, so it is chosen — also after each sale.
+  useEffect(() => { if (cards.length === 1 && !pickedCard && !adhoc) setPickedCard(cards[0].id); }, [cards, pickedCard, adhoc]);
   // Stock moves under this page whenever a mechanic consumes a material, so keep it current.
   useAutoRefresh(load);
 

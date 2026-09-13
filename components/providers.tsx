@@ -106,6 +106,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const toast = useCallback((msg: string, opts?: { icon?: string; tone?: Toast["tone"] }) => {
+    // An empty toast is a dark box that says nothing and looks like a fault; never draw one.
+    if (!msg || !msg.trim()) return;
     const id = Math.random().toString(36).slice(2);
     setToasts((x) => [...x, { id, msg, icon: opts?.icon || "check", tone: opts?.tone || "ok" }]);
     timers.current[id] = setTimeout(() => setToasts((x) => x.filter((i) => i.id !== id)), 2800);

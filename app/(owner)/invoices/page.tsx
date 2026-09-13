@@ -21,8 +21,10 @@ import { useAutoRefresh } from "@/lib/use-refresh";
 import { cn } from "@/lib/utils";
 import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
 import { fiscalFromProto, paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
-import type { Invoice, WorkOrder, ShopCard } from "@/lib/types";
+import type { Invoice, WorkOrder, ShopCard, Sale } from "@/lib/types";
 import { Row, PaidBadge } from "../_shared";
+
+const saleLabel = (s: Sale) => "S-" + String(num(s.saleNo) || 0).padStart(4, "0");
 
 export default function InvoicesPage() {
   const { session } = useAuth();
@@ -32,6 +34,9 @@ export default function InvoicesPage() {
 
   const [list, setList] = useState<Invoice[]>([]);
   const [woById, setWoById] = useState<Record<string, WorkOrder>>({}); // workOrderId → work order
+  // A counter sale's receipt carries the sale's id where an order's carries the order's, so
+  // those rows read "—" with no car and no client. Sales are looked up too and named as such.
+  const [saleById, setSaleById] = useState<Record<string, Sale>>({});
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<Invoice | null>(null);
   const [cards, setCards] = useState<ShopCard[]>([]);
@@ -41,15 +46,27 @@ export default function InvoicesPage() {
   // An invoice references its work order by id; resolve that to the human Z-number + the car
   // identity (plate · make model · client) so the list reads like the shop talks, not a UUID.
   const woFor = useCallback((inv: Invoice | null) => (inv ? woById[inv.workOrderId] : undefined), [woById]);
-  const orderNoFor = useCallback((inv: Invoice | null) => { const w = inv ? woById[inv.workOrderId] : undefined; return w ? orderLabel(w) : "—"; }, [woById]);
+  const saleFor = useCallback((inv: Invoice) => saleById[inv.workOrderId] ?? saleById[inv.id], [saleById]);
+  const orderNoFor = useCallback((inv: Invoice | null) => {
+    if (!inv) return "—";
+    const w = woById[inv.workOrderId];
+    if (w) return orderLabel(w);
+    const s = saleFor(inv);
+    return s ? saleLabel(s) : "—";
+  }, [woById, saleFor]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [invs, wos] = await Promise.all([api.listInvoices(shopId), api.listWorkOrders(shopId)]);
+      const [invs, wos, sales] = await Promise.all([
+        api.listInvoices(shopId), api.listWorkOrders(shopId), api.listSales(shopId).catch(() => [] as Sale[]),
+      ]);
       const map: Record<string, WorkOrder> = {};
       for (const w of wos) map[w.id] = w as WorkOrder;
       setWoById(map);
+      const sm: Record<string, Sale> = {};
+      for (const s of sales) { sm[s.id] = s; if (s.invoiceId) sm[s.invoiceId] = s; }
+      setSaleById(sm);
       setList(invs);
     }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
@@ -57,8 +74,9 @@ export default function InvoicesPage() {
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
-  // Other staff change these records while this tab sits open; refresh when it regains focus.
-  useAutoRefresh(load);
+  // Other staff change these records while this tab sits open; refresh when it regains focus,
+  // and every minute while it is in front of somebody — a cashier's screen never loses focus.
+  useAutoRefresh(load, { intervalMs: 60_000 });
 
   const pay = async (inv: Invoice, method: PaymentMethod, card?: { cardId?: string; cardNumber?: string }) => {
     try {
@@ -82,14 +100,18 @@ export default function InvoicesPage() {
   const columns = useMemo<ColumnDef<Invoice>[]>(() => [
     {
       id: "order",
-      accessorFn: (inv) => { const w = woById[inv.workOrderId]; return w ? orderLabel(w) : "—"; },
+      accessorFn: (inv) => orderNoFor(inv),
       header: ({ column }) => <SortHeader column={column}>{t("work_order")}</SortHeader>,
       cell: ({ row }) => {
         const inv = row.original;
         const w = woById[inv.workOrderId];
+        const s = w ? undefined : saleFor(inv);
         return (
           <div className="flex flex-col">
-            <span className="font-mono text-[13.5px] font-bold text-foreground">{w ? orderLabel(w) : "—"}</span>
+            <span className="flex items-center gap-1.5 font-mono text-[13.5px] font-bold text-foreground">
+              {orderNoFor(inv)}
+              {s && <Badge tone="neutral">{t("invoice_kind_sale")}</Badge>}
+            </span>
             <span className="font-mono text-[11px] text-muted-foreground">{t("invoice").toLowerCase()} {inv.id.slice(0, 6)}</span>
           </div>
         );
@@ -101,6 +123,12 @@ export default function InvoicesPage() {
       header: ({ column }) => <SortHeader column={column}>{t("vehicle")}</SortHeader>,
       cell: ({ row }) => {
         const w = woById[row.original.workOrderId];
+        const s = w ? undefined : saleFor(row.original);
+        // A counter sale has no car: say what was sold rather than leave a dash.
+        if (s) {
+          const n = s.items?.length ?? 0;
+          return <span className="text-[13px] text-muted-foreground">{t("invoice_kind_sale")} · {n} {t("items_short")}</span>;
+        }
         const title = w ? vehicleTitle(w) : "";
         return (
           <div className="flex min-w-0 items-center gap-2.5">
@@ -139,7 +167,7 @@ export default function InvoicesPage() {
         );
       },
     },
-  ], [woById, t]);
+  ], [woById, saleFor, orderNoFor, t]);
 
   const columnLabels = useMemo(
     () => ({ order: t("work_order"), vehicle: t("vehicle"), total: t("total"), fiscal: t("fiscal_status"), paid: t("paid") }),

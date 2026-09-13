@@ -691,7 +691,9 @@ export const STR: Record<string, Triple> = {
   st_approved: ["Tasdiqlangan", "Тасдиқланган", "Подтверждён"],
   st_in_progress: ["Bajarilmoqda", "Бажарилмоқда", "В работе"],
   st_ready: ["Tayyor", "Тайёр", "Готов"],
-  st_invoiced: ["Hisob chiqarildi", "Ҳисоб чиқарилди", "Выставлен счёт"],
+  // Named for what has to happen next, not what already did. A bill paid in full now closes its
+  // order, so an order still here is one whose money has not (all) come in.
+  st_invoiced: ["To'lov kutilmoqda", "Тўлов кутилмоқда", "Ожидает оплаты"],
   st_closed: ["Yopilgan", "Йопилган", "Закрыт"],
   st_canceled: ["Bekor qilingan", "Бекор қилинган", "Отменён"],
   work_order: ["Ish buyurtmasi", "Иш буюртмаси", "Заказ-наряд"],
@@ -1917,6 +1919,23 @@ export const STR: Record<string, Triple> = {
   show_pw: ["Parolni ko'rsatish", "Паролни кўрсатиш", "Показать пароль"],
   hide_pw: ["Parolni yashirish", "Паролни яшириш", "Скрыть пароль"],
   login_help: ["Kira olmasangiz, servis egasiga murojaat qiling", "Кира олмасангиз, сервис эгасига мурожаат қилинг", "Не получается войти — обратитесь к владельцу сервиса"],
+
+  // ── audit fixes ──
+  guard_lines: ["Avval buyurtmaga kamida bitta qator qo'shing", "Аввал буюртмага камида битта қатор қўшинг", "Сначала добавьте в заказ хотя бы одну позицию"],
+  guard_mech: ["Ishni boshlashdan oldin usta biriktiring", "Ишни бошлашдан олдин уста бириктиринг", "Перед началом работ назначьте мастера"],
+  audit_payment: ["To'lov qabul qilindi", "Тўлов қабул қилинди", "Оплата получена"],
+  audit_lines_completed: ["Qolgan ishlar bajarildi deb belgilandi", "Қолган ишлар бажарилди деб белгиланди", "Оставшиеся работы отмечены выполненными"],
+  appt_open_order: ["Buyurtma ochish", "Буюртма очиш", "Открыть заказ"],
+  rem_pick_car: ["Mijozning qaysi mashinasi uchun ekanini tanlang", "Мижознинг қайси машинаси учун эканини танланг", "Выберите, для какой машины клиента"],
+  flow_off_confirm: [
+    "ta buyurtma hozir shu holatda. O'chirsangiz, ular joyida qoladi va keyingi yoqilgan qadamga o'tadi. O'chirilsinmi?",
+    "та буюртма ҳозир шу ҳолатда. Ўчирсангиз, улар жойида қолади ва кейинги ёқилган қадамга ўтади. Ўчирилсинми?",
+    "заказов сейчас в этом статусе. Если выключить, они останутся на месте и пойдут дальше по включённым шагам. Выключить?",
+  ],
+  req_phone: ["Telefon raqamini kiriting", "Телефон рақамини киритинг", "Введите номер телефона"],
+  req_plate: ["Davlat raqamini kiriting", "Давлат рақамини киритинг", "Введите госномер"],
+  invoice_kind_sale: ["Sotuv", "Сотув", "Продажа"],
+  items_short: ["ta mahsulot", "та маҳсулот", "поз."],
 };
 
 const WEEKDAYS_SHORT: Triple[] = [

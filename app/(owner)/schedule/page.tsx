@@ -7,7 +7,9 @@
 // by side; the list is the flat view the screen had before.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronLeft, ChevronRight, Plus, X, Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, ChevronLeft, ChevronRight, Plus, X, Bell, ClipboardList } from "lucide-react";
+import { canWork } from "@/lib/use-staff";
 import { Empty, useIsMobile } from "@/components/ui";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -39,8 +41,10 @@ import { StaffDot, staffColor } from "../_shared";
 // Radix Select forbids an empty-string item value, so "" (unset / reset) is represented by
 // this sentinel in the Select only and mapped back to "" at the state boundary.
 const NONE = "__none";
-const dayKey = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
-const timeStr = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const pad2 = (n: number) => String(n).padStart(2, "0");
+// Written out rather than left to the browser's locale, which put "Sun, Sep 13" and "03:00 PM"
+// on an Uzbek screen.
+const timeStr = (iso: string) => { const d = new Date(iso); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const ymdOf = (iso: string) => {
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -56,6 +60,7 @@ export default function SchedulePage() {
   const { t, lang } = useLang();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const router = useRouter();
 
   const [view, setView] = useState<View>("day");
   const [day, setDay] = useState(todayYMD());
@@ -85,7 +90,7 @@ export default function SchedulePage() {
   }, [shopId, view, day, t, toast]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { api.listStaff(shopId).then((s) => setMechanics(s.filter((x) => x.role === "ROLE_MECHANIC" && x.active))).catch(() => {}); }, [shopId]);
+  useEffect(() => { api.listStaff(shopId).then((s) => setMechanics(s.filter(canWork))).catch(() => {}); }, [shopId]);
   useEffect(() => {
     api.listReminders(shopId).then((rs) => {
       const lim = Date.now() + 7 * 86400000;
@@ -106,11 +111,30 @@ export default function SchedulePage() {
     finally { setBusy(false); }
   };
 
+  // A booking made for somebody's car becomes that car's order when they arrive, without the
+  // plate being looked up a second time; the booking itself is then done.
+  const openOrder = async (a: Appointment) => {
+    if (!a.vehicleId || busy) return;
+    setBusy(true);
+    try {
+      const wo = await api.createWorkOrder(shopId, a.vehicleId);
+      await api.setAppointmentState(a.id, apptStateToProto("done")).catch(() => {});
+      router.push(`/work-orders/${wo.id}`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+      setBusy(false);
+    }
+  };
+
   const groups = useMemo(() => {
     const m = new Map<string, Appointment[]>();
-    for (const a of list) { const k = dayKey(a.scheduledAt); (m.get(k) ?? m.set(k, []).get(k)!).push(a); }
+    for (const a of list) {
+      const d = ymdOf(a.scheduledAt);
+      const k = `${formatWeekday(lang, d)}, ${formatDayMonth(lang, d)}`;
+      (m.get(k) ?? m.set(k, []).get(k)!).push(a);
+    }
     return [...m.entries()];
-  }, [list]);
+  }, [list, lang]);
 
   const onDay = useMemo(() => list.filter((a) => ymdOf(a.scheduledAt) === day).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)), [list, day]);
   const tomorrow = useMemo(() => list.filter((a) => ymdOf(a.scheduledAt) === shiftDay(day, 1) && apptStateFromProto(a.state) === "scheduled").sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)), [list, day]);
@@ -146,6 +170,7 @@ export default function SchedulePage() {
           <DropdownMenuLabel className="normal-case">{timeStr(a.scheduledAt)} · {a.title}</DropdownMenuLabel>
           {st === "scheduled" ? (
             <>
+              {a.vehicleId && <DropdownMenuItem disabled={busy} onClick={() => void openOrder(a)}><ClipboardList /> {t("appt_open_order")}</DropdownMenuItem>}
               <DropdownMenuItem disabled={busy} onClick={() => setState(a, "done")}><Check /> {t("mark_done")}</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" disabled={busy} onClick={() => setState(a, "canceled")}><X /> {t("cancel")}</DropdownMenuItem>
             </>
@@ -301,6 +326,7 @@ export default function SchedulePage() {
                   </div>
                   {st === "scheduled" ? (
                     <div className="flex shrink-0 gap-1.5">
+                      {a.vehicleId && <Button variant="secondary" size="sm" disabled={busy} onClick={() => void openOrder(a)}><ClipboardList /> {t("appt_open_order")}</Button>}
                       <Button variant="soft" size="sm" disabled={busy} onClick={() => setState(a, "done")}><Check /> {t("mark_done")}</Button>
                       <Button variant="ghost" size="sm" disabled={busy} onClick={() => setState(a, "canceled")} className="text-destructive hover:text-destructive">{t("cancel")}</Button>
                     </div>
@@ -401,18 +427,27 @@ function AddModal({ open, onClose, shopId, mechanics, titles, onCreated, preset 
       // clients list — so a scheduled visit means the client exists, just reserved for that
       // time. Reuse an existing client when the phone already matches; never block the
       // booking if client creation fails.
+      let vehicleId = f.vehicleId;
       if (!f.customerId && name) {
         const digits = (s: string) => s.replace(/\D/g, "");
         const dupe = phone ? customers.find((c) => c.phone && digits(c.phone) === digits(phone)) : undefined;
         if (!dupe) {
-          try { await api.createCustomer(shopId, { name, phone, language: lang }); }
+          try {
+            const c = await api.createCustomer(shopId, { name, phone, language: lang });
+            // Their car too, when a plate was given: a client created with no car could not
+            // later be booked by plate, and the booking could not become an order.
+            if (f.plate.trim()) {
+              try { vehicleId = (await api.createVehicle({ customerId: c.id, plate: f.plate.trim() })).id; }
+              catch { /* the booking still stands on its plate */ }
+            }
+          }
           catch { /* non-fatal — still create the appointment */ }
         }
       }
       // The car picked above goes with the booking. It used to be chosen and then dropped here,
       // leaving the appointment with a plate and no link to the car it was for.
       await api.createAppointment(shopId, {
-        title: f.title.trim(), customerName: name, phone, plate: f.plate.trim(), vehicleId: f.vehicleId || undefined,
+        title: f.title.trim(), customerName: name, phone, plate: f.plate.trim(), vehicleId: vehicleId || undefined,
         mechanicId: f.mechanicId || undefined, scheduledAt: new Date(f.when).toISOString(),
         durationMinutes: parseInt(f.duration, 10) || 0, notes: f.notes.trim(),
       });
