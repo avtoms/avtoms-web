@@ -9,7 +9,7 @@
 // been waiting too long, a line of context, and the one button that moves the order on (bill
 // it, take the payment). It also folds the finished states into a narrow rail on the right,
 // so the live queue gets the width and the archive is one click away rather than gone.
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Timer } from "lucide-react";
 import { useIsMobile } from "@/components/ui";
 import { useLang } from "@/components/providers";
@@ -170,14 +170,13 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
         dragging ? "cursor-grabbing opacity-50 shadow-[var(--shadow-lg)]" : busy ? "cursor-wait opacity-70 shadow-[var(--shadow)]" : "cursor-pointer shadow-[var(--shadow)]",
       )}
     >
-      {/* number ←→ what is wrong, or who is on it */}
+      {/* number ←→ who is on it. The number is what people read out to each other, so it
+          always gets the room; the reason to look at the card sits on its own line below. */}
       <div className="flex min-h-6 items-center justify-between gap-2">
-        <span className="min-w-0 truncate font-mono text-[12.5px] font-semibold text-muted-foreground">{orderLabel(wo)}</span>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {badge ? (
-            <span className={cn("rounded-full px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap", BADGE[badge.tone])}>{badge.label}</span>
-          ) : extras?.mechanicId ? (
-            <span title={mech} className="grid size-6 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: staffColor(extras.mechanicId) }}>
+        <span className="shrink-0 font-mono text-[12.5px] font-semibold text-muted-foreground">{orderLabel(wo)}</span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {extras?.mechanicId ? (
+            <span title={mech} className="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: staffColor(extras.mechanicId) }}>
               {(mech || "?").charAt(0).toUpperCase()}
             </span>
           ) : null}
@@ -186,6 +185,11 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
           ) : null}
         </div>
       </div>
+      {badge && (
+        <div className="-mt-1">
+          <span className={cn("inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[11.5px] font-semibold", BADGE[badge.tone])}>{badge.label}</span>
+        </div>
+      )}
       {!compactMenu && (
         <div className="-mt-1"><StatusMenu currentCol={col} targets={targets} onMove={onMove} disabled={busy} label={t("wo_move")} /></div>
       )}
@@ -259,6 +263,66 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   const [overCol, setOverCol] = useState<WoState | null>(null);
   const [railOpen, setRailOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
+
+  // ── sideways scrolling that works with a mouse ──
+  // A board wider than the screen scrolls sideways, and on a trackpad that is a two-finger
+  // swipe. With a mouse it was only the scrollbar under the tallest column — usually below the
+  // bottom of the window — so the right-hand columns were simply out of reach. Hence a second
+  // scrollbar above the board kept in step with the real one, arrow buttons on whichever side
+  // has more, and grabbing an empty part of the board to drag it along.
+  const scroller = useRef<HTMLDivElement>(null);
+  const topBar = useRef<HTMLDivElement>(null);
+  const pan = useRef<{ x: number; left: number } | null>(null);
+  const [edges, setEdges] = useState({ left: false, right: false, width: 0 });
+  const measure = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const next = { left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4, width: el.scrollWidth };
+    setEdges((p) => (p.left === next.left && p.right === next.right && p.width === next.width ? p : next));
+  }, []);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [measure, orders.length, cols.length, railOpen, isMobile]);
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      const p = pan.current, el = scroller.current;
+      if (!p || !el) return;
+      el.scrollLeft = p.left - (e.clientX - p.x);
+    };
+    const up = () => { if (pan.current) { pan.current = null; document.body.style.cursor = ""; } };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+  }, []);
+  const onBoardScroll = () => {
+    measure();
+    const el = scroller.current, bar = topBar.current;
+    if (el && bar && bar.scrollLeft !== el.scrollLeft) bar.scrollLeft = el.scrollLeft;
+  };
+  const onTopScroll = () => {
+    const el = scroller.current, bar = topBar.current;
+    if (el && bar && el.scrollLeft !== bar.scrollLeft) el.scrollLeft = bar.scrollLeft;
+  };
+  const nudge = (dir: 1 | -1) => {
+    const el = scroller.current;
+    if (el) el.scrollBy({ left: dir * Math.max(260, el.clientWidth * 0.6), behavior: "smooth" });
+  };
+  // Grabbing the board itself — never a card (those drag between columns), a button or a field.
+  const startPan = (e: React.MouseEvent) => {
+    if (e.button !== 0 || (!edges.left && !edges.right)) return;
+    if ((e.target as HTMLElement).closest('[draggable="true"],button,a,input,select,textarea,[role="button"]')) return;
+    const el = scroller.current;
+    if (!el) return;
+    e.preventDefault();
+    pan.current = { x: e.clientX, left: el.scrollLeft };
+    document.body.style.cursor = "grabbing";
+  };
 
   const byState = (s: WoState) => orders.filter((w) => woStateFromProto(w.state) === s);
 
@@ -337,11 +401,41 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   const mainCols = railOpen ? cols : cols.filter((c) => !railStates.includes(c.key));
   const railCount = railStates.reduce((s, k) => s + byState(k).length, 0);
   const showRail = !!rail && !railOpen && cols.some((c) => railStates.includes(c.key));
-  const template = `repeat(${mainCols.length}, minmax(${compactMenu ? 190 : 260}px, 1fr))${showRail ? " 44px" : ""}`;
+  // An empty column on the owner board needs only room for its heading and a drop target, so
+  // it gives its width to the columns that hold cards — which is often what lets the whole
+  // board fit without scrolling at all.
+  const template = mainCols.map((c) => {
+    const empty = compactMenu && byState(c.key).length === 0 && addTo?.state !== c.key;
+    return empty ? "minmax(128px, 0.55fr)" : `minmax(${compactMenu ? 200 : 260}px, 1fr)`;
+  }).join(" ") + (showRail ? " 44px" : "");
+  const overflowing = edges.left || edges.right;
+  const fade = (side: "left" | "right") => ({
+    background: `linear-gradient(to ${side === "left" ? "right" : "left"}, var(--bg), transparent)`,
+  });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto pb-1">
+    <div className="flex flex-col gap-2">
+      {overflowing && (
+        <div ref={topBar} onScroll={onTopScroll} className="overflow-x-auto overflow-y-hidden" style={{ height: 12 }} aria-hidden>
+          <div style={{ width: edges.width, height: 1 }} />
+        </div>
+      )}
+      <div className="relative">
+        {edges.left && <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10" style={fade("left")} />}
+        {edges.right && <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10" style={fade("right")} />}
+        {edges.left && (
+          <button onClick={() => nudge(-1)} aria-label={t("back")}
+            className="absolute -left-3 top-1 z-20 grid size-9 place-items-center rounded-full border border-border bg-card text-foreground shadow-[var(--shadow-lg)] hover:bg-secondary">
+            <ChevronLeft className="size-5" />
+          </button>
+        )}
+        {edges.right && (
+          <button onClick={() => nudge(1)} aria-label={t("next")}
+            className="absolute -right-3 top-1 z-20 grid size-9 place-items-center rounded-full border border-border bg-card text-foreground shadow-[var(--shadow-lg)] hover:bg-secondary">
+            <ChevronRight className="size-5" />
+          </button>
+        )}
+      <div ref={scroller} onScroll={onBoardScroll} onMouseDown={startPan} className={cn("overflow-x-auto pb-1", overflowing && "cursor-grab")}>
         <div className="grid items-start gap-3" style={{ gridTemplateColumns: template }}>
           {mainCols.map((c) => {
             const items = byState(c.key);
@@ -399,6 +493,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
             </button>
           )}
         </div>
+      </div>
       </div>
       {hint && <div className="text-center text-[12px] text-muted-foreground">{hint}</div>}
     </div>

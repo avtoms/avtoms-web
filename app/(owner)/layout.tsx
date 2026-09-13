@@ -333,7 +333,9 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
         <div className="flex min-w-0 flex-col">
           {header(false)}
-          <main className="mx-auto w-full max-w-[1280px] flex-1 px-7 py-6">{children}</main>
+          {/* The order board is the one screen that is better for every extra column of width;
+              everything else reads better held to a comfortable measure. */}
+          <main className={cn("mx-auto w-full flex-1 px-7 py-6", pathname === "/work-orders" ? "max-w-none" : "max-w-[1280px]")}>{children}</main>
         </div>
         {modal}
         {hasChat && <ChatWidget />}
