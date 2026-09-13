@@ -74,6 +74,15 @@ export function vatBreakdown(items: { unitPrice: string | number; quantity: numb
   return { subtotal, vat: 0, total: subtotal };
 }
 
+// "18,7 mln" — a large sum read at a glance, for a chart caption or a card's footnote where
+// the exact so'm would be noise. Below a million the full figure is short enough to show.
+export function compactMln(v: string | number, mlnLabel: string): string {
+  const n = num(v);
+  if (Math.abs(n) < 1_000_000) return money(n);
+  const m = n / 1_000_000;
+  return `${(Math.abs(m) >= 100 ? m.toFixed(0) : m.toFixed(1)).replace(".", ",")} ${mlnLabel}`;
+}
+
 export function durationFmt(mins: number): string {
   const h = Math.floor(mins / 60);
   const m = Math.round(mins % 60);

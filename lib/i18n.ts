@@ -1615,7 +1615,88 @@ export const STR: Record<string, Triple> = {
     "Эгалар ва суперадмин учун AI чат ёрдамчисини ёқади. Фақат ўқиш учун — AI ҳеч нарсани ўзгартира олмайди.",
     "Включает AI-помощника для владельцев и суперадмина. Только чтение — AI ничего не изменяет.",
   ],
+
+  // ── redesign: console shell ──
+  nav_cash: ["Kassa va hisoblar", "Касса ва ҳисоблар", "Касса и счета"],
+  nav_services: ["Xizmatlar va narxlar", "Хизматлар ва нархлар", "Услуги и цены"],
+  nav_quick_sale: ["Tezkor sotuv", "Тезкор сотув", "Быстрая продажа"],
+  nav_short_dashboard: ["Bosh", "Бош", "Главная"],
+  nav_short_workorders: ["Buyurtmalar", "Буюртмалар", "Заказы"],
+  nav_short_schedule: ["Jadval", "Жадвал", "Расписание"],
+  nav_short_customers: ["Mijozlar", "Мижозлар", "Клиенты"],
+  nav_short_vehicles: ["Mashinalar", "Машиналар", "Авто"],
+  nav_short_reminders: ["Eslatmalar", "Эслатмалар", "Напоминания"],
+  nav_short_cash: ["Kassa", "Касса", "Касса"],
+  nav_short_finances: ["Moliya", "Молия", "Финансы"],
+  nav_short_statistics: ["Statistika", "Статистика", "Статистика"],
+  nav_short_sales: ["Sotuv", "Сотув", "Продажа"],
+  nav_short_services: ["Narxlar", "Нархлар", "Цены"],
+  nav_short_inventory: ["Ombor", "Омбор", "Склад"],
+  nav_short_contragents: ["Kontragent", "Контрагент", "Контрагенты"],
+  nav_short_staff: ["Xodimlar", "Ходимлар", "Сотрудники"],
+  nav_short_settings: ["Sozlama", "Созлама", "Настройки"],
+  nav_more: ["Yana", "Яна", "Ещё"],
+  online: ["Onlayn", "Онлайн", "Онлайн"],
+  new_wo_short: ["Buyurtma", "Буюртма", "Заказ"],
+
+  // ── redesign: dashboard ──
+  dash_mech_working: ["usta ishda", "уста ишда", "мастеров в работе"],
+  dash_updated: ["oxirgi yangilanish", "охирги янгиланиш", "обновлено"],
+  dash_cash_in: ["Kassaga tushdi", "Кассага тушди", "Поступило в кассу"],
+  dash_vs_yesterday: ["kechaga", "кечага", "к вчера"],
+  dash_awaiting_payment: ["To'lov kutilmoqda", "Тўлов кутилмоқда", "Ожидает оплаты"],
+  dash_bills: ["hisob", "ҳисоб", "счёт"],
+  dash_in_shop: ["Ustaxonada", "Устахонада", "В мастерской"],
+  dash_cars: ["ta mashina", "та машина", "машин"],
+  dash_net_today: ["Sof foyda (bugun)", "Соф фойда (бугун)", "Чистая прибыль (сегодня)"],
+  dash_margin: ["marja", "маржа", "маржа"],
+  dash_expense: ["Xarajat", "Харажат", "Расходы"],
+  dash_attention: ["Diqqat talab qiladi", "Диққат талаб қилади", "Требует внимания"],
+  dash_attention_short: ["Diqqat talab", "Диққат талаб", "Внимание"],
+  dash_att_estimate: ["Smeta tasdiqlanmagan", "Смета тасдиқланмаган", "Смета не подтверждена"],
+  dash_att_unpaid: ["Hisob chiqarilgan, to'lov kelmagan", "Ҳисоб чиқарилган, тўлов келмаган", "Счёт выставлен, оплаты нет"],
+  dash_att_no_mech: ["Usta biriktirilmagan", "Уста бириктирилмаган", "Мастер не назначен"],
+  dash_att_low: ["qoldi", "қолди", "осталось"],
+  dash_att_min: ["Minimal qoldiq", "Минимал қолдиқ", "Мин. остаток"],
+  dash_att_supplier: ["Yetkazuvchi", "Етказувчи", "Поставщик"],
+  dash_waiting: ["kutmoqda", "кутмоқда", "ждёт"],
+  dash_all_good: ["Hammasi joyida — hozircha hech narsa kutmayapti", "Ҳаммаси жойида — ҳозирча ҳеч нарса кутмаяпти", "Всё в порядке — ничего не ждёт"],
+  act_take_payment: ["To'lov qabul qilish", "Тўлов қабул қилиш", "Принять оплату"],
+  act_take_payment_short: ["To'lov", "Тўлов", "Оплата"],
+  act_pick_mechanic: ["Usta tanlash", "Уста танлаш", "Выбрать мастера"],
+  act_restock: ["Kirim qilish", "Кирим қилиш", "Оприходовать"],
+  dash_cars_in_shop: ["Ustaxonadagi mashinalar", "Устахонадаги машиналар", "Машины в мастерской"],
+  dash_to_board: ["Doskaga o'tish", "Доскага ўтиш", "На доску"],
+  dash_board_short: ["Doska", "Доска", "Доска"],
+  dash_no_cars: ["Ustaxonada hozir mashina yo'q", "Устахонада ҳозир машина йўқ", "В мастерской сейчас нет машин"],
+  col_plate: ["Raqam", "Рақам", "Номер"],
+  col_car_client: ["Avtomobil · Mijoz", "Автомобил · Мижоз", "Автомобиль · Клиент"],
+  col_status: ["Holat", "Ҳолат", "Статус"],
+  col_sum: ["Summa", "Сумма", "Сумма"],
+  dash_rev_7: ["Tushum, 7 kun", "Тушум, 7 кун", "Выручка, 7 дней"],
+  dash_avg: ["o'rtacha", "ўртача", "в среднем"],
+  dash_per_day: ["kun", "кун", "день"],
+  mln: ["mln", "млн", "млн"],
+  dash_mech_load: ["Ustalar bandligi", "Усталар бандлиги", "Загрузка мастеров"],
+  dash_now: ["hozir", "ҳозир", "сейчас"],
+  jobs_short: ["ish", "иш", "раб."],
+  dash_today_appts: ["Bugungi yozuvlar", "Бугунги ёзувлар", "Записи на сегодня"],
+  dash_no_appts: ["Bugun yozuv yo'q", "Бугун ёзув йўқ", "Записей на сегодня нет"],
+  no_mechanic: ["Usta yo'q", "Уста йўқ", "Без мастера"],
+  dash_more: ["Batafsil", "Батафсил", "Подробнее"],
+  dash_more_n: ["Yana", "Яна", "Ещё"],
+  dash_more_panels: ["Qo'shimcha", "Қўшимча", "Дополнительно"],
+  dur_min: ["daqiqa", "дақиқа", "мин"],
+  dur_day: ["kun", "кун", "дн."],
+  search_ph: ["Raqam, mijoz yoki buyurtma…", "Рақам, мижоз ёки буюртма…", "Номер, клиент или заказ…"],
+  search_none: ["Hech narsa topilmadi", "Ҳеч нарса топилмади", "Ничего не найдено"],
+  dash_notifications: ["Bildirishnomalar", "Билдиришномалар", "Уведомления"],
 };
+
+const WEEKDAYS_SHORT: Triple[] = [
+  ["Ya", "Як", "Вс"], ["Du", "Ду", "Пн"], ["Se", "Се", "Вт"], ["Ch", "Чо", "Ср"],
+  ["Pa", "Па", "Чт"], ["Ju", "Жу", "Пт"], ["Sh", "Ша", "Сб"],
+];
 
 export function translate(lang: Lang, key: string): string {
   const row = STR[key];
@@ -1701,4 +1782,28 @@ export function formatLongDate(lang: Lang, ymd: string): string {
   const day = d.getUTCDate();
   const head = lang === "ru" ? `${day} ${month}` : `${day}-${month}`;
   return `${head} ${d.getUTCFullYear()}, ${weekday}`;
+}
+
+// "12-sentabr" / "12 сентября" — the day and month alone, for a heading that already says
+// which year it is by saying "today".
+export function formatDayMonth(lang: Lang, ymd: string): string {
+  const d = new Date(ymd + "T12:00:00Z");
+  if (isNaN(d.getTime())) return ymd;
+  const month = MONTHS[d.getUTCMonth()][LANG_INDEX[lang]];
+  return lang === "ru" ? `${d.getUTCDate()} ${month}` : `${d.getUTCDate()}-${month}`;
+}
+
+// "Juma" / "Пятница", capitalised to start a line.
+export function formatWeekday(lang: Lang, ymd: string): string {
+  const d = new Date(ymd + "T12:00:00Z");
+  if (isNaN(d.getTime())) return "";
+  const w = WEEKDAYS[d.getUTCDay()][LANG_INDEX[lang]];
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
+// "Ju" / "Пт" — the two-letter weekday under a chart bar.
+export function weekdayShort(lang: Lang, ymd: string): string {
+  const d = new Date(ymd + "T12:00:00Z");
+  if (isNaN(d.getTime())) return "";
+  return WEEKDAYS_SHORT[d.getUTCDay()][LANG_INDEX[lang]];
 }

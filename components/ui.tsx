@@ -83,7 +83,7 @@ export function Badge({ tone = "neutral", children, dot, style }: { tone?: Tone;
   );
 }
 
-const STATE_TONE: Record<WoState, Tone> = { draft: "neutral", estimated: "info", approved: "accent", in_progress: "warn", ready: "ok", invoiced: "info", closed: "neutral", canceled: "danger" };
+const STATE_TONE: Record<WoState, Tone> = { draft: "neutral", estimated: "info", approved: "accent", in_progress: "warn", ready: "ok", invoiced: "warn", closed: "neutral", canceled: "danger" };
 export function StateBadge({ state, style }: { state: WoState; style?: React.CSSProperties }) {
   const t = useT();
   return <Badge tone={STATE_TONE[state] || "neutral"} dot style={style}>{t(STATE_LABEL[state])}</Badge>;

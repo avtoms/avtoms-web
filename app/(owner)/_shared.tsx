@@ -146,3 +146,78 @@ export function MoneyTile({ label, value, tone, hint, raw }: {
     </div>
   );
 }
+
+const PILL: Record<StatTone, string> = {
+  neutral: "bg-secondary text-ink-2", accent: "bg-primary-soft text-primary-emphasis",
+  ok: "bg-success-soft text-success", warn: "bg-warning-soft text-warning",
+  danger: "bg-destructive-soft text-destructive", info: "bg-info-soft text-info",
+};
+const EDGE: Partial<Record<StatTone, string>> = {
+  warn: "border-warning/60", danger: "border-destructive/50", accent: "border-primary/50",
+};
+
+// KpiCard is the headline figure at the top of a screen: a small caps label, one big number
+// (with its unit beside it rather than under it), a line of context, and optionally a pill in
+// the corner for how it moved or how many it covers. `edge` outlines the card when the figure
+// itself is the warning — the stock that is running out, the reminders that are overdue.
+export function KpiCard({
+  label, value, unit, sub, tone = "neutral", pill, pillTone = "neutral", edge, onClick, children,
+}: {
+  label: string; value: React.ReactNode; unit?: string; sub?: React.ReactNode;
+  tone?: StatTone; pill?: React.ReactNode; pillTone?: StatTone; edge?: StatTone;
+  onClick?: () => void; children?: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 flex-col rounded-[14px] border bg-card px-5 py-4 shadow-[var(--shadow)]",
+        edge ? EDGE[edge] ?? "border-border" : "border-border",
+        onClick && "cursor-pointer transition-shadow hover:shadow-[var(--shadow-lg)]",
+      )}
+    >
+      <div className="flex min-h-6 items-start justify-between gap-2">
+        <span className={cn("min-w-0 truncate pt-0.5 text-[11.5px] font-bold uppercase tracking-[0.06em]", edge ? TONE_TEXT[edge] : "text-muted-foreground")}>{label}</span>
+        {pill !== undefined && pill !== null && pill !== "" && (
+          <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-semibold", PILL[pillTone])}>{pill}</span>
+        )}
+      </div>
+      <div className="mt-2.5 flex min-w-0 items-baseline gap-2">
+        <span
+          className={cn("min-w-0 truncate font-mono font-bold leading-none tracking-[-0.02em]", TONE_TEXT[tone])}
+          style={{ fontSize: `clamp(20px, 3.2vw, ${statCap(value, true) + 2}px)` }}
+        >{value}</span>
+        {unit && <span className="shrink-0 font-mono text-[14px] text-muted-foreground">{unit}</span>}
+      </div>
+      {sub && <div className="mt-2 min-w-0 truncate text-[12.5px] text-muted-foreground">{sub}</div>}
+      {children}
+    </div>
+  );
+}
+
+// A person is told apart on a busy board by colour before anyone reads a name, so every staff
+// member gets one colour, the same on every screen — derived from their id, not stored.
+const STAFF_COLORS = ["#0f9488", "#8b5cf6", "#d97706", "#2563eb", "#db2777", "#16a34a", "#dc2626", "#0891b2"];
+export function staffColor(id?: string): string {
+  if (!id) return "var(--ink-3)";
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return STAFF_COLORS[h % STAFF_COLORS.length];
+}
+
+// StaffDot is the small round initial the design puts wherever a job has an owner.
+export function StaffDot({ id, name, size = 24, className }: { id?: string; name?: string; size?: number; className?: string }) {
+  const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  return (
+    <span
+      title={name}
+      className={cn("inline-grid shrink-0 place-items-center rounded-full font-bold text-white", className)}
+      style={{ width: size, height: size, background: staffColor(id), fontSize: Math.round(size * 0.44) }}
+    >{initial}</span>
+  );
+}
+
+// Tone pill used in tables and cards ("Bajarilmoqda", "Usta yo'q", "2 soat kutmoqda").
+export function Pill({ tone = "neutral", children, className }: { tone?: StatTone; children: React.ReactNode; className?: string }) {
+  return <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold", PILL[tone], className)}>{children}</span>;
+}
