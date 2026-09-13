@@ -1,8 +1,13 @@
 "use client";
-// Pricing menu (price list): list services with localized name + price; create AND edit
-// each item. Editing logs a price-change history (viewable in the edit modal); existing
-// work orders keep the price they were created with (line-item snapshot), so edits are safe.
+// Services and prices, after the redesign. One row per service: its name with a line of
+// context (how often it sold this month, its variants, or that it is switched off), its
+// category, how long it takes, the materials it draws from the warehouse — each coloured by
+// the stock actually on the shelf — its price (a range when it has variants), and a switch to
+// take it off the list. Category tabs and a count of services short of material sit above.
+//
+// Editing still opens the full form, with options, materials and the price history.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
@@ -15,15 +20,18 @@ import { Spinner, Switch } from "@/components/ui-kit/misc";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
-import { MoneyInput, UnitSelect, qtyUnit } from "@/components/catalog-fields";
+import { MoneyInput, UnitSelect, qtyUnit, unitLabel } from "@/components/catalog-fields";
 import { useStaffNames } from "@/lib/use-staff";
 import { SearchSelect } from "@/components/ui-kit/search-select";
 import { ProductForm } from "@/components/product-form";
+import { PageHeader } from "@/components/page-header";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { money, num, qty, durationFmt } from "@/lib/format";
+import { canAny } from "@/lib/perms";
+import { currentMonth, monthRange } from "@/lib/range";
+import { money, num, qty } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { MenuItem, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
+import type { MenuItem, MenuMaterial, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
 import { activeOptions, priceLabel } from "@/components/service-options";
 
 // A pickable warehouse variant, flattened with its product context, for material rows.
@@ -44,34 +52,137 @@ function menuName(m: MenuItem, lang: string): string {
   return lang === "uzc" ? m.nameUzCyrl : lang === "ru" ? m.nameRu : m.nameUzLatn;
 }
 
+const ALL = "__all";
+type Stock = { qty: number; reorder: number; unit: string };
+type Level = "ok" | "low" | "out" | "unknown";
+
 export default function MenuPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
   const { lang, t } = useLang();
   const { toast } = useToast();
+  const canStock = canAny(session, "warehouse.view", "warehouse.manage");
 
   const [list, setList] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MenuItem | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  // How many times each service sold this month, by name — the statistics count services by
+  // what the line said, which is the service's name at the time.
+  const [usage, setUsage] = useState<Record<string, number>>({});
+  const [cat, setCat] = useState(ALL);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try { setList(await api.listMenuItems(shopId)); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setLoading(false); }
-  }, [shopId, t, toast]);
+    if (canStock) api.listProducts(shopId).then(setProducts).catch(() => {});
+    const r = monthRange(currentMonth());
+    api.getStatistics(shopId, r.from, r.to).then((st) => {
+      const m: Record<string, number> = {};
+      for (const s of st.topServices ?? []) m[(s.name || "").trim().toLowerCase()] = s.times ?? num(s.quantity);
+      setUsage(m);
+    }).catch(() => {});
+  }, [shopId, canStock, t, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // What the shelf holds for each variant a service draws on.
+  const stock = useMemo(() => {
+    const m = new Map<string, Stock>();
+    for (const p of products) for (const v of p.variants ?? []) if (v.id) m.set(v.id, { qty: num(v.quantityOnHand), reorder: num(v.reorderLevel), unit: p.unit ?? "" });
+    return m;
+  }, [products]);
+  const level = useCallback((mat: MenuMaterial): Level => {
+    const s = mat.variantId ? stock.get(mat.variantId) : undefined;
+    if (!s) return "unknown";
+    if (s.qty <= 0) return "out";
+    if (s.qty <= s.reorder) return "low";
+    return "ok";
+  }, [stock]);
+
+  const categories = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const x of list) { const c = (x.category || "").trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [list]);
+  const shown = useMemo(() => (cat === ALL ? list : list.filter((m) => (m.category || "").trim() === cat)), [list, cat]);
+  const shortCount = useMemo(
+    () => list.filter((m) => m.active && (m.materials ?? []).some((x) => { const l = level(x); return l === "low" || l === "out"; })).length,
+    [list, level],
+  );
+
+  // Switching a service on or off from the row. The same fields the edit form sends, taken
+  // from what the row already holds, so nothing else about the service changes.
+  const toggle = async (m: MenuItem) => {
+    if (busyId) return;
+    setBusyId(m.id);
+    try {
+      await api.updateMenuItem(m.id, {
+        name: menuName(m, lang),
+        defaultPrice: num(m.defaultPrice),
+        options: (m.options ?? []).filter((o) => o.active !== false && o.name.trim()).map((o) => ({
+          id: o.id, name: o.name, price: num(o.price), cost: num(o.cost), estimatedMinutes: o.estimatedMinutes || 0,
+        })),
+        defaultCost: num(m.defaultCost),
+        category: m.category ?? "",
+        estimatedMinutes: m.estimatedMinutes || 0,
+        materials: (m.materials ?? []).map((x) => ({
+          name: x.name, quantity: x.quantity || 1, unit: x.unit ?? "", unitCost: num(x.unitCost), unitPrice: num(x.unitPrice),
+          variantId: x.variantId || undefined,
+        })),
+        active: !m.active,
+      });
+      setList((l) => l.map((x) => (x.id === m.id ? { ...x, active: !m.active } : x)));
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+    } finally { setBusyId(null); }
+  };
+
+  const minutes = (n: number) => (n < 60 ? `${n} ${t("min_abbr")}` : `${Math.floor(n / 60)} ${t("hours_short")}${n % 60 ? ` ${n % 60} ${t("min_abbr")}` : ""}`);
+
+  const chip = (mat: MenuMaterial, i: number) => {
+    const l = level(mat);
+    const s = mat.variantId ? stock.get(mat.variantId) : undefined;
+    const need = mat.unit ? qtyUnit(t, mat.quantity, mat.unit) : mat.quantity > 1 ? `×${qty(mat.quantity)}` : "";
+    const text = l === "out" || l === "low"
+      ? `${mat.name} · ${qty(s!.qty)} ${unitLabel(t, s!.unit)}${l === "low" ? ` ${t("dash_att_low")}` : ""}`
+      : `${mat.name}${need ? ` · ${need}` : ""}`;
+    return (
+      <span key={i} className={cn(
+        "inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-[7px] px-2 py-1 text-[12px] font-medium",
+        l === "out" ? "bg-destructive-soft text-destructive" : l === "low" ? "bg-warning-soft text-warning" : "bg-secondary text-ink-2",
+      )} title={text}>
+        <span className={cn("size-1.5 shrink-0 rounded-full", l === "out" ? "bg-destructive" : l === "low" ? "bg-warning" : l === "ok" ? "bg-success" : "bg-ink-3")} />
+        <span className="truncate">{text}</span>
+      </span>
+    );
+  };
 
   const columns = useMemo<ColumnDef<MenuItem>[]>(() => [
     {
       id: "name",
       accessorFn: (m) => menuName(m, lang),
-      header: ({ column }) => <SortHeader column={column}>{t("service_name")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("col_service")}</SortHeader>,
       cell: ({ row }) => {
         const m = row.original;
-        return <div className={cn("truncate text-[14px] font-semibold text-foreground", !m.active && "opacity-55")}>{menuName(m, lang)}</div>;
+        const opts = activeOptions(m);
+        const out = (m.materials ?? []).some((x) => level(x) === "out");
+        const times = usage[menuName(m, lang).trim().toLowerCase()];
+        const sub = !m.active ? t("svc_off")
+          : out ? t("svc_no_stock")
+          : opts.length ? `${opts.length} ${t("svc_variants")}: ${opts.map((o) => o.name).join(" · ")}`
+          : times ? `${times} ${t("svc_used")}`
+          : (m.materials ?? []).length === 0 ? t("svc_no_materials") : "";
+        return (
+          <div className={cn("min-w-0 max-w-[300px]", !m.active && "opacity-55")}>
+            <div className="truncate text-[14.5px] font-semibold text-foreground">{menuName(m, lang)}</div>
+            {sub && <div className={cn("truncate text-[12.5px]", out && m.active ? "text-destructive" : "text-muted-foreground")} title={sub}>{sub}</div>}
+          </div>
+        );
       },
     },
     {
@@ -79,51 +190,48 @@ export default function MenuPage() {
       accessorFn: (m) => m.category || "",
       header: ({ column }) => <SortHeader column={column}>{t("category")}</SortHeader>,
       cell: ({ row }) => row.original.category
-        ? <span className="text-[13px] text-ink-2">{row.original.category}</span>
+        ? <span className={cn("inline-block max-w-[140px] truncate rounded-[7px] bg-secondary px-2.5 py-1 text-[12.5px] font-medium text-ink-2", !row.original.active && "opacity-55")}>{row.original.category}</span>
         : <span className="text-muted-foreground">—</span>,
     },
     {
       id: "time",
       accessorFn: (m) => num(m.estimatedMinutes),
-      header: ({ column }) => <SortHeader column={column}>{t("est_time")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("col_time")}</SortHeader>,
       cell: ({ row }) => num(row.original.estimatedMinutes) > 0
-        ? <span className="font-mono text-[13px] text-ink-2">{durationFmt(num(row.original.estimatedMinutes))}</span>
+        ? <span className={cn("whitespace-nowrap font-mono text-[13px] text-ink-2", !row.original.active && "opacity-55")}>{minutes(num(row.original.estimatedMinutes))}</span>
         : <span className="text-muted-foreground">—</span>,
     },
     {
       id: "materials",
       accessorFn: (m) => m.materials?.length ?? 0,
-      header: ({ column }) => <SortHeader column={column}>{t("materials_needed")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("col_materials")}</SortHeader>,
       cell: ({ row }) => {
         const mats = row.original.materials ?? [];
         if (mats.length === 0) return <span className="text-muted-foreground">—</span>;
-        const label = mats.map((x) => x.name + (x.unit ? ` · ${qtyUnit(t, x.quantity, x.unit)}` : x.quantity > 1 ? " ×" + qty(x.quantity) : "")).join(", ");
-        return <span className="block max-w-[260px] truncate text-[12.5px] text-muted-foreground" title={label}>{label}</span>;
-      },
-    },
-    {
-      id: "options",
-      accessorFn: (m) => activeOptions(m).length,
-      header: ({ column }) => <SortHeader column={column}>{t("opt_options")}</SortHeader>,
-      cell: ({ row }) => {
-        const opts = activeOptions(row.original);
-        if (opts.length === 0) return <span className="text-muted-foreground">—</span>;
-        const label = opts.map((o) => o.name).join(", ");
-        return <span className="block max-w-[220px] truncate text-[12.5px] text-muted-foreground" title={label}>{label}</span>;
+        const out = mats.some((x) => level(x) === "out");
+        return (
+          <div className={cn("flex max-w-[340px] flex-wrap items-center gap-1.5", !row.original.active && "opacity-55")}>
+            {mats.slice(0, 3).map(chip)}
+            {mats.length > 3 && <span className="text-[12px] text-muted-foreground">+{mats.length - 3}</span>}
+            {out && canStock && <Link href="/inventory" onClick={(e) => e.stopPropagation()} className="text-[12.5px] font-semibold text-primary-emphasis hover:underline">{t("act_restock")}</Link>}
+          </div>
+        );
       },
     },
     {
       id: "price",
       accessorFn: (m) => num(m.defaultPrice),
       header: ({ column }) => <SortHeader column={column}>{t("price")}</SortHeader>,
-      cell: ({ row }) => <div className="font-mono text-[14px] font-bold text-foreground">{priceLabel(row.original, t)}</div>,
+      cell: ({ row }) => <div className={cn("whitespace-nowrap text-right font-mono text-[14px] font-semibold text-foreground", !row.original.active && "opacity-55")}>{priceLabel(row.original, t)}</div>,
     },
     {
       id: "status",
       accessorFn: (m) => (m.active ? "active" : "inactive"),
-      header: ({ column }) => <SortHeader column={column}>{t("status")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("wo_active")}</SortHeader>,
       cell: ({ row }) => (
-        <Badge tone={row.original.active ? "ok" : "neutral"} dot>{row.original.active ? t("active") : t("inactive")}</Badge>
+        <div onClick={(e) => e.stopPropagation()}>
+          <Switch checked={row.original.active} disabled={busyId === row.original.id} onCheckedChange={() => void toggle(row.original)} aria-label={t("active")} />
+        </div>
       ),
     },
     {
@@ -137,23 +245,44 @@ export default function MenuPage() {
         </div>
       ),
     },
-  ], [lang, t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [lang, t, level, usage, busyId, canStock]);
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        meta={<span>{list.length} {t("svc_count")} · {categories.length} {t("cat_count")}</span>}
+        actions={<Button onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
+      />
       {loading && list.length === 0 ? (
         <Card className="gap-2.5 p-5">{Array.from({ length: 7 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
       ) : (
-        <DataTable
-          columns={columns}
-          data={list}
-          searchPlaceholder={t("search") + "…"}
-          emptyText={t("empty")}
-          toolbar={<Button onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
-          columnLabels={{ name: t("service_name"), category: t("category"), time: t("est_time"), materials: t("materials_needed"), options: t("opt_options"), price: t("price"), status: t("status") }}
-          onRowClick={(m) => setEditing(m)}
-          pageSize={12}
-        />
+        <>
+          <DataTable
+            columns={columns}
+            data={shown}
+            searchPlaceholder={t("search") + "…"}
+            emptyText={t("empty")}
+            toolbar={
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+                  {[[ALL, t("all"), list.length] as const, ...categories.map(([c, n]) => [c, c, n] as const)].map(([key, label, n]) => (
+                    <button key={key} onClick={() => setCat(key)} aria-pressed={cat === key}
+                      className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+                        cat === key ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground")}>
+                      {label}<span className="font-mono text-[11.5px] text-muted-foreground">{n}</span>
+                    </button>
+                  ))}
+                </div>
+                {shortCount > 0 && <Badge tone="warn">{shortCount} {t("svc_low_chip")}</Badge>}
+              </div>
+            }
+            columnLabels={{ name: t("col_service"), category: t("category"), time: t("col_time"), materials: t("col_materials"), price: t("price"), status: t("wo_active") }}
+            onRowClick={(m) => setEditing(m)}
+            pageSize={12}
+          />
+          {canStock && <p className="px-1 text-[12.5px] text-muted-foreground">{t("svc_legend")}</p>}
+        </>
       )}
       <MenuModal open={adding} onClose={() => setAdding(false)} shopId={shopId} onSaved={() => load()} />
       <MenuModal open={!!editing} item={editing} onClose={() => setEditing(null)} shopId={shopId} onSaved={() => load()} />

@@ -1,12 +1,16 @@
 "use client";
-// Warehouse products: a product carries shared info plus named properties whose
-// value combinations define variants. This screen lists products, opens a manage
-// dialog to view/adjust each variant's stock, and hosts the create/edit form.
+// Warehouse products, after the redesign: what the stock is worth, what is running low, what
+// left the shelf this month and what the shop owes its suppliers, over one row per product —
+// its brand, pack and article number, unit, supplier, how much is left against its minimum,
+// and the cost and shelf price. Tabs split out what is low and each category.
+//
+// A product still carries named properties whose value combinations define variants; a row
+// opens the manage dialog to view and move each variant's stock, and the form edits the rest.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, ScanBarcode } from "lucide-react";
+import { Plus, ScanBarcode, ArrowRight } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -25,20 +29,23 @@ import { SearchSelect } from "@/components/ui-kit/search-select";
 import { MoneyInput, unitLabel, qtyUnit } from "@/components/catalog-fields";
 import { FxMoneyInput } from "@/components/fx-money";
 import { emptyFx, findCurrency, fxLabel, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
+import { PageHeader } from "@/components/page-header";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { countVariants, money, num } from "@/lib/format";
+import { countVariants, money, num, qty } from "@/lib/format";
+import { currentMonth, monthRange } from "@/lib/range";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { stockReason } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff, ProductTemplate } from "@/lib/types";
+import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff, ProductTemplate, Statistics } from "@/lib/types";
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
-import { StatCard } from "../_shared";
+import { KpiCard } from "../_shared";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
+const totalMin = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.reorderLevel), 0);
 const anyLow = (p: Product) => (p.variants ?? []).some((v) => num(v.quantityOnHand) <= num(v.reorderLevel));
 
 // What a product's stock on hand is worth, both ways round: what it would bring in at the
@@ -69,6 +76,9 @@ const attrLabelOf = (defs: PropertyDefinition[], lang: Lang, prop: string, value
   return v ? pickLangText(lang, v.valueUzLatn, v.valueUzCyrl, v.valueRu, value) : value;
 };
 
+const ALL = "__all";
+const LOW = "__low";
+
 export default function InventoryPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
@@ -87,18 +97,23 @@ export default function InventoryPage() {
   // The super admin's ready-made products: the catalogue this screen stocks from, and where
   // the picture on a row comes from for anything already stocked that way.
   const [templates, setTemplates] = useState<ProductTemplate[]>([]);
+  // This month's figures: what left the shelf at cost, and what is owed to suppliers.
+  const [month, setMonth] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null; prefill?: ProductPrefill } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false); // the registry lookup after a read
   const [fromCatalog, setFromCatalog] = useState(false);
   const [managing, setManaging] = useState<Product | null>(null);
+  const [tab, setTab] = useState(ALL);
 
   const load = useCallback(async () => {
     setLoading(true);
     try { setList(await api.listProducts(shopId)); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setLoading(false); }
+    const r = monthRange(currentMonth());
+    api.getStatistics(shopId, r.from, r.to).then(setMonth).catch(() => setMonth(null));
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
@@ -161,6 +176,17 @@ export default function InventoryPage() {
   }, [list]);
   // Margin against the sell price, which is the number a shop prices against.
   const marginPct = wh.sell > 0 ? Math.round((wh.margin / wh.sell) * 1000) / 10 : 0;
+  const low = useMemo(() => list.filter((p) => p.active !== false && anyLow(p)), [list]);
+  const variantCount = list.reduce((s, p) => s + (p.variants ?? []).length, 0);
+  const cats = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of list) { const c = (p.category || "").trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [list]);
+  const shown = useMemo(
+    () => (tab === ALL ? list : tab === LOW ? low : list.filter((p) => (p.category || "").trim() === tab)),
+    [list, low, tab],
+  );
 
   // A barcode read at the warehouse screen. Three outcomes, cheapest first:
   //  - a variant here already carries it: open that product, because the goods are in stock and
@@ -202,39 +228,52 @@ export default function InventoryPage() {
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       id: "name",
-      // The variants' barcodes ride along in the searchable text, so a code typed, pasted or
-      // scanned by a USB reader into the table's search box finds its product. They come after
-      // the name, so the column still sorts by name.
-      accessorFn: (p) => `${p.name || ""} ${p.brand || ""} ${(p.variants ?? []).map((v) => v.barcode ?? "").join(" ")}`,
-      header: ({ column }) => <SortHeader column={column}>{t("product_name")}</SortHeader>,
+      // The variants' barcodes and article numbers ride along in the searchable text, so a code
+      // typed, pasted or scanned by a USB reader into the search box finds its product. They
+      // come after the name, so the column still sorts by name.
+      accessorFn: (p) => `${p.name || ""} ${p.brand || ""} ${(p.variants ?? []).map((v) => `${v.barcode ?? ""} ${v.sku ?? ""}`).join(" ")}`,
+      header: ({ column }) => <SortHeader column={column}>{t("col_product_variant")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
-        // The brand mark wins at this size, and the photograph is the fallback — the opposite
-        // of the card grid, on purpose. This thumbnail is 28px: a mark is drawn to survive
-        // that, a photograph of a bottle on a workbench turns to mud. The photo still leads
-        // wherever there is room for it — the catalogue cards and the manage dialog.
+        // The brand mark wins at this size, and the photograph is the fallback. This thumbnail
+        // is 32px: a mark is drawn to survive that, a photograph of a bottle does not.
         const photo = p.templateId ? templateImages[p.templateId] : undefined;
         const logo = p.brand ? brandLogos[p.brand] : undefined;
         const thumb = logo || photo;
+        const vs = p.variants ?? [];
+        const one = vs.length === 1 ? vs[0] : undefined;
+        const sub = [
+          one ? variantLabel(one) : vs.length > 1 ? countVariants(vs.length, t) : "",
+          one?.sku ? `${t("art")} ${one.sku}` : "",
+          p.category || "",
+        ].filter(Boolean).join(" · ");
+        const isLow = anyLow(p);
         return (
-          <div className="flex min-w-0 items-center gap-1.5">
-            {thumb && (
+          <div className="flex min-w-0 items-center gap-2.5">
+            {thumb ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumb} alt="" className="size-7 shrink-0 rounded-[6px] object-contain" />
+              <img src={thumb} alt="" className="size-8 shrink-0 rounded-[7px] bg-card object-contain" />
+            ) : (
+              <span className="grid size-8 shrink-0 place-items-center rounded-[7px] bg-secondary font-mono text-[10.5px] font-bold text-ink-2">
+                {(p.brand || p.name || "?").slice(0, 3).toUpperCase()}
+              </span>
             )}
-            {p.brand && <Badge tone="info">{p.brand}</Badge>}
-            <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {p.brand && !thumb && <Badge tone="info">{p.brand}</Badge>}
+                <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
+              </div>
+              {sub && <div className={cn("truncate text-[12.5px]", isLow && totalStock(p) <= 0 ? "text-destructive" : "text-muted-foreground")}>{sub}</div>}
+            </div>
           </div>
         );
       },
     },
     {
-      id: "category",
-      accessorFn: (p) => p.category || "",
-      header: ({ column }) => <SortHeader column={column}>{t("category")}</SortHeader>,
-      cell: ({ row }) => row.original.category
-        ? <span className="text-[13px] text-foreground">{row.original.category}</span>
-        : <span className="text-muted-foreground">—</span>,
+      id: "unit",
+      accessorFn: (p) => p.unit || "",
+      header: ({ column }) => <SortHeader column={column}>{t("col_unit")}</SortHeader>,
+      cell: ({ row }) => <span className="text-[13px] text-ink-2">{row.original.unit ? unitLabel(t, row.original.unit) : "—"}</span>,
     },
     {
       id: "supplier",
@@ -245,24 +284,27 @@ export default function InventoryPage() {
         : <span className="text-muted-foreground">—</span>,
     },
     {
-      id: "variants",
-      accessorFn: (p) => (p.variants ?? []).length,
-      header: ({ column }) => <SortHeader column={column}>{t("variants")}</SortHeader>,
-      cell: ({ row }) => <span className="font-mono text-[13px] text-muted-foreground">{(row.original.variants ?? []).length}</span>,
-    },
-    {
       id: "stock",
       accessorFn: (p) => totalStock(p),
-      header: ({ column }) => <SortHeader column={column}>{t("in_stock")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("col_stock")}</SortHeader>,
       cell: ({ row }) => {
         const p = row.original;
-        const low = anyLow(p);
+        const have = totalStock(p);
+        const min = totalMin(p);
+        const isLow = anyLow(p);
+        const out = have <= 0;
+        const pct = Math.max(4, Math.min(100, (have / Math.max(min * 3, have, 1)) * 100));
         return (
-          <div className="flex flex-col items-start gap-1">
-            <span className={cn("font-mono text-[15px] font-bold", low ? "text-destructive" : "text-foreground")}>
-              {qtyUnit(t, totalStock(p), p.unit)}
-            </span>
-            {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
+          <div className="flex w-[170px] flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className={cn("font-mono text-[14px] font-bold", out ? "text-destructive" : isLow ? "text-warning" : "text-foreground")}>
+                {qtyUnit(t, have, p.unit)}
+              </span>
+              {min > 0 && <span className="font-mono text-[11px] text-muted-foreground">{t("min_label")} {qty(min)}</span>}
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+              <div className={cn("h-full rounded-full", out ? "bg-destructive" : isLow ? "bg-warning" : "bg-success")} style={{ width: `${out ? 0 : pct}%` }} />
+            </div>
           </div>
         );
       },
@@ -270,16 +312,21 @@ export default function InventoryPage() {
     {
       id: "value",
       accessorFn: (p) => productValue(p).sell,
-      header: ({ column }) => <SortHeader column={column}>{t("wh_value_col")}</SortHeader>,
-      // Sell price above, what it cost below — the pair that makes the totals at the top
-      // explicable, and sortable so "where is the money sitting" is one click away.
+      header: ({ column }) => <SortHeader column={column}>{t("col_cost_price")}</SortHeader>,
+      // Cost → shelf price for a single-variant product, the price range for several; what the
+      // stock on hand is worth underneath, which is what the figures at the top add up.
       cell: ({ row }) => {
-        const { sell, cost } = productValue(row.original);
-        if (sell <= 0 && cost <= 0) return <span className="text-muted-foreground">—</span>;
+        const p = row.original;
+        const vs = p.variants ?? [];
+        const { sell } = productValue(p);
+        const prices = vs.map((v) => num(v.unitPrice)).filter((n) => n > 0);
+        const top = vs.length === 1
+          ? <>{money(num(vs[0].unitCost))} <span className="text-muted-foreground">→</span> {money(num(vs[0].unitPrice))}</>
+          : prices.length ? <>{money(Math.min(...prices))}{Math.max(...prices) !== Math.min(...prices) ? ` – ${money(Math.max(...prices))}` : ""}</> : "—";
         return (
           <div className="flex flex-col items-start">
-            <span className="font-mono text-[13.5px] font-semibold text-foreground">{money(sell)}</span>
-            {cost > 0 && <span className="font-mono text-[11.5px] text-muted-foreground">{money(cost)}</span>}
+            <span className="whitespace-nowrap font-mono text-[13.5px] text-foreground">{top}</span>
+            {sell > 0 && <span className="font-mono text-[11.5px] text-muted-foreground">{t("wh_value_col")}: {money(sell)}</span>}
           </div>
         );
       },
@@ -288,30 +335,64 @@ export default function InventoryPage() {
       id: "actions",
       enableHiding: false,
       header: () => <span className="sr-only">{t("adjust_stock")}</span>,
-      cell: ({ row }) => (
-        <div className="flex justify-end gap-2">
-          <Button variant="soft" size="sm" onClick={(e) => { e.stopPropagation(); setManaging(row.original); }}>{t("adjust_stock")}</Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", product: row.original }); }}>{t("edit_product")}</Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const isLow = anyLow(row.original);
+        return (
+          <div className="flex justify-end gap-2">
+            <Button variant={isLow ? "default" : "secondary"} size="sm" onClick={(e) => { e.stopPropagation(); setManaging(row.original); }}>{t("act_receive")}</Button>
+            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", product: row.original }); }}>{t("edit_product")}</Button>
+          </div>
+        );
+      },
     },
   ], [t, brandLogos, templateImages]);
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        meta={list.length > 0 ? <span>{list.length} {t("inv_products")} · {variantCount} {t("svc_variants")}</span> : undefined}
+        actions={
+          <>
+            {/* Scanning sits beside adding rather than being a second way to add: a scan of
+                something already on the shelf opens that product instead of starting a new one. */}
+            <Button variant="secondary" disabled={scanBusy} onClick={() => setScanOpen(true)}>
+              {scanBusy ? <Spinner /> : <ScanBarcode />} {t("scan_cta")}
+            </Button>
+            <Button onClick={() => setFromCatalog(true)}><Plus /> {t("add_part_cta")}</Button>
+          </>
+        }
+      />
+
       {list.length > 0 && (
         <div className="flex flex-col gap-2">
-          <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
-            <StatCard label={t("wh_sell_value")} value={money(wh.sell)} sub={t("wh_if_all_sold")} icon="money" tone="accent" big />
-            <StatCard label={t("wh_cost_value")} value={money(wh.cost)} sub={t("wh_paid_for_goods")} icon="list" tone="warn" />
-            <StatCard
-              label={t("wh_margin")}
-              value={money(wh.margin)}
-              sub={marginPct + "% " + t("margin")}
-              icon="chart"
-              tone={wh.margin >= 0 ? "ok" : "danger"}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiCard
+              label={t("inv_stock_cost")}
+              value={money(wh.cost)}
+              sub={`${t("inv_at_sell")} ${money(wh.sell)} · ${t("margin").toLowerCase()} ${money(wh.margin)} (${marginPct}%)`}
             />
-            <StatCard label={t("wh_positions")} value={wh.positions} sub={t("wh_in_stock_now")} icon="clipboard" tone="neutral" />
+            <KpiCard
+              label={t("inv_low")}
+              value={low.length}
+              tone={low.length ? "warn" : "neutral"}
+              edge={low.length ? "warn" : undefined}
+              sub={low.length ? low.slice(0, 3).map((p) => p.name).join(" · ") : undefined}
+              onClick={low.length ? () => setTab(LOW) : undefined}
+            />
+            <KpiCard
+              label={month ? t("inv_out_month") : t("wh_positions")}
+              value={month ? money(num(month.costOfGoods)) : wh.positions}
+              sub={month ? `${t("inv_out_sub")} · ${wh.positions} ${t("inv_positions")}` : t("wh_in_stock_now")}
+            />
+            <KpiCard
+              label={t("inv_supplier_debt")}
+              value={month ? money(num(month.payable)) : "—"}
+              tone={month && num(month.payable) > 0 ? "danger" : "neutral"}
+            >
+              <Link href="/contragents" className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-semibold text-primary-emphasis hover:underline">
+                {t("nav_contragents")} <ArrowRight className="size-3.5" />
+              </Link>
+            </KpiCard>
           </div>
           {/* Say what the totals are missing rather than let a short number pass for the whole
               shelf. Only shown when there is something to say. */}
@@ -328,29 +409,22 @@ export default function InventoryPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={list}
+          data={shown}
           onRowClick={(p) => setManaging(p)}
           searchPlaceholder={t("search") + "…"}
           emptyText={t("empty")}
-          // One way in, not a fork. Two buttons side by side made the reader choose between
-          // "from catalogue" and "by hand" before they knew whether the catalogue had their
-          // product; the catalogue answers that itself and offers the hand-built form when the
-          // answer is no. With an empty catalogue this still opens the picker, which is then
-          // nothing but that offer.
-          //
-          // Scanning sits beside it rather than being a second way to add: a scan of something
-          // already on the shelf opens that product instead of starting a new one.
           toolbar={
-            <>
-              <Button variant="secondary" disabled={scanBusy} onClick={() => setScanOpen(true)}>
-                {scanBusy ? <Spinner /> : <ScanBarcode />} {t("scan_cta")}
-              </Button>
-              <Button onClick={() => setFromCatalog(true)}>
-                <Plus /> {t("add_part_cta")}
-              </Button>
-            </>
+            <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+              {[[ALL, t("all"), list.length] as const, [LOW, t("inv_low"), low.length] as const, ...cats.map(([c, n]) => [c, c, n] as const)].map(([key, label, n]) => (
+                <button key={key} onClick={() => setTab(key)} aria-pressed={tab === key}
+                  className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+                    tab === key ? "bg-card text-foreground shadow-[var(--shadow)]" : key === LOW && n ? "text-warning hover:text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {label}<span className="font-mono text-[11.5px] text-muted-foreground">{n}</span>
+                </button>
+              ))}
+            </div>
           }
-          columnLabels={{ name: t("product_name"), category: t("category"), supplier: t("supplier"), variants: t("variants"), stock: t("in_stock"), value: t("wh_value_col") }}
+          columnLabels={{ name: t("col_product_variant"), unit: t("col_unit"), supplier: t("supplier"), stock: t("col_stock"), value: t("col_cost_price") }}
           pageSize={12}
         />
       )}

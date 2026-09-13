@@ -1,6 +1,8 @@
 "use client";
-// The counter-sale console: selling warehouse stock to someone who is not having work done.
-// No order, no vehicle, no customer — pick the parts, agree the price, take the money.
+// The counter-sale console, after the redesign: selling warehouse stock to someone who is not
+// having work done. The shelf on the left as a grid of cards — search by name, article or a
+// barcode read by a USB scanner, category tabs — and the basket on the right with the buyer,
+// the lines, the discount, how it is being paid, the change due, and one button that sells.
 //
 // The whole sale is one call (api.createSale): the gateway moves the stock, issues the
 // receipt and marks it paid, reversing everything if any step fails. So there is no
@@ -10,24 +12,25 @@
 // Mounted twice, because selling is not an owner-only job: at /sales in the owner console
 // and at /m/sales for a worker the owner trusted with the counter. The gateway enforces
 // that permission; this component assumes the caller already has it.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { unitLabel } from "@/components/catalog-fields";
 import {
-  Banknote, Check, CreditCard, HandCoins, Minus, Plus, Printer, Send, Split, Trash2, Undo2, Wallet,
+  Banknote, Check, CreditCard, HandCoins, Minus, Plus, Printer, Search, Send, Trash2, Undo2, Wallet, Landmark, ScanBarcode, X,
 } from "lucide-react";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
 import { Badge } from "@/components/ui-kit/badge";
 import { Input } from "@/components/ui-kit/input";
-import { Field } from "@/components/ui-kit/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
-import { Spinner } from "@/components/ui-kit/misc";
+import { Spinner, Switch } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui-kit/dialog";
 import { SkeletonRows } from "@/components/ui";
-import { ProductPicker, variantLabel } from "@/components/product-picker";
+import { variantLabel } from "@/components/product-picker";
 import { MoneyInput } from "@/components/catalog-fields";
 import { SplitPayment } from "@/components/split-payment";
 import { MaterialReturnPanel, useMaterialReturn, type ReturnableMaterial } from "@/components/material-return-dialog";
+import { PageHeader } from "@/components/page-header";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
@@ -40,7 +43,6 @@ import type { Customer, MaterialReturn, Product, ProductVariant, Sale, ShopCard 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : fallback);
 
 const saleLabel = (s: Sale) => "S-" + String(num(s.saleNo) || 0).padStart(4, "0");
-
 
 // One sellable thing: a variant flattened together with the product it belongs to. `id` is
 // pulled out because a variant only exists on the shelf once it has been saved, and an
@@ -56,6 +58,7 @@ const parseQty = (s: string) => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 const lineTotal = (l: Line) => Math.round((parseInt(l.price, 10) || 0) * parseQty(l.qty));
+const ALL = "__all";
 
 export function SalesConsole() {
   const { session } = useAuth();
@@ -69,9 +72,23 @@ export function SalesConsole() {
   const [lines, setLines] = useState<Line[]>([]);
   const [discountKind, setDiscountKind] = useState<"fixed" | "percent">("percent");
   const [discountValue, setDiscountValue] = useState("");
-  const [payOpen, setPayOpen] = useState(false);
   const [selling, setSelling] = useState(false);
   const [detail, setDetail] = useState<Sale | null>(null);
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState(ALL);
+  const search = useRef<HTMLInputElement>(null);
+
+  // How it is being paid, chosen in the basket rather than in a second dialog.
+  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [received, setReceived] = useState("");
+  const [split, setSplit] = useState(false);
+  const [pickedCard, setPickedCard] = useState("");
+  const [adhoc, setAdhoc] = useState("");
+  // Who to send the check to. Optional throughout: a walk-in leaves it alone.
+  const [buyerQuery, setBuyerQuery] = useState("");
+  const [buyer, setBuyer] = useState<Customer | null>(null);
+  const [matches, setMatches] = useState<Customer[]>([]);
+  const [buyerOpen, setBuyerOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [p, s] = await Promise.all([
@@ -87,10 +104,40 @@ export function SalesConsole() {
   // Stock moves under this page whenever a mechanic consumes a material, so keep it current.
   useAutoRefresh(load);
 
+  // Clients offered straight away and narrowed as the cashier types — a blank panel used to
+  // hide the fact that a buyer could be named at all.
+  useEffect(() => {
+    if (!buyerOpen || buyer) { setMatches([]); return; }
+    let alive = true;
+    const term = buyerQuery.trim();
+    const id = setTimeout(() => {
+      api.listCustomers(shopId, term || undefined)
+        .then((list) => { if (alive) setMatches(list.slice(0, 6)); })
+        .catch(() => { if (alive) setMatches([]); });
+    }, term ? 250 : 0);
+    return () => { alive = false; clearTimeout(id); };
+  }, [buyerOpen, buyer, buyerQuery, shopId]);
 
+  // Every variant on the shelf is its own card: a 1 L and a 4 L can of the same oil are two
+  // different things to hand over the counter.
+  const shelf = useMemo<Sellable[]>(() => (products ?? [])
+    .filter((p) => p.active !== false)
+    .flatMap((p) => (p.variants ?? []).filter((v) => v.active !== false && v.id).map((v) => ({ id: v.id!, product: p, variant: v }))), [products]);
+  const categories = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of shelf) { const c = (s.product.category || "").trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [shelf]);
+  const shown = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return shelf.filter((s) => {
+      if (cat !== ALL && (s.product.category || "").trim() !== cat) return false;
+      if (!n) return true;
+      return `${s.product.name} ${s.product.brand ?? ""} ${variantLabel(s.variant)} ${s.variant.sku ?? ""} ${s.variant.barcode ?? ""}`.toLowerCase().includes(n);
+    });
+  }, [shelf, cat, q]);
 
   const inBasket = (variantId: string) => lines.find((l) => l.item.id === variantId);
-  const pickedIds = useMemo(() => new Set(lines.map((l) => l.item.id)), [lines]);
 
   const add = (item: Sellable) => {
     const existing = inBasket(item.id);
@@ -99,16 +146,28 @@ export function SalesConsole() {
       setQty(existing.key, String(parseQty(existing.qty) + 1));
       return;
     }
-    setLines((ls) => [...ls, {
-      key: item.id,
-      item,
-      qty: "1",
-      price: String(num(item.variant.unitPrice)),
-    }]);
+    setLines((ls) => [...ls, { key: item.id, item, qty: "1", price: String(num(item.variant.unitPrice)) }]);
   };
   const setQty = (key: string, qty: string) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, qty } : l)));
   const setPrice = (key: string, price: string) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, price } : l)));
   const drop = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
+
+  // A USB barcode reader types the code and presses Enter. An exact barcode or article
+  // number goes straight into the basket and clears the box for the next read.
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const code = q.trim();
+    if (!code) return;
+    const hit = shelf.find((s) => s.variant.barcode === code || (s.variant.sku && s.variant.sku.toLowerCase() === code.toLowerCase()));
+    if (hit) {
+      if (num(hit.variant.quantityOnHand) <= 0) { toast(t("pos_none_left"), { icon: "alert", tone: "danger" }); return; }
+      add(hit);
+      setQ("");
+    } else if (shown.length === 1 && num(shown[0].variant.quantityOnHand) > 0) {
+      add(shown[0]);
+      setQ("");
+    }
+  };
 
   // A counter discount is given on the basket, not by re-typing every line's price.
   // discountValue is digits only: tiyin when fixed, whole percent when percent.
@@ -117,36 +176,33 @@ export function SalesConsole() {
   const discountRaw = parseInt(discountValue, 10) || 0;
   // Clamped to the basket, the same rule the backend applies, so the screen can never promise
   // a total the server will not honour.
-  const discount = Math.min(
-    subtotal,
-    discountPct ? Math.round((subtotal * discountRaw) / 100) : discountRaw,
-  );
+  const discount = Math.min(subtotal, discountPct ? Math.round((subtotal * discountRaw) / 100) : discountRaw);
   const total = subtotal - discount;
   // A line asking for more than is on the shelf blocks the sale here rather than letting the
   // backend refuse the whole basket after the till has been opened.
   const overStock = lines.filter((l) => parseQty(l.qty) > num(l.item.variant.quantityOnHand));
   const sellable = lines.length > 0 && lines.every((l) => parseQty(l.qty) > 0) && overStock.length === 0;
+  const got = parseInt(received.replace(/\D/g, ""), 10) || 0;
+  const change = method === "cash" && got > total ? got - total : 0;
+  const short = method === "cash" && got > 0 && got < total;
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const today = new Date().toDateString();
+  const todays = (sales ?? []).filter((s) => !s.voided && s.createdAt && new Date(s.createdAt).toDateString() === today);
+  const todaysSum = todays.reduce((s, x) => s + num(x.total), 0);
 
   const sell = async (
-    method: PaymentMethod,
+    m: PaymentMethod,
     card?: { cardId?: string; cardNumber?: string },
-    customerId?: string,
-    // A split sends its parts instead. `method` still arrives — it is the first part — so
-    // everything below that reads a method keeps working.
+    // A split sends its parts instead. `m` still arrives — it is the first part.
     payments?: PaymentPart[],
   ) => {
     if (!sellable || selling) return;
     setSelling(true);
+    const customerId = buyer?.id;
     try {
       const sale = await api.createSale({
-        items: lines.map((l) => ({
-          variantId: l.item.id,
-          quantity: parseQty(l.qty),
-          unitPrice: parseInt(l.price, 10) || 0,
-        })),
-        method, cardId: card?.cardId, cardNumber: card?.cardNumber,
+        items: lines.map((l) => ({ variantId: l.item.id, quantity: parseQty(l.qty), unitPrice: parseInt(l.price, 10) || 0 })),
+        method: m, cardId: card?.cardId, cardNumber: card?.cardNumber,
         // Optional: naming a buyer is what lets the receipt be sent to them.
         customerId,
         // Percent goes over the wire as basis points, the unit the contract uses.
@@ -154,25 +210,19 @@ export function SalesConsole() {
         discountValue: discountPct ? discountRaw * 100 : discountRaw,
         payments,
       });
-      setLines([]);
-      setDiscountValue("");
-      setPayOpen(false);
+      setLines([]); setDiscountValue(""); setReceived(""); setSplit(false); setPickedCard(""); setAdhoc(""); setMethod("cash");
       toast(`${saleLabel(sale)} · ${money(sale.total)} ${t("soum")}`, { icon: "money" });
-      // No money came in, so the "sold!" toast on its own would be misleading. Say where
-      // the amount went instead.
       // Only the part left owing lands on the account, so say the amount rather than letting
       // the cashier assume the whole basket went on the client's name.
       const owed = num(sale.creditAmount);
-      if (owed > 0) {
-        const who = customers.find((c) => c.id === customerId)?.name;
-        toast(`${t("cl_charge")} · ${money(owed)}${who ? " · " + who : ""}`, { icon: "alert", tone: "accent" });
-      }
+      if (owed > 0) toast(`${t("cl_charge")} · ${money(owed)}${buyer?.name ? " · " + buyer.name : ""}`, { icon: "alert", tone: "accent" });
       // Delivery is best-effort and happens after the sale is committed, so tell the
       // cashier which way it went rather than leaving them to wonder.
       if (customerId) {
-        const sent = customers.find((c) => c.id === customerId)?.telegramChatId;
+        const sent = !!buyer?.telegramChatId;
         toast(t(sent ? "receipt_sent" : "receipt_not_linked"), { icon: sent ? "check" : "alert", tone: sent ? "ok" : "accent" });
       }
+      setBuyer(null); setBuyerQuery(""); setBuyerOpen(false);
       setDetail(sale);
       await load();
     } catch (e) {
@@ -180,6 +230,17 @@ export function SalesConsole() {
     } finally {
       setSelling(false);
     }
+  };
+
+  const confirm = () => {
+    if (method === "card") {
+      const chosen = cards.find((c) => c.id === pickedCard);
+      const number = chosen ? chosen.cardNumber : adhoc.trim();
+      if (!number) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
+      void sell("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number });
+      return;
+    }
+    void sell(method);
   };
 
   const voidSale = async (s: Sale, returns?: MaterialReturn[]) => {
@@ -193,141 +254,271 @@ export function SalesConsole() {
     }
   };
 
+  const METHODS: { key: PaymentMethod; icon: React.ReactNode; label: string }[] = [
+    { key: "cash", icon: <Banknote className="size-[18px]" />, label: t("pay_cash") },
+    { key: "card", icon: <CreditCard className="size-[18px]" />, label: t("pay_card") },
+    { key: "transfer", icon: <Landmark className="size-[18px]" />, label: t("pay_transfer") },
+    { key: "credit", icon: <HandCoins className="size-[18px]" />, label: t("pay_credit") },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-[24px] font-extrabold tracking-[-0.025em] text-foreground">{t("nav_sales")}</h1>
-        <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">{t("sales_hint")}</div>
-      </div>
+      <PageHeader
+        title={<h1 className="truncate text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_quick_sale")}</h1>}
+        meta={<span>{t("pos_sub")} · {t("pay_cashier")}: {session?.staff.name}</span>}
+        actions={
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+            <span>{t("today")} <span className="font-mono font-bold text-foreground">{todays.length}</span> {t("pos_sales_n")} · <span className="font-mono font-bold text-foreground">{money(todaysSum)}</span></span>
+            <button onClick={() => document.getElementById("pos-history")?.scrollIntoView({ behavior: "smooth" })} className="font-semibold text-primary-emphasis hover:underline">{t("sales_history")}</button>
+            <Link href="/finances" className="font-semibold text-primary-emphasis hover:underline">{t("pos_day_report")}</Link>
+          </div>
+        }
+      />
+      <p className="-mt-1 text-[12.5px] text-muted-foreground">{t("sales_hint")}</p>
 
       {/* min-w-0 on the columns: a grid track will not shrink below its content by default,
           so one long product name pushed the whole till a centimetre off the side of a phone. */}
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_410px]">
         {/* ── what's on the shelf ── */}
-        <Card className="min-w-0 gap-3 px-4 py-4 sm:px-5">
-          <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("nav_inventory")}</h2>
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input ref={search} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onSearchKey} placeholder={t("pos_search")}
+              className="h-12 rounded-[12px] border-primary/50 pl-10 pr-32 text-[15px]" />
+            <span className="pointer-events-none absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center gap-1.5 rounded-[7px] bg-secondary px-2 py-1 text-[12px] font-semibold text-ink-2">
+              <ScanBarcode className="size-3.5" /> {t("pos_scanner")}
+            </span>
+          </div>
+          <div className="inline-flex max-w-full flex-wrap gap-0.5 self-start rounded-[10px] bg-secondary p-1">
+            {[[ALL, t("all")] as const, ...categories.map(([c]) => [c, c] as const)].map(([key, label]) => (
+              <button key={key} onClick={() => setCat(key)} aria-pressed={cat === key}
+                className={cn("min-h-8 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+                  cat === key ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
 
           {products === null ? (
-            <SkeletonRows rows={5} avatar={false} />
+            <Card className="p-4"><SkeletonRows rows={5} avatar={false} /></Card>
+          ) : shown.length === 0 ? (
+            <Card className="py-12 text-center text-[13.5px] text-muted-foreground">{t("empty")}</Card>
           ) : (
-            <ProductPicker
-              products={products}
-              onPick={(product, variant) => add({ id: variant.id!, product, variant })}
-              pickedIds={pickedIds}
-              blockOutOfStock
-              maxHeight={520}
-              emptyText={t("empty")}
-            />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              {shown.map((s) => {
+                const left = num(s.variant.quantityOnHand);
+                const out = left <= 0;
+                const low = !out && left <= num(s.variant.reorderLevel);
+                const line = inBasket(s.id);
+                const sub = variantLabel(s.variant) || (s.variant.sku ? `${t("art")} ${s.variant.sku}` : "");
+                return (
+                  <button key={s.id} disabled={out || selling} onClick={() => add(s)}
+                    className={cn(
+                      "flex min-w-0 flex-col gap-1.5 rounded-[12px] border bg-card p-3 text-left shadow-[var(--shadow)] transition-colors",
+                      line ? "border-primary ring-2 ring-primary/15" : "border-border hover:border-input",
+                      out && "cursor-not-allowed opacity-60 shadow-none",
+                    )}>
+                    <div className="flex items-center justify-between gap-2">
+                      {s.product.brand ? <span className="max-w-[60%] truncate rounded-[6px] bg-info-soft px-1.5 py-0.5 text-[11.5px] font-semibold text-info">{s.product.brand}</span> : <span />}
+                      <span className={cn("shrink-0 font-mono text-[12px] font-semibold", out ? "text-destructive" : low ? "text-warning" : "text-success")}>
+                        {out ? t("pos_none_left") : `${qty(left)} ${unitLabel(t, s.product.unit) || t("unit_pcs")}`}
+                      </span>
+                    </div>
+                    <div className="line-clamp-2 min-h-[2.5em] text-[14px] font-bold leading-tight text-foreground">{s.product.name}</div>
+                    {sub && <div className="truncate text-[12px] text-muted-foreground">{sub}</div>}
+                    <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                      <span className="font-mono text-[14.5px] font-bold text-foreground">{money(num(s.variant.unitPrice))}</span>
+                      {line ? (
+                        <span className="rounded-full bg-primary px-2.5 py-1 text-[12px] font-semibold text-primary-foreground">{t("pos_in_cart")} · {qty(parseQty(line.qty))}</span>
+                      ) : !out ? (
+                        <span className="rounded-[8px] border border-border px-2 py-1 text-[12px] font-semibold text-ink-2">+ {t("wo_add_draft")}</span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
-        </Card>
+        </div>
 
         {/* ── the basket ── */}
-        <Card className="min-w-0 gap-3 px-4 py-4 sm:px-5">
-          <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("sale_basket")}</h2>
+        <Card className="min-w-0 gap-3 p-4 lg:sticky lg:top-[84px]">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[16px] font-bold text-foreground">{t("pos_cart")} · {lines.length}</h2>
+            {lines.length > 0 && <button onClick={() => setLines([])} className="text-[13px] font-semibold text-destructive hover:underline">{t("pos_clear")}</button>}
+          </div>
+
+          {/* the buyer — optional; naming one sends them the check, and is what nasiya needs */}
+          {buyer ? (
+            <div className="flex items-center gap-2.5 rounded-[10px] border border-border px-3 py-2">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">
+                {(buyer.name || "?").split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-semibold">{buyer.name || t("walk_in_customer")}</div>
+                <div className="truncate text-[12px] text-muted-foreground">{buyer.telegramChatId ? `${t("tg_linked")} · ${t("pos_check_goes")}` : `${buyer.phone} · ${t("receipt_not_linked")}`}</div>
+              </div>
+              <button aria-label={t("cancel")} onClick={() => { setBuyer(null); setBuyerQuery(""); }} className="grid size-7 place-items-center rounded-[7px] text-muted-foreground hover:bg-secondary"><X className="size-4" /></button>
+            </div>
+          ) : buyerOpen ? (
+            <div className="flex flex-col gap-1.5 rounded-[10px] border border-border p-2">
+              <Input value={buyerQuery} autoFocus placeholder={t("search")} onChange={(e) => setBuyerQuery(e.target.value)} />
+              {matches.map((c) => (
+                <button key={c.id} onClick={() => { setBuyer(c); setMatches([]); setBuyerOpen(false); }}
+                  className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 text-left hover:bg-secondary">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold">{c.name || t("walk_in_customer")}</div>
+                    <div className="truncate font-mono text-[12px] text-muted-foreground">{c.phone}</div>
+                  </div>
+                  {c.telegramChatId && <Send className="size-3.5 text-muted-foreground" />}
+                </button>
+              ))}
+              <NewClientInline query={buyerQuery} shopId={shopId} onCreated={(c) => { setBuyer(c); setMatches([]); setBuyerOpen(false); }} />
+            </div>
+          ) : (
+            <button onClick={() => setBuyerOpen(true)} className="flex min-h-10 items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-input text-[13px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <Plus className="size-4" /> {t("send_check_to")}
+            </button>
+          )}
 
           {lines.length === 0 ? (
-            <div className="py-10 text-center text-[13px] text-muted-foreground">{t("sale_basket_empty")}</div>
+            <div className="py-8 text-center text-[13px] text-muted-foreground">{t("sale_basket_empty")}</div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col">
               {lines.map((l) => {
                 const left = num(l.item.variant.quantityOnHand);
                 const over = parseQty(l.qty) > left;
+                const unit = unitLabel(t, l.item.product.unit) || t("unit_pcs");
                 return (
-                  <div key={l.key} className="flex flex-col gap-2 border-b border-border pb-3 last:border-b-0 last:pb-0">
-                    <div className="flex items-start gap-2">
+                  <div key={l.key} className="flex flex-col gap-1.5 border-b border-border py-2.5 last:border-b-0">
+                    <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[13.5px] font-bold text-foreground">{l.item.product.name}</div>
-                        {variantLabel(l.item.variant) && (
-                          <div className="truncate text-[11.5px] text-muted-foreground">{variantLabel(l.item.variant)}</div>
-                        )}
-                      </div>
-                      <button onClick={() => drop(l.key)} aria-label={t("delete")} className="shrink-0 text-muted-foreground hover:text-destructive">
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-[1fr_1fr] gap-2">
-                      <Field label={`${t("qty")} (${unitLabel(t, l.item.product.unit) || t("unit_pcs")})`}>
-                        <div className="flex items-center gap-1">
-                          <Button variant="secondary" size="icon-sm" onClick={() => setQty(l.key, String(Math.max(0, parseQty(l.qty) - 1)))}><Minus /></Button>
-                          {/* Decimal, not integer: half a litre is a real sale. */}
-                          <Input
-                            value={l.qty}
-                            inputMode="decimal"
-                            onChange={(e) => setQty(l.key, e.target.value.replace(/[^\d.,]/g, ""))}
-                            className={cn("h-8 text-center font-mono text-[13px]", over && "border-destructive")}
-                          />
-                          <Button variant="secondary" size="icon-sm" onClick={() => setQty(l.key, String(parseQty(l.qty) + 1))}><Plus /></Button>
+                        <div className="flex items-center gap-1 text-[11.5px] text-muted-foreground">
+                          {variantLabel(l.item.variant) && <span className="truncate">{variantLabel(l.item.variant)} ·</span>}
+                          <span className="w-24 shrink-0"><MoneyInput value={l.price} onChange={(v) => setPrice(l.key, v)} hideHint style={{ height: 26, paddingTop: 0, paddingBottom: 0, fontSize: 12 }} /></span>
+                          <span className="shrink-0">/{unit}</span>
                         </div>
-                      </Field>
-                      <Field label={t("sell_price")}>
-                        <MoneyInput value={l.price} onChange={(v) => setPrice(l.key, v)} />
-                      </Field>
-                    </div>
-                    {over && (
-                      <div className="text-[12px] font-semibold text-destructive">
-                        {t("only_n_left")}: {qty(left)} {unitLabel(t, l.item.product.unit) || t("unit_pcs")}
                       </div>
-                    )}
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[12px] text-muted-foreground">{t("total")}</span>
-                      <span className="font-mono text-[14px] font-extrabold text-foreground">{money(lineTotal(l))}</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button variant="secondary" size="icon-sm" aria-label="−" onClick={() => setQty(l.key, String(Math.max(0, parseQty(l.qty) - 1)))}><Minus /></Button>
+                        {/* Decimal, not integer: half a litre is a real sale. */}
+                        <Input value={l.qty} inputMode="decimal" onChange={(e) => setQty(l.key, e.target.value.replace(/[^\d.,]/g, ""))}
+                          className={cn("h-8 w-12 px-1 text-center font-mono text-[13px]", over && "border-destructive")} />
+                        <Button variant="secondary" size="icon-sm" aria-label="+" onClick={() => setQty(l.key, String(parseQty(l.qty) + 1))}><Plus /></Button>
+                      </div>
+                      <span className="w-[78px] shrink-0 text-right font-mono text-[13.5px] font-bold text-foreground">{money(lineTotal(l))}</span>
+                      <button onClick={() => drop(l.key)} aria-label={t("delete")} className="shrink-0 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
                     </div>
+                    {over && <div className="text-[12px] font-semibold text-destructive">{t("only_n_left")}: {qty(left)} {unit}</div>}
                   </div>
                 );
               })}
+            </div>
+          )}
 
-              {/* Discount on the whole basket. Percent or a flat sum — the two ways a counter
-                  discount is actually given. */}
-              <div className="flex items-center gap-2">
-                <Tabs value={discountKind} onValueChange={(v: string) => setDiscountKind(v as "fixed" | "percent")}>
-                  <TabsList>
-                    <TabsTrigger value="percent" className="px-3">%</TabsTrigger>
-                    <TabsTrigger value="fixed" className="px-3">{t("soum")}</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                {discountPct ? (
-                  <Input value={discountValue} inputMode="numeric" placeholder={t("discount")}
-                    className="h-9 flex-1 font-mono text-[13px]"
-                    onChange={(e) => setDiscountValue(e.target.value.replace(/\D/g, "").slice(0, 3))} />
-                ) : (
-                  <div className="flex-1"><MoneyInput value={discountValue} onChange={setDiscountValue} placeholder={t("discount")} hideHint /></div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-1.5 rounded-[12px] bg-secondary/60 px-4 py-3">
-                {discount > 0 && (
-                  <>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[12.5px] text-muted-foreground">{t("subtotal")}</span>
-                      <span className="font-mono text-[13px] font-semibold text-foreground">{money(subtotal)}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[12.5px] text-muted-foreground">{t("discount")}</span>
-                      <span className="font-mono text-[13px] font-bold text-success">−{money(discount)}</span>
-                    </div>
-                  </>
-                )}
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[13px] font-semibold text-muted-foreground">{t("total")}</span>
-                  <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-foreground">
-                    {money(total)} <span className="font-sans text-[12px] font-semibold text-muted-foreground">{t("soum")}</span>
-                  </span>
+          {lines.length > 0 && (
+            <>
+              <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+                <div className="flex items-baseline justify-between text-[13.5px]"><span className="text-muted-foreground">{t("total")}</span><span className="font-mono font-semibold">{money(subtotal)}</span></div>
+                {/* Discount on the whole basket. Percent or a flat sum — the two ways a counter
+                    discount is actually given. */}
+                <div className="flex items-center justify-between gap-2 text-[13.5px]">
+                  <span className="text-muted-foreground">{t("discount")}</span>
+                  <div className="flex items-center gap-1.5">
+                    <Tabs value={discountKind} onValueChange={(v: string) => setDiscountKind(v as "fixed" | "percent")}>
+                      <TabsList className="h-8"><TabsTrigger value="percent" className="px-2 text-[12px]">%</TabsTrigger><TabsTrigger value="fixed" className="px-2 text-[12px]">{t("soum")}</TabsTrigger></TabsList>
+                    </Tabs>
+                    {discountPct ? (
+                      <Input value={discountValue} inputMode="numeric" placeholder="0" className="h-8 w-14 text-center font-mono text-[13px]"
+                        onChange={(e) => setDiscountValue(e.target.value.replace(/\D/g, "").slice(0, 3))} />
+                    ) : (
+                      <div className="w-28"><MoneyInput value={discountValue} onChange={setDiscountValue} placeholder="0" hideHint style={{ height: 32, paddingTop: 0, paddingBottom: 0 }} /></div>
+                    )}
+                    <span className="w-20 text-right font-mono font-semibold text-success">{discount > 0 ? `−${money(discount)}` : "0"}</span>
+                  </div>
+                </div>
+                <div className="flex items-baseline justify-between pt-1">
+                  <span className="text-[16px] font-bold text-foreground">{t("to_pay")}</span>
+                  <span className="font-mono text-[26px] font-bold tracking-[-0.02em] text-foreground">{money(total)}</span>
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => setLines([])}>{t("cancel")}</Button>
-                <Button className="flex-1" disabled={!sellable || selling} onClick={() => setPayOpen(true)}>
-                  {selling ? <Spinner /> : <Banknote />}{t("sell")}
-                </Button>
-              </div>
-            </div>
+              {split ? (
+                <SplitPayment
+                  total={total} cards={cards} busy={selling} allowCredit={!!buyer}
+                  onBack={() => setSplit(false)}
+                  onPay={(parts) => void sell(parts[0].method, { cardId: parts[0].cardId, cardNumber: parts[0].cardNumber }, parts)}
+                />
+              ) : (
+                <>
+                  <div className="grid grid-cols-4 gap-2">
+                    {METHODS.map((m) => {
+                      // Nasiya is shown but dark until somebody is named: a debt has to be owed
+                      // by somebody, and the server refuses one that is not.
+                      const off = m.key === "credit" && !buyer;
+                      return (
+                        <button key={m.key} disabled={off} onClick={() => setMethod(m.key)} aria-pressed={method === m.key}
+                          title={off ? t("credit_needs_client") : undefined}
+                          className={cn("flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[10px] border text-[12.5px] font-semibold transition-colors disabled:opacity-40",
+                            method === m.key ? "border-primary bg-primary-soft text-primary-emphasis" : "border-border bg-card text-ink-2 hover:bg-secondary")}>
+                          {m.icon}{m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[12.5px]">
+                    <button onClick={() => void sell("other")} disabled={!sellable || selling} className="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"><Wallet className="size-3.5" /> {t("other_method")}</button>
+                    <label className="inline-flex items-center gap-2 font-semibold text-muted-foreground">{t("split_payment")}<Switch checked={split} onCheckedChange={setSplit} /></label>
+                  </div>
+
+                  {method === "cash" && (
+                    <div className="grid grid-cols-[1fr_auto] gap-2">
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[12.5px] text-muted-foreground">{t("pos_received")}</span>
+                        <Input value={received ? money(got) : ""} inputMode="numeric" onChange={(e) => setReceived(e.target.value.replace(/\D/g, ""))}
+                          className="h-12 pl-[110px] text-right font-mono text-[18px] font-bold" />
+                      </div>
+                      <div className={cn("flex min-w-[96px] flex-col justify-center rounded-[10px] px-3", change > 0 ? "bg-success-soft text-success" : short ? "bg-destructive-soft text-destructive" : "bg-secondary text-muted-foreground")}>
+                        <span className="text-[10.5px] font-bold uppercase tracking-[0.06em]">{short ? t("amount_short") : t("change_due")}</span>
+                        <span className="font-mono text-[15px] font-bold">{short ? `−${money(total - got)}` : money(change)}</span>
+                      </div>
+                    </div>
+                  )}
+                  {method === "card" && (
+                    <div className="flex flex-col gap-1.5">
+                      {cards.map((c) => (
+                        <button key={c.id} onClick={() => { setPickedCard(c.id); setAdhoc(""); }}
+                          className={cn("flex items-center gap-2.5 rounded-[9px] border px-3 py-2 text-left transition-colors", pickedCard === c.id ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary")}>
+                          <CreditCard className="size-4 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            {c.label && <div className="truncate text-[13px] font-semibold">{c.label}</div>}
+                            <div className="truncate font-mono text-[12.5px] text-muted-foreground">{c.cardNumber}</div>
+                          </div>
+                          {pickedCard === c.id && <Check className="size-4 text-primary-emphasis" />}
+                        </button>
+                      ))}
+                      <Input value={adhoc} inputMode="numeric" placeholder={cards.length > 0 ? `${t("new_card")} · 8600 …` : "8600 0000 0000 0000"} className="font-mono"
+                        onChange={(e) => { setAdhoc(e.target.value); if (e.target.value) setPickedCard(""); }} />
+                    </div>
+                  )}
+                  {method === "credit" && <p className="text-[12px] leading-snug text-muted-foreground">{t("credit_hint")}</p>}
+
+                  <Button size="lg" className="h-12 text-[15.5px]" disabled={!sellable || selling || short || (method === "card" && !pickedCard && !adhoc.trim())} onClick={confirm}>
+                    {selling ? <Spinner /> : <>{t("sell")} — {money(total)} {t("soum")}</>}
+                  </Button>
+                </>
+              )}
+              <p className="text-center text-[11.5px] text-muted-foreground">
+                {t("pos_foot_fiscal")}{buyer?.telegramChatId ? ` · ${t("pos_foot_tg")}` : ""} · {lines.length} {t("pos_foot_stock")}
+              </p>
+            </>
           )}
         </Card>
       </div>
 
       {/* ── what has been sold ── */}
-      <Card className="min-w-0 gap-3 px-4 py-4 sm:px-5">
+      <Card id="pos-history" className="min-w-0 scroll-mt-24 gap-3 px-4 py-4 sm:px-5">
         <h2 className="text-[12.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{t("sales_history")}</h2>
         {sales === null ? (
           <SkeletonRows rows={4} avatar={false} />
@@ -361,16 +552,6 @@ export function SalesConsole() {
         )}
       </Card>
 
-      <PayDialog
-        open={payOpen}
-        total={total}
-        cards={cards}
-        busy={selling}
-        shopId={shopId}
-        onClose={() => setPayOpen(false)}
-        onPay={sell}
-        onCustomers={setCustomers}
-      />
       <SaleDetailDialog sale={detail} onClose={() => setDetail(null)} onVoid={voidSale} />
     </div>
   );
@@ -442,167 +623,6 @@ function NewClientInline({ query, shopId, onCreated }: {
         </button>
       </div>
     </div>
-  );
-}
-
-function PayDialog({ open, total, cards, busy, shopId, onClose, onPay, onCustomers }: {
-  open: boolean; total: number; cards: ShopCard[]; busy: boolean; shopId: string;
-  onClose: () => void;
-  onPay: (m: PaymentMethod, card?: { cardId?: string; cardNumber?: string }, customerId?: string, payments?: PaymentPart[]) => void;
-  onCustomers: (list: Customer[]) => void;
-}) {
-  const { t } = useLang();
-  const { toast } = useToast();
-  const [cardMode, setCardMode] = useState(false);
-  const [splitMode, setSplitMode] = useState(false);
-  const [pickedCard, setPickedCard] = useState("");
-  const [adhoc, setAdhoc] = useState("");
-  // Who to send the check to. Optional throughout: a walk-in leaves it alone and the sale
-  // behaves exactly as it did before this existed.
-  const [buyerQuery, setBuyerQuery] = useState("");
-  const [buyer, setBuyer] = useState<Customer | null>(null);
-  const [matches, setMatches] = useState<Customer[]>([]);
-  useEffect(() => {
-    if (!open) { setCardMode(false); setSplitMode(false); setPickedCard(""); setAdhoc(""); setBuyer(null); setBuyerQuery(""); setMatches([]); }
-  }, [open]);
-  // Search only once the cashier has typed enough to mean something, and never while a
-  // buyer is already chosen.
-  // Blank box, blank panel was the old behaviour, and it hid the feature: a cashier had to
-  // already know they could type here. The shop's clients are offered straight away and
-  // typing narrows them. listCustomers takes an optional query, so the empty case is the
-  // same call without one.
-  useEffect(() => {
-    if (!open || buyer) { setMatches([]); return; }
-    let alive = true;
-    const q = buyerQuery.trim();
-    const id = setTimeout(() => {
-      api.listCustomers(shopId, q || undefined)
-        .then((list) => { if (alive) { setMatches(list.slice(0, 6)); onCustomers(list); } })
-        .catch(() => { if (alive) setMatches([]); });
-    }, q ? 250 : 0);
-    return () => { alive = false; clearTimeout(id); };
-  }, [open, buyer, buyerQuery, shopId, onCustomers]);
-
-  const payCard = () => {
-    const chosen = cards.find((c) => c.id === pickedCard);
-    const number = chosen ? chosen.cardNumber : adhoc.trim();
-    if (!number) { toast(t("card_required"), { icon: "alert", tone: "danger" }); return; }
-    onPay("card", { cardId: chosen ? chosen.id : undefined, cardNumber: number }, buyer?.id);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-[420px]">
-        <DialogHeader><DialogTitle>{t("payment_method")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex flex-col gap-4 pb-5">
-          <div className="flex items-baseline justify-between rounded-[12px] bg-secondary/60 px-4 py-3">
-            <span className="text-[13px] font-semibold text-muted-foreground">{t("total")}</span>
-            <span className="font-mono text-[20px] font-extrabold text-foreground">{money(total)} {t("soum")}</span>
-          </div>
-
-          {/* Optional recipient. Left blank the sale is anonymous, exactly as before. */}
-          <Field label={t("send_check_to")} hint={t("send_check_to_hint")}>
-            {buyer ? (
-              <div className="flex items-center gap-2 rounded-[9px] border border-primary bg-primary-soft px-3 py-2">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-semibold">{buyer.name || t("walk_in_customer")}</div>
-                  <div className="truncate font-mono text-[12.5px] text-muted-foreground">
-                    {buyer.phone}{!buyer.telegramChatId && ` · ${t("receipt_not_linked")}`}
-                  </div>
-                </div>
-                <button className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"
-                  onClick={() => { setBuyer(null); setBuyerQuery(""); }}>✕</button>
-              </div>
-            ) : (
-              <>
-                <Input value={buyerQuery} placeholder={t("search")} onChange={(e) => setBuyerQuery(e.target.value)} />
-                {matches.length > 0 && (
-                  <div className="mt-1.5 flex flex-col gap-1">
-                    {!buyerQuery.trim() && (
-                      <span className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                        {t("recent_clients")}
-                      </span>
-                    )}
-                    {matches.map((c) => (
-                      <button key={c.id} onClick={() => { setBuyer(c); setMatches([]); }}
-                        className="flex items-center gap-2 rounded-[9px] border border-border bg-card px-3 py-2 text-left hover:bg-secondary">
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13.5px] font-semibold">{c.name || t("walk_in_customer")}</div>
-                          <div className="truncate font-mono text-[12.5px] text-muted-foreground">{c.phone}</div>
-                        </div>
-                        {c.telegramChatId && <Send className="size-4 text-muted-foreground" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/* The way out for a client who is not on the list yet. It matters most for
-                    nasiya: that button is dark until somebody is named, and sending the cashier
-                    to the clients screen mid-sale means starting the sale again. */}
-                <NewClientInline query={buyerQuery} shopId={shopId} onCreated={(c) => { setBuyer(c); setMatches([]); }} />
-              </>
-            )}
-          </Field>
-
-          {splitMode ? (
-            <SplitPayment
-              total={total} cards={cards} busy={busy} allowCredit={!!buyer}
-              onBack={() => setSplitMode(false)}
-              onPay={(parts) => onPay(parts[0].method, { cardId: parts[0].cardId, cardNumber: parts[0].cardNumber }, buyer?.id, parts)}
-            />
-          ) : !cardMode ? (
-            <div className="flex flex-col gap-2.5">
-              <div className="grid grid-cols-3 gap-2.5">
-                <Button variant="soft" disabled={busy} onClick={() => onPay("cash", undefined, buyer?.id)}><Banknote />{t("pay_cash")}</Button>
-                <Button variant="soft" disabled={busy} onClick={() => setCardMode(true)}><CreditCard />{t("pay_card")}</Button>
-                <Button variant="soft" disabled={busy} onClick={() => onPay("other", undefined, buyer?.id)}><Wallet />{t("pay_other")}</Button>
-              </div>
-              {/* Nasiya. Disabled rather than hidden without a buyer, so the cashier can see
-                  the option exists and what unlocks it — a debt has to be owed by somebody,
-                  and the server refuses one that is not. */}
-              <Button variant="soft" disabled={busy || !buyer} onClick={() => onPay("credit", undefined, buyer?.id)}>
-                <HandCoins />{t("pay_credit")}
-              </Button>
-              <p className="text-[11.5px] leading-snug text-muted-foreground">
-                {buyer ? t("credit_hint") : t("credit_needs_client")}
-              </p>
-              {/* One tap covers the common case above; this is the way out for the customer
-                  who hands over some cash and puts the rest on a card. */}
-              <button disabled={busy} onClick={() => setSplitMode(true)}
-                className="mt-0.5 flex items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-border py-2 text-[12.5px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground">
-                <Split className="size-4" />{t("split_payment")}
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <div className="text-[12.5px] font-semibold text-muted-foreground">{t("pay_card")} · {t("select_card")}</div>
-                <button className="text-[12.5px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => { setCardMode(false); setPickedCard(""); setAdhoc(""); }}>← {t("back")}</button>
-              </div>
-              {cards.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  {cards.map((c) => (
-                    <button key={c.id} onClick={() => { setPickedCard(c.id); setAdhoc(""); }}
-                      className={cn("flex items-center gap-3 rounded-[9px] border px-3 py-2.5 text-left transition-colors", pickedCard === c.id ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary")}>
-                      <CreditCard className="size-4 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        {c.label && <div className="truncate text-[13.5px] font-semibold">{c.label}</div>}
-                        <div className="truncate font-mono text-[13px] text-muted-foreground">{c.cardNumber}</div>
-                      </div>
-                      {pickedCard === c.id && <Check className="size-[17px] text-primary-emphasis" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <Field label={cards.length > 0 ? t("new_card") : t("card_number")}>
-                <Input value={adhoc} inputMode="numeric" placeholder="8600 0000 0000 0000" className="font-mono"
-                  onChange={(e) => { setAdhoc(e.target.value); if (e.target.value) setPickedCard(""); }} />
-              </Field>
-              <Button disabled={busy || (!pickedCard && !adhoc.trim())} onClick={payCard}>{t("sell")}</Button>
-            </div>
-          )}
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
   );
 }
 

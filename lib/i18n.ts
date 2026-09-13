@@ -1746,6 +1746,87 @@ export const STR: Record<string, Triple> = {
   split_hint_short: ["Bir qismi hozir, qolgani mijoz qarziga", "Бир қисми ҳозир, қолгани мижоз қарзига", "Часть сейчас, остальное в долг клиенту"],
   amount_short: ["Summa yetmaydi", "Сумма етмайди", "Недостаточно"],
   wo_closed_hint: ["Yopilgan va bekor qilinganlar", "Ёпилган ва бекор қилинганлар", "Закрытые и отменённые"],
+
+  // ── redesign: a client's page ──
+  cust_regular: ["Doimiy mijoz", "Доимий мижоз", "Постоянный клиент"],
+  last_visit: ["Oxirgi tashrif", "Охирги ташриф", "Последний визит"],
+  total_spent: ["Jami xarid", "Жами харид", "Всего покупок"],
+  visits_title: ["Tashriflar", "Ташрифлар", "Визиты"],
+  visits_n: ["tashrif", "ташриф", "визитов"],
+  cust_debt: ["Qarz", "Қарз", "Долг"],
+  next_reminder: ["Keyingi eslatma", "Кейинги эслатма", "Следующее напоминание"],
+  tab_orders: ["Buyurtmalar tarixi", "Буюртмалар тарихи", "История заказов"],
+  tab_payments: ["To'lovlar", "Тўловлар", "Платежи"],
+  tab_notes: ["Izohlar", "Изоҳлар", "Заметки"],
+  more_prefix: ["Yana", "Яна", "Показать ещё"],
+  more_suffix: ["ta ko'rsatish", "та кўрсатиш", ""],
+  overdue_word: ["muddati o'tgan", "муддати ўтган", "просрочено"],
+  new_order_for: ["Qaysi mashina uchun?", "Қайси машина учун?", "Для какой машины?"],
+  notes_ph: ["Izoh yozish…", "Изоҳ ёзиш…", "Написать заметку…"],
+  manage_debt: ["Qarz daftarini ochish", "Қарз дафтарини очиш", "Открыть долговую книгу"],
+  ledger_charge: ["Qarzga", "Қарзга", "В долг"],
+  ledger_payment: ["To'lov", "Тўлов", "Оплата"],
+
+  // ── redesign: services and prices ──
+  svc_count: ["xizmat", "хизмат", "услуг"],
+  cat_count: ["toifa", "тоифа", "категорий"],
+  svc_low_chip: ["xizmatda material kam", "хизматда материал кам", "услуг с нехваткой материалов"],
+  svc_used: ["marta / oy", "марта / ой", "раз / мес"],
+  svc_variants: ["variant", "вариант", "вариантов"],
+  svc_no_materials: ["Materialsiz", "Материалсиз", "Без материалов"],
+  svc_off: ["O'chirilgan — buyurtmaga qo'shib bo'lmaydi", "Ўчирилган — буюртмага қўшиб бўлмайди", "Выключена — нельзя добавить в заказ"],
+  svc_no_stock: ["Material omborda yo'q", "Материал омборда йўқ", "Материала нет на складе"],
+  svc_legend: [
+    "Material chiplari ombordagi real qoldiqni ko'rsatadi: yashil — yetarli, sariq — minimal qoldiqqa yetdi, qizil — yo'q.",
+    "Материал чиплари омбордаги реал қолдиқни кўрсатади: яшил — етарли, сариқ — минимал қолдиққа етди, қизил — йўқ.",
+    "Цвет материала — реальный остаток на складе: зелёный — хватает, жёлтый — дошёл до минимума, красный — нет.",
+  ],
+  min_abbr: ["daq", "дақ", "мин"],
+  col_service: ["Xizmat", "Хизмат", "Услуга"],
+  col_time: ["Vaqt", "Вақт", "Время"],
+  col_materials: ["Materiallar (ombordan)", "Материаллар (омбордан)", "Материалы (со склада)"],
+
+  // ── redesign: warehouse ──
+  inv_products: ["mahsulot", "маҳсулот", "товаров"],
+  inv_stock_cost: ["Zaxira qiymati (tannarx)", "Захира қиймати (таннарх)", "Запас по себестоимости"],
+  inv_at_sell: ["Sotuv narxida", "Сотув нархида", "По цене продажи"],
+  inv_low: ["Kam qolgan", "Кам қолган", "Заканчивается"],
+  inv_out_month: ["Bu oy chiqim", "Бу ой чиқим", "Расход за месяц"],
+  inv_out_sub: ["tannarx bo'yicha", "таннарх бўйича", "по себестоимости"],
+  inv_positions: ["pozitsiya omborda", "позиция омборда", "позиций на складе"],
+  inv_supplier_debt: ["Yetkazuvchilarga qarz", "Етказувчиларга қарз", "Долг поставщикам"],
+  col_product_variant: ["Mahsulot · variant", "Маҳсулот · вариант", "Товар · вариант"],
+  col_unit: ["Birlik", "Бирлик", "Ед."],
+  col_stock: ["Qoldiq", "Қолдиқ", "Остаток"],
+  col_cost_price: ["Tannarx → narx", "Таннарх → нарх", "Себест. → цена"],
+  act_receive: ["Kirim", "Кирим", "Приход"],
+  art: ["art.", "арт.", "арт."],
+  min_label: ["min", "мин", "мин"],
+
+  // ── redesign: suppliers ──
+  sup_count: ["ta", "та", "шт."],
+  act_pay_supplier: ["Pul to'lash", "Пул тўлаш", "Оплатить"],
+  ledger_title: ["Hisob-kitob tarixi", "Ҳисоб-китоб тарихи", "История расчётов"],
+  moves_n: ["harakat", "ҳаракат", "операций"],
+  col_action: ["Harakat", "Ҳаракат", "Операция"],
+  sup_pick: ["Chapdan yetkazib beruvchini tanlang", "Чапдан етказиб берувчини танланг", "Выберите поставщика слева"],
+  search_name_phone: ["Nomi yoki telefon", "Номи ёки телефон", "Название или телефон"],
+
+  // ── redesign: quick sale ──
+  pos_sub: ["Buyurtmasiz, ombordan to'g'ridan-to'g'ri", "Буюртмасиз, омбордан тўғридан-тўғри", "Без заказа, прямо со склада"],
+  pos_sales_n: ["sotuv", "сотув", "продаж"],
+  pos_day_report: ["Kun oxiri hisoboti", "Кун охири ҳисоботи", "Отчёт за день"],
+  pos_search: ["Nomi, artikul yoki shtrix-kodni skanerlang…", "Номи, артикул ёки штрих-кодни сканерланг…", "Название, артикул или штрих-код…"],
+  pos_scanner: ["Skaner faol", "Сканер фаол", "Сканер активен"],
+  pos_in_cart: ["Savatda", "Саватда", "В корзине"],
+  pos_none_left: ["Qoldiq yo'q", "Қолдиқ йўқ", "Нет в наличии"],
+  pos_cart: ["Savat", "Сават", "Корзина"],
+  pos_clear: ["Tozalash", "Тозалаш", "Очистить"],
+  pos_received: ["Qabul qilindi", "Қабул қилинди", "Получено"],
+  pos_check_goes: ["chek yuboriladi", "чек юборилади", "чек уйдёт"],
+  pos_foot_fiscal: ["Fiskal chek chiqariladi", "Фискал чек чиқарилади", "Будет выдан фискальный чек"],
+  pos_foot_tg: ["Telegram'ga yuboriladi", "Telegram'га юборилади", "уйдёт в Telegram"],
+  pos_foot_stock: ["pozitsiyada qoldiq kamayadi", "позицияда қолдиқ камаяди", "позиций спишется со склада"],
 };
 
 const WEEKDAYS_SHORT: Triple[] = [
@@ -1846,6 +1927,18 @@ export function formatDayMonth(lang: Lang, ymd: string): string {
   if (isNaN(d.getTime())) return ymd;
   const month = MONTHS[d.getUTCMonth()][LANG_INDEX[lang]];
   return lang === "ru" ? `${d.getUTCDate()} ${month}` : `${d.getUTCDate()}-${month}`;
+}
+
+// "Mijoz 2024-yil martdan" / "Клиент с марта 2024" — how long somebody has been coming.
+export function formatClientSince(lang: Lang, iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const month = MONTHS[d.getMonth()][LANG_INDEX[lang]];
+  const y = d.getFullYear();
+  if (lang === "ru") return `Клиент с ${month} ${y}`;
+  if (lang === "uzc") return `Мижоз ${y}-йил ${month}дан`;
+  return `Mijoz ${y}-yil ${month}dan`;
 }
 
 // "Juma" / "Пятница", capitalised to start a line.

@@ -1,10 +1,12 @@
 "use client";
-// Contragents (suppliers / "yetkazib beruvchi"): the per-shop counterparties the
-// warehouse buys products from. This screen lists them, and hosts a create/edit
-// dialog. The list drives the supplier dropdown on the product form.
+// Contragents (suppliers / "yetkazib beruvchi"): the per-shop counterparties the warehouse
+// buys products from. After the redesign the screen is a list on the left — each with what is
+// owed either way — and the chosen one's account on the right: what was bought and paid, the
+// last move, paying them, and the statement with the balance after every move. The table view
+// the screen had before (turnover and debit/credit columns, sortable) is one tab away.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Phone, MapPin, Tag, Wallet, Landmark, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Phone, MapPin, Tag, Wallet, Landmark, ChevronDown, Search } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -13,16 +15,19 @@ import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Spinner, Switch } from "@/components/ui-kit/misc";
 import { SearchSelect } from "@/components/ui-kit/search-select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
+import { PageHeader } from "@/components/page-header";
+import { useIsMobile } from "@/components/ui";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import type { Contragent, CatalogTerm, ContragentBalance, CompanyDetails } from "@/lib/types";
 import { useAuth } from "@/components/providers";
 import { money, num, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ContragentAccount } from "./_account";
+import { AccountPanel, ContragentAccount } from "./_account";
 import { CompanyFields, isCompany } from "@/components/company-details";
 import { ContragentAccounts } from "./_bank-accounts";
 
@@ -31,12 +36,16 @@ export default function ContragentsPage() {
   const { toast } = useToast();
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
+  const isMobile = useIsMobile();
   const [list, setList] = useState<Contragent[]>([]);
   // Balances are a separate, owner-only call; a shop whose gateway has not caught up yet
-  // simply sees the list without the money column rather than an error.
+  // simply sees the list without the money rather than an error.
   const [balances, setBalances] = useState<Record<string, ContragentBalance>>({});
   const [totals, setTotals] = useState({ payable: 0, receivable: 0 });
   const [account, setAccount] = useState<Contragent | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<"accounts" | "table">("accounts");
+  const [q, setQ] = useState("");
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; item: Contragent | null } | null>(null);
@@ -70,8 +79,11 @@ export default function ContragentsPage() {
   useEffect(() => {
     if (!pendingOpen) return;
     const c = list.find((x) => x.id === pendingOpen);
-    if (c) { setAccount(c); setPendingOpen(null); }
-  }, [pendingOpen, list]);
+    if (c) {
+      if (isMobile) setAccount(c); else { setSelectedId(c.id); setView("accounts"); }
+      setPendingOpen(null);
+    }
+  }, [pendingOpen, list, isMobile]);
   useEffect(() => { api.listCatalogTerms("brand").then(setBrands).catch(() => {}); }, []);
 
   // Brand name -> logo URL, so a supplier's brand shows its mark next to the name.
@@ -80,6 +92,15 @@ export default function ContragentsPage() {
     for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
     return m;
   }, [brands]);
+
+  // The list on the left: who is owed most first, then the rest by name.
+  const ordered = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return list
+      .filter((c) => !n || `${c.name} ${c.phone ?? ""} ${c.brand ?? ""}`.toLowerCase().includes(n))
+      .sort((a, b) => num(balances[b.id]?.balance) - num(balances[a.id]?.balance) || a.name.localeCompare(b.name));
+  }, [list, balances, q]);
+  const selected = list.find((c) => c.id === selectedId) ?? ordered[0] ?? null;
 
   const columns = useMemo<ColumnDef<Contragent>[]>(() => [
     {
@@ -99,7 +120,7 @@ export default function ContragentsPage() {
               {c.phone && <span className="inline-flex items-center gap-1"><Phone className="size-3" />{c.phone}</span>}
               {c.address && <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{c.address}</span>}
               {/* The account, where there is one. It is the thing an owner looks up when they
-                  are about to send money, and it was previously nowhere on this screen. */}
+                  are about to send money. */}
               {c.company?.bankAccount && (
                 <span className="inline-flex items-center gap-1 font-mono"><Landmark className="size-3" />{c.company.bankAccount}</span>
               )}
@@ -143,8 +164,7 @@ export default function ContragentsPage() {
       cell: ({ row }) => <Amount value={num(balances[row.original.id]?.paid)} />,
     },
     // Debit and credit are the one balance split into the two questions an owner actually
-    // asks — who owes me, and who am I due to pay. One signed column made every reader work
-    // out which side of nought they were on, and a minus sign is a poor place to keep that.
+    // asks — who owes me, and who am I due to pay.
     {
       id: "debit",
       accessorFn: (c) => Math.max(0, -num(balances[c.id]?.balance)),
@@ -181,49 +201,101 @@ export default function ContragentsPage() {
     },
   ], [t, brandLogos, balances]);
 
+  const listPane = (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-border p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search_name_phone")} className="pl-9" />
+        </div>
+      </div>
+      {loading && list.length === 0 ? (
+        <div className="flex flex-col gap-2 p-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="an-skel h-14 w-full rounded-[8px]" />)}</div>
+      ) : ordered.length === 0 ? (
+        <div className="px-4 py-8 text-center text-[13px] text-muted-foreground">{t("no_contragents")}</div>
+      ) : ordered.map((c) => {
+        const b = balances[c.id];
+        const bal = num(b?.balance);
+        const on = !isMobile && selected?.id === c.id;
+        return (
+          <button key={c.id} onClick={() => (isMobile ? setAccount(c) : setSelectedId(c.id))}
+            className={cn("flex w-full items-start justify-between gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-b-0",
+              on ? "bg-primary-soft" : "hover:bg-secondary/60")}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[14.5px] font-bold text-foreground">{c.name}</span>
+                {!c.active && <Badge tone="danger">{t("inactive")}</Badge>}
+              </div>
+              <div className="line-clamp-2 text-[12.5px] text-muted-foreground">{[c.brand, c.phone].filter(Boolean).join(" · ") || "—"}</div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end">
+              <span className={cn("font-mono text-[14px] font-bold", bal > 0 ? "text-destructive" : bal < 0 ? "text-success" : "text-success")}>
+                {bal > 0 ? "−" : ""}{money(Math.abs(bal))}
+              </span>
+              <span className="text-[11.5px] text-muted-foreground">
+                {bal > 0 ? t("cg_we_owe") : bal < 0 ? t("cg_they_owe") : b?.lastAt ? shortDate(b.lastAt) : t("cg_settled")}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </Card>
+  );
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="px-1">
-        <h1 className="text-[18px] font-bold tracking-[-0.01em] text-foreground">{t("contragents_title")}</h1>
-        <p className="text-[12.5px] text-muted-foreground">{t("contragents_hint")}</p>
-      </div>
+      <PageHeader
+        meta={<span>{list.length} {t("sup_count")} · {t("cg_we_owe")} {money(totals.payable)} · {t("cg_they_owe")} {money(totals.receivable)}</span>}
+        actions={
+          <>
+            <Tabs value={view} onValueChange={(v) => setView(v as "accounts" | "table")}>
+              <TabsList>
+                <TabsTrigger value="accounts">{t("cg_account")}</TabsTrigger>
+                <TabsTrigger value="table">{t("view_list")}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button onClick={() => setEditing({ mode: "new", item: null })}><Plus /> {t("add_contragent")}</Button>
+          </>
+        }
+      />
+      <p className="-mt-1 px-1 text-[12.5px] text-muted-foreground">{t("contragents_hint")}</p>
 
-      {(totals.payable > 0 || totals.receivable > 0) && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Card className="gap-0.5 px-4 py-3">
-            <span className="text-[12px] font-semibold text-muted-foreground">{t("cg_total_payable")}</span>
-            <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-destructive">{money(totals.payable)}</span>
-          </Card>
-          <Card className="gap-0.5 px-4 py-3">
-            <span className="text-[12px] font-semibold text-muted-foreground">{t("cg_total_receivable")}</span>
-            <span className="font-mono text-[20px] font-extrabold tracking-[-0.02em] text-success">{money(totals.receivable)}</span>
+      {view === "table" ? (
+        loading && list.length === 0 ? (
+          <Card className="gap-2.5 p-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={list}
+            onRowClick={(c) => setAccount(c)}
+            searchPlaceholder={t("search") + "…"}
+            emptyText={t("no_contragents")}
+            columnLabels={{
+              name: t("contragent_name"), brand: t("brand"),
+              purchased: t("cg_purchased"), paid: t("cg_paid"),
+              debit: `${t("cg_debit")} · ${t("cg_debit_hint")}`,
+              credit: `${t("cg_credit")} · ${t("cg_credit_hint")}`,
+              lastMove: t("cg_last_move"),
+            }}
+            pageSize={12}
+          />
+        )
+      ) : isMobile ? listPane : (
+        <div className="grid items-start gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+          {listPane}
+          <Card className="min-w-0 p-5">
+            {selected
+              ? <AccountPanel contragent={selected} onChanged={loadBalances} onEdit={() => setEditing({ mode: "edit", item: selected })} />
+              : <div className="py-16 text-center text-[13.5px] text-muted-foreground">{t("sup_pick")}</div>}
           </Card>
         </div>
       )}
-      {loading && list.length === 0 ? (
-        <Card className="gap-2.5 p-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={list}
-          onRowClick={(c) => setAccount(c)}
-          searchPlaceholder={t("search") + "…"}
-          emptyText={t("no_contragents")}
-          toolbar={<Button onClick={() => setEditing({ mode: "new", item: null })}><Plus /> {t("add_contragent")}</Button>}
-          columnLabels={{
-            name: t("contragent_name"), brand: t("brand"),
-            purchased: t("cg_purchased"), paid: t("cg_paid"),
-            debit: `${t("cg_debit")} · ${t("cg_debit_hint")}`,
-            credit: `${t("cg_credit")} · ${t("cg_credit_hint")}`,
-            lastMove: t("cg_last_move"),
-          }}
-          pageSize={12}
-        />
-      )}
+
       <ContragentAccount
         contragent={account}
         onClose={() => setAccount(null)}
         onChanged={loadBalances}
+        onEdit={account ? () => { const a = account; setAccount(null); setEditing({ mode: "edit", item: a }); } : undefined}
       />
       <ContragentModal
         state={editing}
