@@ -31,6 +31,8 @@ import { formatLongDate } from "@/lib/i18n";
 import { IncomeBreakdownModal, IncomeBreakdownPanel } from "@/components/income-breakdown";
 import { DaySheet } from "@/components/day-sheet";
 import { Row, StatCard } from "../_shared";
+import { FinanceTabs } from "../_finance-nav";
+import { PageHeader } from "@/components/page-header";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
 
@@ -56,6 +58,8 @@ export default function FinancesPage() {
   const [adding, setAdding] = useState(false);
   const [detail, setDetail] = useState<ShopExpense | null>(null);
   const [tab, setTab] = useState<"stats" | "expenses">("stats");
+  // Arriving from the finance section's tab row names the tab to open on.
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("tab") === "expenses") setTab("expenses"); }, []);
   const [showIncome, setShowIncome] = useState(false);
 
   const staffName = useCallback((id?: string) => (id ? staff.find((s) => s.id === id)?.name ?? "" : ""), [staff]);
@@ -106,16 +110,10 @@ export default function FinancesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* tabs + add */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "stats" | "expenses")}>
-          <TabsList>
-            <TabsTrigger value="stats">{t("statistics")}</TabsTrigger>
-            <TabsTrigger value="expenses">{t("expenses")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {tab === "expenses" && <Button onClick={() => setAdding(true)}><Plus /> {t("add_expense")}</Button>}
-      </div>
+      <PageHeader actions={tab === "expenses" ? <Button onClick={() => setAdding(true)}><Plus /> {t("add_expense")}</Button> : undefined} />
+      {/* One tab row for the whole finance section; the analytics tabs live on the statistics
+          page and are reached from here too. */}
+      <FinanceTabs current={tab === "expenses" ? "expenses" : "pl"} onTab={(k) => setTab(k === "expenses" ? "expenses" : "stats")} />
 
       <PeriodPicker p={period} />
 

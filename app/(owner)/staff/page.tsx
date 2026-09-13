@@ -1,13 +1,14 @@
 "use client";
-// Staff and the roles they hold. Two tabs, because they are two halves of one question: a role
-// says what a job is, and the staff list says who does it.
+// Staff and the roles they hold, after the redesign. Two tabs, because they are two halves of
+// one question: a role says what a job is, and the staff list says who does it.
 //
-// The old page could invite a mechanic by SMS and toggle one capability. A shop hires somebody
-// on Monday and wants them working on Monday, with the access their job needs and no more —
-// which means creating an account with a password here, and saying what the job is here too.
+// The staff table says who each person is and how they get in, the job they hold, whether they
+// are on a job right now, and what they did this month (orders, takings, hours). Roles are
+// cards with what each one allows; the three jobs nearly every shop has — mechanic, cashier,
+// manager — are offered as ready-made templates until the shop has made them.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, Send, KeyRound, ShieldCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Send, KeyRound, ShieldCheck, Check, Minus } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -21,18 +22,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui-kit/dialog";
+import { PageHeader } from "@/components/page-header";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError, optional } from "@/lib/api";
-import { roleFromProto } from "@/lib/enums";
+import { roleFromProto, woStateFromProto } from "@/lib/enums";
 import { PermMatrix } from "@/components/perm-matrix";
-import { permLabel } from "@/lib/perms";
+import { ALL_PERMS, can, permLabel, type Permission } from "@/lib/perms";
 import { PhoneField } from "@/components/catalog-fields";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
-import type { Staff, ShopRole } from "@/lib/types";
+import { compactMln, num } from "@/lib/format";
+import { currentMonth, monthRange } from "@/lib/range";
+import { cn } from "@/lib/utils";
+import type { Staff, ShopRole, MechanicStat } from "@/lib/types";
+import { staffColor } from "../_shared";
 
 // The shortest password worth calling one. Mirrors the auth service, which refuses anything
 // shorter — checked here too so the answer arrives before the round trip.
 const MIN_PASSWORD = 6;
+
+// Permissions that move money or change who can do what. Marked on every role card, because
+// ticking one of these is a different kind of decision from letting somebody see the board.
+const DANGEROUS: Permission[] = ["finance.manage", "staff.manage", "settings.manage"];
+
+// The three jobs nearly every shop has, as starting points. A template is only a prefilled
+// role form — the shop names and adjusts it before anything is saved.
+const TEMPLATES: { nameKey: string; hintKey: string; perms: Permission[] }[] = [
+  { nameKey: "tpl_mechanic", hintKey: "tpl_mechanic_hint", perms: ["orders.view", "orders.edit"] },
+  { nameKey: "tpl_cashier", hintKey: "tpl_cashier_hint", perms: ["orders.view", "sales.view", "sales.manage", "finance.manage", "customers.manage"] },
+  {
+    nameKey: "tpl_manager", hintKey: "tpl_manager_hint",
+    perms: ["orders.view", "orders.create", "orders.edit", "orders.assign", "customers.manage", "warehouse.view", "warehouse.manage", "catalog.manage", "sales.view", "sales.manage", "finance.view"],
+  },
+];
 
 export default function StaffPage() {
   const { session } = useAuth();
@@ -50,6 +71,9 @@ export default function StaffPage() {
   const [access, setAccess] = useState<Staff | null>(null);
   const [password, setPassword] = useState<Staff | null>(null);
   const [role, setRole] = useState<Partial<ShopRole> | null>(null);
+  // This month per person, and who has a job running right now — both best-effort.
+  const [month, setMonth] = useState<Record<string, MechanicStat>>({});
+  const [working, setWorking] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +86,20 @@ export default function StaffPage() {
       setList(staff); setRoles(rs);
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setLoading(false); }
+    const r = monthRange(currentMonth());
+    if (can(session, "finance.view")) {
+      api.getStatistics(shopId, r.from, r.to).then((st) => {
+        const m: Record<string, MechanicStat> = {};
+        for (const x of st.mechanics ?? []) m[x.mechanicId] = x;
+        setMonth(m);
+      }).catch(() => {});
+    }
+    if (can(session, "orders.view")) {
+      api.listWorkOrders(shopId).then((wos) => setWorking(new Set(
+        wos.filter((w) => woStateFromProto(w.state) === "in_progress" && w.activeTimerStartedAt && w.assignedMechanicId).map((w) => w.assignedMechanicId!),
+      ))).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shopId, t, toast]);
 
   useEffect(() => { load(); }, [load]);
@@ -82,6 +120,8 @@ export default function StaffPage() {
     }
   }, [t, toast, load]);
 
+  const topRevenue = Math.max(1, ...Object.values(month).map((m) => num(m.revenue)));
+
   const columns = useMemo<ColumnDef<Staff>[]>(() => [
     {
       id: "name",
@@ -89,9 +129,12 @@ export default function StaffPage() {
       header: ({ column }) => <SortHeader column={column}>{t("name")}</SortHeader>,
       cell: ({ row }) => {
         const s = row.original;
+        const initials = (s.name || "?").split(" ").map((x) => x[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
         return (
           <div className="flex items-center gap-3">
-            <UserAvatar name={s.name || "?"} src={s.avatarUrl || undefined} className="size-9" />
+            {s.avatarUrl
+              ? <UserAvatar name={s.name || "?"} src={s.avatarUrl} className="size-9" />
+              : <span className="grid size-9 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white" style={{ background: roleFromProto(s.role) === "owner" ? "var(--accent)" : staffColor(s.id) }}>{initials}</span>}
             <div className="min-w-0">
               <div className="truncate text-[14px] font-bold text-foreground">{s.name || "—"}</div>
               <div className="flex flex-wrap gap-x-2 truncate font-mono text-[12px] text-muted-foreground">
@@ -116,7 +159,7 @@ export default function StaffPage() {
         return (
           <div className="flex flex-wrap items-center gap-1.5">
             {s.roleName
-              ? <Badge tone="info">{s.roleName}</Badge>
+              ? <Badge tone="warn">{s.roleName}</Badge>
               : <Badge tone="neutral">{t("role_none")}</Badge>}
             {/* Grants sitting on top of the role. The count, not the list: the detail belongs
                 on the form, and a row of fourteen chips tells nobody anything. */}
@@ -127,11 +170,33 @@ export default function StaffPage() {
     },
     {
       id: "status",
-      accessorFn: (s) => (s.active ? "active" : "inactive"),
+      accessorFn: (s) => (!s.active ? "inactive" : working.has(s.id) ? "working" : "active"),
       header: ({ column }) => <SortHeader column={column}>{t("status")}</SortHeader>,
-      cell: ({ row }) => (
-        <Badge tone={row.original.active ? "ok" : "danger"} dot>{row.original.active ? t("active") : t("inactive")}</Badge>
-      ),
+      cell: ({ row }) => {
+        const s = row.original;
+        if (!s.active) return <Badge tone="danger" dot>{t("inactive")}</Badge>;
+        return working.has(s.id) ? <Badge tone="ok" dot>{t("staff_working")}</Badge> : <Badge tone="info" dot>{t("active")}</Badge>;
+      },
+    },
+    {
+      id: "month",
+      accessorFn: (s) => num(month[s.id]?.revenue),
+      header: ({ column }) => <SortHeader column={column}>{t("staff_this_month")}</SortHeader>,
+      cell: ({ row }) => {
+        const m = month[row.original.id];
+        if (!m || (!m.jobs && !num(m.revenue))) return <span className="text-[13px] text-muted-foreground">—</span>;
+        return (
+          <div className="flex w-[220px] flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
+              <span className="text-foreground">{m.jobs ?? 0} {t("orders").toLowerCase()} · {compactMln(num(m.revenue), t("mln"))}</span>
+              {!!m.hours && <span className="font-mono text-muted-foreground">{Math.round(m.hours)} {t("hours_short")}</span>}
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full rounded-full" style={{ width: `${Math.max(4, (num(m.revenue) / topRevenue) * 100)}%`, background: staffColor(row.original.id) }} />
+            </div>
+          </div>
+        );
+      },
     },
     {
       id: "actions",
@@ -143,30 +208,44 @@ export default function StaffPage() {
         return (
           <div className="flex items-center justify-end gap-1">
             {!isOwner && (
-              <Button variant="ghost" size="icon-sm" onClick={() => setAccess(s)} aria-label={t("staff_access")}><ShieldCheck /></Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => setAccess(s)} aria-label={t("staff_access")} title={t("staff_access")}><ShieldCheck /></Button>
             )}
-            <Button variant="ghost" size="icon-sm" onClick={() => setPassword(s)} aria-label={t("staff_password")}><KeyRound /></Button>
-            <Button variant="ghost" size="icon-sm" onClick={() => setEditing(s)} aria-label={t("edit")}><Pencil /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => setPassword(s)} aria-label={t("staff_password")} title={t("staff_password")}><KeyRound /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => setEditing(s)} aria-label={t("edit")} title={t("edit")}><Pencil /></Button>
             {!isOwner && s.active && (
-              <Button variant="ghost" size="icon-sm" onClick={() => deactivate(s)} aria-label={t("deactivate")} className="text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => deactivate(s)} aria-label={t("deactivate")} title={t("deactivate")} className="text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
             )}
           </div>
         );
       },
     },
-  ], [t, deactivate]);
+  ], [t, deactivate, working, month, topRevenue]);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "people" | "roles")}>
-          <TabsList>
-            <TabsTrigger value="people">{t("nav_staff")} · {list.length}</TabsTrigger>
-            <TabsTrigger value="roles">{t("roles")} · {roles.length}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {tab === "roles" && <Button onClick={() => setRole({ name: "", permissions: [] })}><Plus /> {t("role_add")}</Button>}
-      </div>
+      <PageHeader
+        title={
+          <div className="flex min-w-0 items-center gap-3">
+            <h1 className="truncate text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_staff")}</h1>
+            <Tabs value={tab} onValueChange={(v) => setTab(v as "people" | "roles")}>
+              <TabsList>
+                <TabsTrigger value="people">{t("nav_staff")} · {list.length}</TabsTrigger>
+                <TabsTrigger value="roles">{t("roles")} · {roles.length}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        }
+        actions={
+          tab === "people" ? (
+            <>
+              {/* The SMS invite still exists: some shops would rather the person set their
+                  own way in than be handed a password over the counter. */}
+              <Button variant="secondary" onClick={() => setInviting(true)}><Send /> {t("staff_invite_sms")}</Button>
+              <Button onClick={() => setCreating(true)}><Plus /> {t("staff_add")}</Button>
+            </>
+          ) : <Button onClick={() => setRole({ name: "", permissions: [] })}><Plus /> {t("role_add")}</Button>
+        }
+      />
 
       {tab === "people" ? (
         loading && list.length === 0 ? (
@@ -177,15 +256,7 @@ export default function StaffPage() {
             data={list}
             searchPlaceholder={t("search") + "…"}
             emptyText={t("empty")}
-            toolbar={
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => setCreating(true)}><Plus /> {t("staff_add")}</Button>
-                {/* The SMS invite still exists: some shops would rather the person set their
-                    own way in than be handed a password over the counter. */}
-                <Button variant="secondary" onClick={() => setInviting(true)}><Send /> {t("invite_mechanic")}</Button>
-              </div>
-            }
-            columnLabels={{ name: t("name"), role: t("role"), status: t("status") }}
+            columnLabels={{ name: t("name"), role: t("role"), status: t("status"), month: t("staff_this_month") }}
             pageSize={12}
           />
         )
@@ -205,46 +276,79 @@ export default function StaffPage() {
 
 // ── roles ──
 
+// A role as a card: its name and how many people hold it, then what it allows and what it
+// does not — the dangerous permissions always shown, ticked or not, so their absence is read.
 function RoleList({ roles, loading, onOpen, onRemove, t }: {
-  roles: ShopRole[]; loading: boolean; onOpen: (r: ShopRole) => void; onRemove: (r: ShopRole) => void; t: (k: string) => string;
+  roles: ShopRole[]; loading: boolean; onOpen: (r: Partial<ShopRole>) => void; onRemove: (r: ShopRole) => void; t: (k: string) => string;
 }) {
   if (loading && roles.length === 0) {
     return <Card className="gap-2.5 p-5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="an-skel h-12 w-full rounded-[8px]" />)}</Card>;
   }
-  if (roles.length === 0) {
-    return (
-      <Card className="items-center gap-1 px-5 py-10 text-center">
-        <div className="text-[14.5px] font-bold text-foreground">{t("roles_empty")}</div>
-        <div className="max-w-[420px] text-[13px] text-muted-foreground">{t("roles_empty_hint")}</div>
-      </Card>
-    );
-  }
+  const names = new Set(roles.map((r) => r.name.trim().toLowerCase()));
+  const templates = TEMPLATES.filter((tp) => !names.has(t(tp.nameKey).toLowerCase()));
   return (
-    <Card className="overflow-hidden">
-      {roles.map((r, i) => (
-        <div key={r.id} className={cnRow(i, roles.length)}>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[14.5px] font-bold text-foreground">{r.name}</span>
-              {/* How many people stop being able to work if this goes. */}
-              <Badge tone={r.members ? "info" : "neutral"}>{r.members ?? 0} {t("people")}</Badge>
-            </div>
-            <div className="mt-0.5 flex flex-wrap gap-1 text-[12px] text-muted-foreground">
-              {(r.permissions ?? []).length === 0
-                ? <span>{t("role_no_perms")}</span>
-                : (r.permissions ?? []).map((p) => <span key={p} className="rounded-full bg-secondary px-2 py-[1px]">{t(permLabel(p))}</span>)}
-            </div>
-          </div>
-          <Button variant="ghost" size="icon-sm" onClick={() => onOpen(r)} aria-label={t("edit")}><Pencil /></Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => onRemove(r)} aria-label={t("delete")} className="text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
+    <div className="flex flex-col gap-3">
+      {roles.length === 0 && (
+        <div className="px-1">
+          <div className="text-[14.5px] font-bold text-foreground">{t("roles_empty")}</div>
+          <div className="max-w-[520px] text-[13px] text-muted-foreground">{t("roles_empty_hint")}</div>
         </div>
-      ))}
-    </Card>
+      )}
+      <div className="text-[15px] font-bold tracking-[-0.02em] text-foreground">{t("tpl_title")}</div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {roles.map((r) => {
+          const perms = r.permissions ?? [];
+          const shown = [...perms.filter((p) => !DANGEROUS.includes(p as Permission)).slice(0, 4), ...DANGEROUS];
+          return (
+            <Card key={r.id} className="gap-3 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[15px] font-bold text-foreground">{r.name}</span>
+                <Badge tone={r.members ? "info" : "neutral"}>{r.members ?? 0} {t("people")}</Badge>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {perms.length === 0 && <span className="text-[12.5px] text-muted-foreground">{t("role_no_perms")}</span>}
+                {shown.map((p) => {
+                  const on = perms.includes(p);
+                  const danger = DANGEROUS.includes(p as Permission);
+                  return (
+                    <div key={p} className={cn("flex items-center gap-2 text-[13px]", on ? "text-foreground" : "text-muted-foreground")}>
+                      {on ? <Check className={cn("size-3.5 shrink-0", danger ? "text-destructive" : "text-success")} /> : <Minus className="size-3.5 shrink-0" />}
+                      <span className="truncate">{t(permLabel(p))}</span>
+                      {danger && <span className="ml-auto shrink-0 rounded-full bg-destructive-soft px-1.5 text-[10.5px] font-semibold text-destructive">{t("perm_danger")}</span>}
+                    </div>
+                  );
+                })}
+                {perms.filter((p) => !DANGEROUS.includes(p as Permission)).length > 4 && (
+                  <span className="text-[12px] text-muted-foreground">+{perms.filter((p) => !DANGEROUS.includes(p as Permission)).length - 4}</span>
+                )}
+              </div>
+              <div className="mt-auto flex items-center gap-1 border-t border-border pt-2">
+                <Button variant="ghost" size="sm" onClick={() => onOpen(r)}><Pencil /> {t("edit")}</Button>
+                <Button variant="ghost" size="icon-sm" onClick={() => onRemove(r)} aria-label={t("delete")} className="ml-auto text-destructive hover:bg-destructive-soft"><Trash2 /></Button>
+              </div>
+            </Card>
+          );
+        })}
+        {templates.map((tp) => (
+          <Card key={tp.nameKey} className="gap-2.5 border-dashed p-4 shadow-none">
+            <span className="text-[15px] font-bold text-foreground">{t(tp.nameKey)}</span>
+            <p className="text-[12.5px] leading-snug text-muted-foreground">{t(tp.hintKey)}</p>
+            <div className="flex flex-wrap gap-1">
+              {tp.perms.slice(0, 5).map((p) => <span key={p} className="rounded-full bg-secondary px-2 py-[1px] text-[11.5px] text-ink-2">{t(permLabel(p))}</span>)}
+              {tp.perms.length > 5 && <span className="text-[11.5px] text-muted-foreground">+{tp.perms.length - 5}</span>}
+            </div>
+            <Button variant="soft" size="sm" className="mt-auto self-start" onClick={() => onOpen({ name: t(tp.nameKey), permissions: tp.perms })}><Plus /> {t("tpl_create")}</Button>
+          </Card>
+        ))}
+        <Card className="gap-2.5 border-dashed p-4 shadow-none">
+          <span className="text-[15px] font-bold text-foreground">{t("custom_role")}</span>
+          <p className="text-[12.5px] leading-snug text-muted-foreground">{t("custom_role_hint")} ({ALL_PERMS.length})</p>
+          <Button variant="soft" size="sm" className="mt-auto self-start" onClick={() => onOpen({ name: "", permissions: [] })}><Plus /> {t("role_add")}</Button>
+        </Card>
+      </div>
+    </div>
   );
 }
-
-const cnRow = (i: number, n: number) =>
-  "flex items-center gap-3 px-4 py-3 sm:px-5" + (i !== n - 1 ? " border-b border-border" : "");
 
 function RoleModal({ role, onClose, onSaved }: { role: Partial<ShopRole> | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useLang();

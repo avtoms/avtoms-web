@@ -37,7 +37,7 @@ import { ChatWidget } from "@/components/ai-chat";
 // hired to run and nothing else — an item they cannot use is not a hint that they should ask,
 // it is a button that produces an error.
 type CountKey = keyof NavCounts;
-type NavItem = { key: string; route: string; icon: LucideIcon; labelKey: string; shortKey: string; perms: Permission[]; count?: CountKey };
+type NavItem = { key: string; route: string; also?: string[]; icon: LucideIcon; labelKey: string; shortKey: string; perms: Permission[]; count?: CountKey };
 type NavGroup = { titleKey: string; items: NavItem[] };
 
 const GROUPS: NavGroup[] = [
@@ -53,8 +53,10 @@ const GROUPS: NavGroup[] = [
   ]},
   { titleKey: "nav_grp_finance", items: [
     { key: "invoices", route: "/invoices", icon: CreditCard, labelKey: "nav_cash", shortKey: "nav_short_cash", perms: ["finance.manage"], count: "invoices" },
-    { key: "finances", route: "/finances", icon: Wallet, labelKey: "nav_finances", shortKey: "nav_short_finances", perms: ["finance.manage"] },
-    { key: "statistics", route: "/statistics", icon: BarChart3, labelKey: "statistics", shortKey: "nav_short_statistics", perms: ["finance.view"] },
+    // Finances and statistics are one section with one row of tabs across both pages (see
+    // _finance-nav), so one item stands for both and either page lights it up. Somebody who
+    // holds only the manage grant lands on the income statement, the page they can open.
+    { key: "statistics", route: "/statistics", also: ["/finances"], icon: BarChart3, labelKey: "nav_money_stats", shortKey: "nav_short_finances", perms: ["finance.view", "finance.manage"] },
     { key: "sales", route: "/sales", icon: ShoppingCart, labelKey: "nav_quick_sale", shortKey: "nav_short_sales", perms: ["sales.view", "sales.manage"] },
   ]},
   { titleKey: "nav_grp_manage", items: [
@@ -77,6 +79,7 @@ const COUNT_TONE: Record<CountKey, string> = {
 };
 
 const isActive = (pathname: string, route: string) => pathname === route || pathname.startsWith(route + "/");
+const itemActive = (pathname: string, it: NavItem) => isActive(pathname, it.route) || (it.also ?? []).some((r) => isActive(pathname, r));
 
 // The sidebar is headed by the shop, not the product: somebody working in two shops' consoles
 // has to know at a glance which one is open. Until the shop has a name, the product's stands in.
@@ -98,7 +101,14 @@ function Brand({ name, sub }: { name: string; sub: string }) {
 // an empty heading is worse than no heading, because it reads as something broken.
 function visibleGroups(session: Session | null): NavGroup[] {
   return GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((it) => canAny(session, ...it.perms)) }))
+    .map((g) => ({
+      ...g,
+      items: g.items
+        .filter((it) => canAny(session, ...it.perms))
+        // The finance section opens on the analytics, which needs the view grant; somebody
+        // holding only the manage grant is sent to the income statement instead.
+        .map((it) => (it.key === "statistics" && !can(session, "finance.view") ? { ...it, route: "/finances" } : it)),
+    }))
     .filter((g) => g.items.length > 0);
 }
 
@@ -123,7 +133,7 @@ function NavList({ pathname, t, groups, counts, onNavigate }: {
           </div>
           <div className="flex flex-col gap-0.5">
             {g.items.map((it) => {
-              const on = isActive(pathname, it.route);
+              const on = itemActive(pathname, it);
               const Icon = it.icon;
               return (
                 <Link key={it.key} href={it.route} onClick={onNavigate}
@@ -208,7 +218,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const shopName = profile.name || t("app_name");
   const shopSub = profile.name ? profile.address : t("tagline");
   const allowed = groups.flatMap((g) => g.items);
-  const cur = ALL_ITEMS.find((i) => isActive(pathname, i.route));
+  const cur = ALL_ITEMS.find((i) => itemActive(pathname, i));
   const user = session.staff ?? { name: "", phone: "" };
   const signOut = () => { logout(); router.replace("/login"); };
   const showNewWo = (pathname === "/dashboard" || pathname === "/work-orders") && can(session, "orders.create");
@@ -248,7 +258,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
           <nav className="fixed inset-x-0 bottom-0 z-45 flex border-t border-border bg-card px-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5">
             {primary.map((it) => {
-              const on = isActive(pathname, it.route);
+              const on = itemActive(pathname, it);
               const Icon = it.icon;
               return (
                 <Link key={it.key} href={it.route} className={cn("relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold", on ? "text-primary-emphasis" : "text-muted-foreground")}>

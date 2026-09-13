@@ -563,6 +563,24 @@ export default function MechanicWoDetailPage() {
         )}
       </div>
 
+      {/* Where the order is in its life, as seven dots — a phone has no room for the names, and
+          the badge above already says the current one. */}
+      {(() => {
+        const steps = ["draft", "estimated", "approved", "in_progress", "ready", "invoiced", "closed"];
+        const idx = steps.indexOf(state);
+        return (
+          <div className="flex items-center gap-1 px-1" aria-label={t(STATE_LABEL[state])}>
+            {steps.map((s, i) => (
+              <React.Fragment key={s}>
+                <span className={cn("size-3 shrink-0 rounded-full",
+                  state === "canceled" ? "bg-destructive/40" : i < idx || (i === idx && state === "closed") ? "bg-success" : i === idx ? "bg-warning ring-4 ring-warning/20" : "border border-border bg-secondary")} />
+                {i < steps.length - 1 && <span className={cn("h-0.5 flex-1 rounded-full", i < idx ? "bg-success" : "bg-border")} />}
+              </React.Fragment>
+            ))}
+          </div>
+        );
+      })()}
+
       <Tabs defaultValue="overview" className="flex flex-col gap-4">
         <TabsList>
           <TabsTrigger value="overview">{t("overview")}</TabsTrigger>

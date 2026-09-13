@@ -1,7 +1,10 @@
 "use client";
-// Settings (owner-pages.jsx SettingsPage): shop profile (local-only, no backend endpoint),
-// UI language, theme/font/density tweaks (useTheme().set), and sign out.
-import React, { useEffect, useState } from "react";
+// Settings, after the redesign: a list of sections on the left and the section's cards on the
+// right — the shop's profile (what every receipt prints), the order flow, payments and the
+// till (discount cap, receiving cards, bank accounts, exchange rates), the requisites a bank
+// transfer names, language and look, and signing out. Each card saves on its own; the pill in
+// the header says when the last save went through.
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, LogOut, CreditCard, Plus, Trash2, Pencil } from "lucide-react";
 import { useIsMobile } from "@/components/ui";
@@ -9,9 +12,10 @@ import { Card } from "@/components/ui-kit/card";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Button } from "@/components/ui-kit/button";
-import { Spinner } from "@/components/ui-kit/misc";
+import { Spinner, Switch } from "@/components/ui-kit/misc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui-kit/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { useAuth, useLang, useTheme, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
@@ -27,6 +31,22 @@ import { SecTitle } from "../_shared";
 import { CurrencyRates } from "./_currency-rates";
 import { BankAccountsCard } from "./_bank-accounts";
 
+type Section = "profile" | "flow" | "payments" | "receipt" | "look" | "danger";
+const SECTIONS: { key: Section; labelKey: string }[] = [
+  { key: "profile", labelKey: "shop_profile" },
+  { key: "flow", labelKey: "status_flow" },
+  { key: "payments", labelKey: "set_payments" },
+  { key: "receipt", labelKey: "set_receipt" },
+  { key: "look", labelKey: "set_look" },
+  { key: "danger", labelKey: "set_danger" },
+];
+// What each switchable status is for, said under its name.
+const FLOW_HINT: Partial<Record<WoState, string>> = {
+  estimated: "flow_estimated_hint",
+  approved: "flow_approved_hint",
+  in_progress: "flow_in_progress_hint",
+};
+
 export default function SettingsPage() {
   const { logout } = useAuth();
   const { lang, setLang, t } = useLang();
@@ -34,12 +54,16 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const isMobile = useIsMobile();
+  const [section, setSection] = useState<Section>("profile");
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const refs = useRef<Partial<Record<Section, HTMLDivElement | null>>>({});
 
   // Shop identity now lives on the server (shop_settings), because a receipt rendered for
   // a customer has to say who issued it and cannot read one browser's localStorage. The old
   // local copy is still read once, to pre-fill the form for shops that filled it in before
   // this moved — they press Save and it is on the server for good.
   const [shop, setShop] = useState({ name: "", address: "", tin: "", phone: "", hours: "" });
+  const [loadedShop, setLoadedShop] = useState({ name: "", address: "", tin: "", phone: "", hours: "" });
   const [savingShop, setSavingShop] = useState(false);
   // The shop's own side of a bank transfer. A payment order names two parties, and until this
   // existed the system knew the supplier's account and never its own.
@@ -61,12 +85,15 @@ export default function SettingsPage() {
         setFlow(enabledSet(s.enabledStates));
         // Seed from the browser's old copy only where the server has nothing, so a shop
         // that never re-saved still sees its details instead of blank boxes.
-        setShop(mergeShopProfile(s));
+        const p = mergeShopProfile(s);
+        setShop(p); setLoadedShop(p);
         setCompany(s.company ?? {});
       })
-      .catch(() => setShop(loadShopProfile()))
+      .catch(() => { const p = loadShopProfile(); setShop(p); setLoadedShop(p); })
       .finally(() => setPolicyLoading(false));
   }, []);
+
+  const saved = () => { setSavedAt(new Date()); toast(t("save"), { icon: "check" }); };
 
   // Profile and policy share one record, so every save carries the current value of both.
   const saveShop = async () => {
@@ -78,9 +105,10 @@ export default function SettingsPage() {
         name: shop.name, address: shop.address, tin: shop.tin, phone: shop.phone, hours: shop.hours,
         company: companyBody(),
       });
-      setShop({ name: s.name ?? "", address: s.address ?? "", tin: s.tin ?? "", phone: s.phone ?? "", hours: s.hours ?? "" });
+      const p = { name: s.name ?? "", address: s.address ?? "", tin: s.tin ?? "", phone: s.phone ?? "", hours: s.hours ?? "" };
+      setShop(p); setLoadedShop(p);
       setCompany(s.company ?? {});
-      toast(t("save"), { icon: "check" });
+      saved();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
@@ -102,7 +130,7 @@ export default function SettingsPage() {
     try {
       const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(flow), ...shop, company: companyBody() });
       setMaxDiscount(String(s.maxDiscountPercent));
-      toast(t("save"), { icon: "check" });
+      saved();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
@@ -113,12 +141,12 @@ export default function SettingsPage() {
   const saveFlow = async (next: Set<WoState>) => {
     if (savingFlow) return;
     const prev = flow;
-    setFlow(next); // optimistic: the toggle should feel instant
+    setFlow(next); // optimistic: the switch should feel instant
     setSavingFlow(true);
     try {
       const s = await api.updateShopSettings({ maxDiscountPercent: currentPct(), enabledStates: flowList(next), ...shop, company: companyBody() });
       setFlow(enabledSet(s.enabledStates)); // trust the server's resolved set
-      toast(t("save"), { icon: "check" });
+      saved();
     } catch (e) {
       setFlow(prev);
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
@@ -138,7 +166,7 @@ export default function SettingsPage() {
       // The STIR is one column, shared with the receipt identity above: saving it here has to
       // show up there too, or the two boxes disagree until the page is reloaded.
       setShop((p) => ({ ...p, tin: s.tin ?? p.tin }));
-      toast(t("save"), { icon: "check" });
+      saved();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {
@@ -147,154 +175,195 @@ export default function SettingsPage() {
   };
 
   const signOut = () => { logout(); router.replace("/login"); };
+  const go = (s: Section) => { setSection(s); refs.current[s]?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const anchor = (s: Section) => (el: HTMLDivElement | null) => { refs.current[s] = el; };
+  const dirty = JSON.stringify(shop) !== JSON.stringify(loadedShop);
+  const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
   return (
-    <div className="grid items-start gap-4" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-      {/* shop profile — stored server-side on shop_settings; printed on every receipt. */}
-      <Card className="p-5">
-        <SecTitle>{t("shop_profile")}</SecTitle>
-        <div className="flex flex-col gap-3">
-          <Field label={t("shop_name")}><Input value={shop.name} onChange={(e) => setShop({ ...shop, name: e.target.value })} /></Field>
-          <Field label={t("address")}><Input value={shop.address} onChange={(e) => setShop({ ...shop, address: e.target.value })} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("tin")}><Input value={shop.tin} onChange={(e) => setShop({ ...shop, tin: e.target.value })} className="font-mono" /></Field>
-            <Field label={t("hours")}><Input value={shop.hours} onChange={(e) => setShop({ ...shop, hours: e.target.value })} className="font-mono" /></Field>
-          </div>
-          <Field label={t("phone")}><Input value={shop.phone} onChange={(e) => setShop({ ...shop, phone: e.target.value })} className="font-mono" /></Field>
-          <Button disabled={savingShop} onClick={saveShop}>{savingShop ? <Spinner /> : t("save")}</Button>
-          <div className="text-[12px] text-muted-foreground">{t("shop_profile_hint")}</div>
-        </div>
-      </Card>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        meta={shop.name ? <span>{shop.name}</span> : undefined}
+        actions={savedAt ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1.5 text-[12.5px] font-semibold text-success">
+            <Check className="size-3.5" /> {t("saved_at")} · {hhmm(savedAt)}
+          </span>
+        ) : undefined}
+      />
 
-      {/* The shop as a legal entity: what a payment order needs to name the paying side.
-          Its own card rather than more fields on the profile above, because the two are filled
-          in by different people — the profile is what a customer's receipt prints, this is
-          what the bank needs — and neither should look like a prerequisite for the other. */}
-      <Card className="p-5">
-        <SecTitle>{t("shop_requisites")}</SecTitle>
-        <div className="flex flex-col gap-3">
-          <p className="-mt-1 text-[12px] leading-snug text-muted-foreground">{t("shop_requisites_hint")}</p>
-          {/* The STIR is shown, not asked for: it is the same column the profile card edits. */}
-          <CompanyFields value={company} onChange={setCompany} disabled={savingCompany} hideTin tinNote={shop.tin} hideBank />
-          <Button disabled={savingCompany} onClick={saveCompany}>{savingCompany ? <Spinner /> : t("save")}</Button>
-        </div>
-      </Card>
-
-      {/* The accounts themselves live in their own card: there can be several, they are added
-          and closed over time, and a block of identity fields is the wrong shape for a list. */}
-      <BankAccountsCard />
-
-      {/* pricing policy — real backend (workorder shop settings) */}
-      <Card className="p-5">
-        <SecTitle>{t("pricing_policy")}</SecTitle>
-        {policyLoading ? (
-          <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <Field label={t("max_discount")}>
-              <Input value={maxDiscount} inputMode="numeric"
-                onChange={(e) => setMaxDiscount(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                className="font-mono" />
-            </Field>
-            <div className="text-[12px] text-muted-foreground">{t("max_discount_hint")}</div>
-            <Button disabled={savingPolicy} onClick={savePolicy}>{savingPolicy ? <Spinner /> : t("save")}</Button>
-          </div>
-        )}
-      </Card>
-
-      {/* the shop's own exchange rates — hides itself when only so'm is published */}
-      <CurrencyRates span={!isMobile} />
-
-      {/* order status flow — which statuses this shop's board uses */}
-      <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
-        <SecTitle>{t("status_flow")}</SecTitle>
-        <div className="mb-3 text-[12px] text-muted-foreground">{t("status_flow_hint")}</div>
-        {policyLoading ? (
-          <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              {OPTIONAL_STATES.map((s) => {
-                const on = flow.has(s);
-                return (
-                  <button key={s} disabled={savingFlow}
-                    onClick={() => { const n = new Set(flow); if (on) n.delete(s); else n.add(s); void saveFlow(n); }}
-                    className={cn(
-                      "flex min-h-11 items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
-                      on ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
-                    )}>
-                    <span className={cn("text-[14.5px] font-semibold", on ? "text-primary-emphasis" : "text-foreground")}>
-                      {t(STATE_LABEL[s])}
-                    </span>
-                    {on && <Check className="size-[17px] text-primary-emphasis" />}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="rounded-[9px] border border-dashed border-border px-3.5 py-2.5">
-              <div className="mb-1 text-[12px] font-semibold text-muted-foreground">{t("status_always_on")}</div>
-              <div className="flex flex-wrap gap-1.5">
-                {LOCKED_STATES.map((s) => (
-                  <span key={s} className="rounded-full bg-secondary px-2.5 py-1 text-[12px] text-muted-foreground">{t(STATE_LABEL[s])}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* payment cards — real backend (invoice service) */}
-      <div style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
-        <PaymentCardsCard />
-      </div>
-
-      {/* UI language */}
-      <Card className="p-5">
-        <SecTitle>{t("ui_language")}</SecTitle>
-        <div className="flex flex-col gap-2">
-          {LANGS.map((l) => (
-            <button key={l.code} onClick={() => setLang(l.code)} className={cn(
-              "flex min-h-11 items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
-              l.code === lang ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
-            )}>
-              <span className={cn("text-[14.5px] font-semibold", l.code === lang ? "text-primary-emphasis" : "text-foreground")}>{l.label}</span>
-              {l.code === lang && <Check className="size-[17px] text-primary-emphasis" />}
+      <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        {/* the sections */}
+        <nav className={cn("flex gap-1", isMobile ? "overflow-x-auto pb-1" : "sticky top-[84px] flex-col")}>
+          {SECTIONS.map((s) => (
+            <button key={s.key} onClick={() => go(s.key)}
+              className={cn("min-h-10 shrink-0 rounded-[9px] px-3.5 text-left text-[14px] font-semibold transition-colors",
+                section === s.key ? "bg-primary-soft text-primary-emphasis" : s.key === "danger" ? "text-destructive hover:bg-destructive-soft" : "text-ink-2 hover:bg-secondary")}>
+              {t(s.labelKey)}
             </button>
           ))}
-        </div>
-      </Card>
+        </nav>
 
-      {/* tweaks: theme / font / density */}
-      <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
-        <SecTitle>Tweaks</SecTitle>
-        <div className="flex flex-col gap-4">
-          <Field label="Theme">
-            <Tabs value={theme} onValueChange={(v) => set({ theme: v as ThemeName })}>
-              <TabsList className="w-full">
-                {(Object.keys(THEMES) as ThemeName[]).map((k) => <TabsTrigger key={k} value={k} className="flex-1">{THEMES[k].label}</TabsTrigger>)}
-              </TabsList>
-            </Tabs>
-          </Field>
-          <Field label="Font">
-            <Tabs value={font} onValueChange={(v) => set({ font: v as FontName })}>
-              <TabsList className="w-full">
-                {(Object.keys(FONTS) as FontName[]).map((k) => <TabsTrigger key={k} value={k} className="flex-1">{FONTS[k].label}</TabsTrigger>)}
-              </TabsList>
-            </Tabs>
-          </Field>
-          <Field label="Density">
-            <Tabs value={density} onValueChange={(v) => set({ density: v as Density })}>
-              <TabsList className="w-full">
-                {(["compact", "regular", "comfy"] as Density[]).map((d) => <TabsTrigger key={d} value={d} className="flex-1 capitalize">{d}</TabsTrigger>)}
-              </TabsList>
-            </Tabs>
-          </Field>
-        </div>
-      </Card>
+        <div className="flex min-w-0 max-w-[920px] flex-col gap-4">
+          {/* the shop's profile — stored server-side on shop_settings; printed on every receipt */}
+          <div ref={anchor("profile")} className="scroll-mt-24">
+            <Card className="p-6">
+              <div className="mb-4">
+                <div className="text-[16px] font-bold text-foreground">{t("shop_profile")}</div>
+                <div className="text-[12.5px] text-muted-foreground">{t("shop_profile_hint")}</div>
+              </div>
+              <div className="flex flex-col gap-3.5">
+                <Field label={t("shop_name")}><Input value={shop.name} onChange={(e) => setShop({ ...shop, name: e.target.value })} /></Field>
+                <Field label={t("address")}><Input value={shop.address} onChange={(e) => setShop({ ...shop, address: e.target.value })} /></Field>
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  <Field label={t("phone")}><Input value={shop.phone} onChange={(e) => setShop({ ...shop, phone: e.target.value })} className="font-mono" /></Field>
+                  <Field label={t("tin")}><Input value={shop.tin} onChange={(e) => setShop({ ...shop, tin: e.target.value })} className="font-mono" /></Field>
+                </div>
+                <Field label={t("hours")}><Input value={shop.hours} placeholder="Du–Sha · 09:00–19:00" onChange={(e) => setShop({ ...shop, hours: e.target.value })} className="font-mono" /></Field>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="secondary" disabled={!dirty || savingShop} onClick={() => setShop(loadedShop)}>{t("cancel")}</Button>
+                  <Button disabled={savingShop || !dirty} onClick={saveShop}>{savingShop ? <Spinner /> : t("save")}</Button>
+                </div>
+              </div>
+            </Card>
+          </div>
 
-      <Card className="p-5" style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
-        <Button variant="destructive" onClick={signOut}><LogOut /> {t("sign_out")}</Button>
-      </Card>
+          {/* the order flow — which statuses this shop's board uses */}
+          <div ref={anchor("flow")} className="scroll-mt-24">
+            <Card className="p-6">
+              <div className="mb-4">
+                <div className="text-[16px] font-bold text-foreground">{t("status_flow")}</div>
+                <div className="text-[12.5px] text-muted-foreground">{t("status_flow_hint")}</div>
+              </div>
+              {policyLoading ? (
+                <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {OPTIONAL_STATES.map((s) => {
+                      const on = flow.has(s);
+                      return (
+                        <label key={s} className={cn("flex cursor-pointer items-center gap-3 rounded-[12px] border px-4 py-3 transition-colors", on ? "border-border bg-card" : "border-border bg-secondary/40")}>
+                          <Switch checked={on} disabled={savingFlow}
+                            onCheckedChange={() => { const n = new Set(flow); if (on) n.delete(s); else n.add(s); void saveFlow(n); }} />
+                          <span className="min-w-0">
+                            <span className={cn("block text-[14.5px] font-semibold", on ? "text-foreground" : "text-muted-foreground")}>{t(STATE_LABEL[s])}</span>
+                            {FLOW_HINT[s] && <span className="block text-[12.5px] text-muted-foreground">{t(FLOW_HINT[s]!)}</span>}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="rounded-[12px] border border-dashed border-border px-4 py-3">
+                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("status_always_on")}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LOCKED_STATES.map((s) => (
+                        <span key={s} className="rounded-full bg-secondary px-2.5 py-1 text-[12px] text-ink-2">{t(STATE_LABEL[s])}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* payments and the till */}
+          <div ref={anchor("payments")} className="scroll-mt-24 flex flex-col gap-4">
+            <Card className="p-6">
+              <div className="mb-3 text-[16px] font-bold text-foreground">{t("set_payments")}</div>
+              <SecTitle>{t("pricing_policy")}</SecTitle>
+              {policyLoading ? (
+                <div className="flex justify-center py-6 text-muted-foreground"><Spinner className="size-5" /></div>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <Field label={t("max_discount")} hint={t("max_discount_hint")} className="sm:max-w-[320px]">
+                    <Input value={maxDiscount} inputMode="numeric"
+                      onChange={(e) => setMaxDiscount(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                      className="font-mono" />
+                  </Field>
+                  <Button disabled={savingPolicy} onClick={savePolicy} className="sm:mb-6">{savingPolicy ? <Spinner /> : t("save")}</Button>
+                </div>
+              )}
+            </Card>
+            <PaymentCardsCard />
+            {/* The accounts themselves live in their own card: there can be several, they are
+                added and closed over time, and a block of identity fields is the wrong shape. */}
+            <BankAccountsCard />
+            {/* the shop's own exchange rates — hides itself when only so'm is published */}
+            <CurrencyRates span={false} />
+          </div>
+
+          {/* The shop as a legal entity: what a payment order needs to name the paying side.
+              Its own card rather than more fields on the profile, because the two are filled in
+              by different people — the profile is what a receipt prints, this is what the bank
+              needs — and neither should look like a prerequisite for the other. */}
+          <div ref={anchor("receipt")} className="scroll-mt-24">
+            <Card className="p-6">
+              <div className="mb-1 text-[16px] font-bold text-foreground">{t("set_receipt")}</div>
+              <p className="mb-4 text-[12.5px] leading-snug text-muted-foreground">{t("shop_requisites_hint")}</p>
+              <div className="flex flex-col gap-3">
+                {/* The STIR is shown, not asked for: it is the same column the profile edits. */}
+                <CompanyFields value={company} onChange={setCompany} disabled={savingCompany} hideTin tinNote={shop.tin} hideBank />
+                <div className="flex justify-end"><Button disabled={savingCompany} onClick={saveCompany}>{savingCompany ? <Spinner /> : t("save")}</Button></div>
+              </div>
+            </Card>
+          </div>
+
+          {/* language and look */}
+          <div ref={anchor("look")} className="scroll-mt-24">
+            <Card className="p-6">
+              <div className="mb-4 text-[16px] font-bold text-foreground">{t("set_look")}</div>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <SecTitle>{t("ui_language")}</SecTitle>
+                  <div className="flex flex-col gap-2">
+                    {LANGS.map((l) => (
+                      <button key={l.code} onClick={() => setLang(l.code)} className={cn(
+                        "flex min-h-11 items-center justify-between rounded-[9px] border px-3.5 py-2.5 text-left transition-colors",
+                        l.code === lang ? "border-primary bg-primary-soft" : "border-border bg-card hover:bg-secondary",
+                      )}>
+                        <span className={cn("text-[14.5px] font-semibold", l.code === lang ? "text-primary-emphasis" : "text-foreground")}>{l.label}</span>
+                        {l.code === lang && <Check className="size-[17px] text-primary-emphasis" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <Field label="Theme">
+                    <Tabs value={theme} onValueChange={(v) => set({ theme: v as ThemeName })}>
+                      <TabsList className="w-full">
+                        {(Object.keys(THEMES) as ThemeName[]).map((k) => <TabsTrigger key={k} value={k} className="flex-1">{THEMES[k].label}</TabsTrigger>)}
+                      </TabsList>
+                    </Tabs>
+                  </Field>
+                  <Field label="Font">
+                    <Tabs value={font} onValueChange={(v) => set({ font: v as FontName })}>
+                      <TabsList className="w-full">
+                        {(Object.keys(FONTS) as FontName[]).map((k) => <TabsTrigger key={k} value={k} className="flex-1">{FONTS[k].label}</TabsTrigger>)}
+                      </TabsList>
+                    </Tabs>
+                  </Field>
+                  <Field label="Density">
+                    <Tabs value={density} onValueChange={(v) => set({ density: v as Density })}>
+                      <TabsList className="w-full">
+                        {(["compact", "regular", "comfy"] as Density[]).map((d) => <TabsTrigger key={d} value={d} className="flex-1 capitalize">{d}</TabsTrigger>)}
+                      </TabsList>
+                    </Tabs>
+                  </Field>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* the danger zone */}
+          <div ref={anchor("danger")} className="scroll-mt-24">
+            <Card className="border-destructive/40 p-6">
+              <div className="mb-1 text-[16px] font-bold text-destructive">{t("set_danger")}</div>
+              <p className="mb-4 text-[12.5px] text-muted-foreground">{t("set_danger_hint")}</p>
+              <Button variant="destructive" onClick={signOut} className="self-start"><LogOut /> {t("sign_out")}</Button>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

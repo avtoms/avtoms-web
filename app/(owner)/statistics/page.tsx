@@ -27,6 +27,8 @@ import { money, num, shortDate } from "@/lib/format";
 import { woStateFromProto, STATE_LABEL } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import { PeriodPicker, usePeriod } from "../_period";
+import { FinanceTabs, type FinanceTab } from "../_finance-nav";
+import { PageHeader } from "@/components/page-header";
 import { MoneyTile, SecTitle, StatCard } from "../_shared";
 import type { ItemStat, Statistics } from "@/lib/types";
 
@@ -48,6 +50,8 @@ export default function StatisticsPage() {
   const [st, setSt] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
+  // Arriving from the finance section's tab row names the tab to open on.
+  React.useEffect(() => { const q = new URLSearchParams(window.location.search).get("tab"); if (q) setTab(q); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,26 +150,18 @@ export default function StatisticsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-extrabold tracking-[-0.025em] text-foreground">{t("statistics")}</h1>
-          <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">
-            {shortDate(from)} — {shortDate(to)}
-          </div>
-        </div>
-        <Button variant="secondary" onClick={exportCsv}><Download />{t("export_csv")}</Button>
-      </div>
+      <PageHeader
+        meta={<span>{shortDate(from)} — {shortDate(to)}</span>}
+        actions={<Button variant="secondary" onClick={exportCsv}><Download />{t("export_csv")}</Button>}
+      />
+
+      {/* One tab row for the whole finance section; the income statement and the expense
+          ledger live on the finances page and are reached from here too. */}
+      <FinanceTabs current={tab as FinanceTab} onTab={setTab} />
 
       <PeriodPicker p={period} />
 
       <Tabs value={tab} onValueChange={setTab} className="flex flex-col gap-4">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="overview"><BarChart3 className="size-3.5" />{t("overview")}</TabsTrigger>
-          <TabsTrigger value="money"><Banknote className="size-3.5" />{t("nav_finances")}</TabsTrigger>
-          <TabsTrigger value="work"><Wrench className="size-3.5" />{t("stat_work")}</TabsTrigger>
-          <TabsTrigger value="products"><Package className="size-3.5" />{t("nav_inventory")}</TabsTrigger>
-          <TabsTrigger value="customers"><Car className="size-3.5" />{t("nav_customers")}</TabsTrigger>
-        </TabsList>
 
         {/* ── overview ── */}
         <TabsContent value="overview" className="flex flex-col gap-4">
