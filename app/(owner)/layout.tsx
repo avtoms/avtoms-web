@@ -12,7 +12,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid, ClipboardList, CalendarDays, Users, Car, CreditCard, BarChart3, Wallet,
   Tag, Package, Truck, Bell, UserRound, Settings, Plus, Wrench, LogOut, Globe, ShoppingCart,
-  Check, ChevronDown, MoreHorizontal, type LucideIcon,
+  Check, ChevronDown, MoreHorizontal, Sparkles, type LucideIcon,
 } from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
 import { can, canAny, type Permission } from "@/lib/perms";
@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { BUILD_VERSION } from "@/lib/version";
 import { CreateWOModal } from "./_create-wo";
 import { ChatWidget } from "@/components/ai-chat";
+import { OnboardingTour, startTour } from "@/components/onboarding-tour";
 
 // Every nav item names the permission that opens it. A person is shown the shop they were
 // hired to run and nothing else — an item they cannot use is not a hint that they should ask,
@@ -233,6 +234,13 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const title = cur ? t(cur.labelKey) : t("app_name");
   const modal = <CreateWOModal open={creating} onClose={() => setCreating(false)} />;
   const hasChat = can(session, "ai.use");
+  // The walk-through is the owner's: it creates stock, prices and an order, then deletes them.
+  const tourButton = can(session, "settings.manage") && (
+    <button onClick={() => { setDrawer(false); startTour(); }}
+      className="mx-3 mb-1 flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13.5px] font-semibold text-primary-emphasis transition-colors hover:bg-primary-soft">
+      <Sparkles className="size-[17px]" /> {t("tour_start_btn")}
+    </button>
+  );
 
   const header = (mobile: boolean) => (
     <header className={cn(
@@ -295,6 +303,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             <SheetContent side="left" className="flex flex-col p-0">
               <Brand name={shopName} sub={shopSub} />
               <NavList pathname={pathname} t={t} groups={groups} counts={counts} onNavigate={() => setDrawer(false)} />
+              {tourButton}
               <div className="border-t border-border p-3">
                 <div className="mb-2 flex items-center gap-2.5 px-2">
                   <Initials name={user.name} className="size-9 text-[13px]" />
@@ -311,6 +320,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           </Sheet>
           {modal}
           {hasChat && <ChatWidget />}
+          <OnboardingTour />
         </div>
       </PageHeaderProvider>
     );
@@ -323,6 +333,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         <aside className="sticky top-0 flex h-screen flex-col border-r border-border bg-card">
           <Brand name={shopName} sub={shopSub} />
           <NavList pathname={pathname} t={t} groups={groups} counts={counts} />
+          {tourButton}
           <div className="m-3 mb-2 flex items-center gap-2.5 rounded-[12px] bg-secondary/70 px-3 py-2.5" title={user.phone}>
             <Initials name={user.name} className="size-9 text-[13px]" />
             <div className="min-w-0 flex-1">
@@ -347,6 +358,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         </div>
         {modal}
         {hasChat && <ChatWidget />}
+        <OnboardingTour />
       </div>
     </PageHeaderProvider>
   );

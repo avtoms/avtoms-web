@@ -34,6 +34,10 @@ export function SortHeader<T>({ column, children }: { column: import("@tanstack/
   );
 }
 
+// The record's own id, when the row is a record with one.
+const rowIdOf = (o: unknown): string =>
+  o && typeof o === "object" && "id" in o ? String((o as { id: unknown }).id ?? "") : "";
+
 type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -82,6 +86,23 @@ export function DataTable<TData, TValue>({
   const total = table.getFilteredRowModel().rows.length;
   const pageCount = table.getPageCount();
   const rows = table.getRowModel().rows;
+
+  // One row can be pointed at — by ?hl=<id> in the address, or by an "an:highlight" event when
+  // the page is already open. Its page is opened and it glows, so "here is what you just made"
+  // is shown rather than left to be searched for.
+  const [hl, setHl] = React.useState("");
+  React.useEffect(() => {
+    setHl(new URLSearchParams(window.location.search).get("hl") ?? "");
+    const on = (e: Event) => setHl(String((e as CustomEvent).detail ?? ""));
+    window.addEventListener("an:highlight", on);
+    return () => window.removeEventListener("an:highlight", on);
+  }, []);
+  React.useEffect(() => {
+    if (!hl) return;
+    const idx = table.getPrePaginationRowModel().rows.findIndex((r) => rowIdOf(r.original) === hl);
+    if (idx >= 0) table.setPageIndex(Math.floor(idx / table.getState().pagination.pageSize));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hl, data]);
 
   const isMobile = useIsMobile();
   // Sorting a table on a phone: the column headers are gone with the table, so the sort lives
@@ -197,10 +218,12 @@ export function DataTable<TData, TValue>({
             return (
               <div
                 key={row.id}
+                data-row-id={rowIdOf(row.original) || undefined}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 className={cn(
                   "flex flex-col gap-2.5 rounded-[14px] border border-border bg-card p-3.5 shadow-[var(--shadow)]",
                   onRowClick && "cursor-pointer active:bg-secondary/60",
+                  hl && rowIdOf(row.original) === hl && "an-row-hl",
                 )}
               >
                 {head && <div className="min-w-0">{flexRender(head.column.columnDef.cell, head.getContext())}</div>}
@@ -250,8 +273,9 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  data-row-id={rowIdOf(row.original) || undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                  className={cn(onRowClick && "cursor-pointer")}
+                  className={cn(onRowClick && "cursor-pointer", hl && rowIdOf(row.original) === hl && "an-row-hl")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>

@@ -715,6 +715,12 @@ export const api = {
       parts: (e.parts ?? []).map(partToWire),
     }),
   deleteExpense: (id: string) => call<{ deleted?: boolean }>("DELETE", `/v1/expenses/${id}`),
+  // The onboarding tour's clean-up: its practice order, service and part, deleted outright
+  // (not cancelled or archived). The server refuses anything a real record still uses.
+  purgeDemo: (d: { workOrderIds?: string[]; menuItemIds?: string[]; productIds?: string[] }) =>
+    call<{ workOrders?: number; menuItems?: number; products?: number }>("POST", "/v1/onboarding/purge-demo", {
+      workOrderIds: d.workOrderIds ?? [], menuItemIds: d.menuItemIds ?? [], productIds: d.productIds ?? [],
+    }),
   getProfitLoss: (shopId: string, from?: string, to?: string) =>
     call<ProfitAndLoss>("GET", "/v1/profit-loss" + qs({ shopId, from, to })),
   // The whole analytics screen in one call — one period, one set of figures that agree.

@@ -364,7 +364,7 @@ export default function WorkOrderDetailPage() {
       {(state === "invoiced" || state === "closed") && <Button variant="secondary" size={size} onClick={() => setInvoice(true)}><Printer /> {t("print")}</Button>}
       {payable && <Button size={size} disabled={busy} onClick={() => setInvoice(true)}><Receipt /> {state === "ready" ? t("act_invoice") : t("act_take_payment")}</Button>}
       {primaryForward && (
-        <Button size={size} variant={payable ? "secondary" : "default"} disabled={busy} onClick={() => doTransition(primaryForward)}>
+        <Button data-tour="wo-advance" size={size} variant={payable ? "secondary" : "default"} disabled={busy} onClick={() => doTransition(primaryForward)}>
           <Check /> {forwardLabel(primaryForward)}
         </Button>
       )}
@@ -449,8 +449,8 @@ export default function WorkOrderDetailPage() {
             </div>
             {editable && (
               <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => { setAddMode("menu"); setAddItem(true); }}>{t("wo_from_price")}</Button>
-                <Button variant="soft" size="sm" onClick={() => { setAddMode("custom"); setAddItem(true); }}><Plus /> {t("add_item")}</Button>
+                <Button data-tour="wo-add-menu" variant="secondary" size="sm" onClick={() => { setAddMode("menu"); setAddItem(true); }}>{t("wo_from_price")}</Button>
+                <Button data-tour="wo-add-item" variant="soft" size="sm" onClick={() => { setAddMode("custom"); setAddItem(true); }}><Plus /> {t("add_item")}</Button>
               </div>
             )}
           </div>
