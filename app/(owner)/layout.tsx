@@ -137,7 +137,7 @@ function NavList({ pathname, t, groups, counts, onNavigate }: {
               const on = itemActive(pathname, it);
               const Icon = it.icon;
               return (
-                <Link key={it.key} href={it.route} onClick={onNavigate}
+                <Link key={it.key} href={it.route} onClick={onNavigate} data-tour={`nav-${it.key}`}
                   className={cn(
                     "flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 text-[14.5px] tracking-[-0.01em] transition-colors",
                     on ? "bg-primary-soft font-semibold text-primary-emphasis" : "font-medium text-ink-2 hover:bg-secondary hover:text-foreground",
@@ -258,7 +258,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       <div className="flex max-w-full items-center gap-2 overflow-x-auto">
         <div ref={setActionsEl} className="flex items-center gap-2 empty:hidden" />
         {!mobile && showNewWo && (
-          <Button onClick={() => setCreating(true)}><Plus />{t("new_wo")}</Button>
+          <Button data-tour="new-wo" onClick={() => setCreating(true)}><Plus />{t("new_wo")}</Button>
         )}
         {canLearn && (
           <Button variant="secondary" size={mobile ? "icon" : "default"} onClick={startTour} aria-label={t("tour_learn")} title={t("tour_learn")}>
@@ -284,7 +284,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
               const on = itemActive(pathname, it);
               const Icon = it.icon;
               return (
-                <Link key={it.key} href={it.route} className={cn("relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold", on ? "text-primary-emphasis" : "text-muted-foreground")}>
+                <Link key={it.key} href={it.route} data-tour={`nav-${it.key}`} className={cn("relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-semibold", on ? "text-primary-emphasis" : "text-muted-foreground")}>
                   <Icon className="size-[21px]" />
                   <span className="max-w-full truncate px-0.5">{t(it.shortKey)}</span>
                   {it.count && !!counts[it.count] && <span className="absolute right-[calc(50%-20px)] top-1 size-2 rounded-full bg-destructive" />}
@@ -299,7 +299,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           {/* The floating "new order" button sits where the thumb already is. It stacks above
               the assistant's launcher when that is present, rather than landing on top of it. */}
           {showNewWo && (
-            <button onClick={() => setCreating(true)}
+            <button data-tour="new-wo" onClick={() => setCreating(true)}
               className="fixed right-4 z-40 inline-flex h-13 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-bold text-primary-foreground shadow-[var(--shadow-lg)] active:scale-[0.98]"
               style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${hasChat ? 152 : 88}px)` }}>
               <Plus className="size-5" /> {t("new_wo_short")}

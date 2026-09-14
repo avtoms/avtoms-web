@@ -1,16 +1,18 @@
 "use client";
 // OnboardingTour — the first-run walk-through.
 //
-// A new shop is shown the one loop the whole app is built around by doing it: stock a part,
-// make a service that uses it, open an order for a car, fill it from the price list, and move
-// it along the board. Everything it makes is real — made through the same API as any other
-// record and shown on the real screens — and remembered as the tour's in local storage, so
-// that at the end all of it can be deleted outright (POST /v1/onboarding/purge-demo, then the
-// car and the client) while the shop watches it go.
+// A new shop is shown the one loop the whole app is built around by doing it, on the real
+// screens: stock a part in the warehouse, add a service that uses it to the price list, open an
+// order for a car, fill it from the price list, and move it along the board.
 //
-// The first three steps are small forms of the tour's own, filled in already. After that the
-// tour stops doing things: on the order screen it points at the real buttons and waits —
-// polling the order — for the shop to press them. That part is the one worth learning.
+// The tour never fills anything in behind the shop's back. Each step points at the real menu
+// entry and the real "add" button; the real dialog then opens already filled with demo values
+// (lib/tour-bridge), and the shop checks it and saves. lib/api announces what gets made, which
+// is how the tour sees the save land and learns the ids. On the order screen it points at the
+// real buttons and watches the order until the shop has pressed them.
+//
+// Everything it made is remembered per shop in local storage and, at the end, deleted outright
+// (POST /v1/onboarding/purge-demo, then the car and the client) while the shop watches it go.
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -20,23 +22,23 @@ import {
 import { useAuth, useLang } from "@/components/providers";
 import { useIsMobile } from "@/components/ui";
 import { Button } from "@/components/ui-kit/button";
-import { Input } from "@/components/ui-kit/input";
-import { Field } from "@/components/ui-kit/label";
 import { Spinner } from "@/components/ui-kit/misc";
-import { PlatePreview } from "@/components/plate";
 import { api, ApiError } from "@/lib/api";
 import { can } from "@/lib/perms";
-import { money, num, orderLabel } from "@/lib/format";
-import { plateTypeToProto, woStateFromProto } from "@/lib/enums";
+import { num, orderLabel } from "@/lib/format";
+import { woStateFromProto } from "@/lib/enums";
 import { useShopFlow } from "@/lib/shop";
+import { CREATED_EVENT, setTourPrefill, type CreatedKind } from "@/lib/tour-bridge";
 import { cn } from "@/lib/utils";
-import type { WorkOrder } from "@/lib/types";
+import type { Customer, MenuItem, Product, Vehicle, WorkOrder } from "@/lib/types";
 
 type Step = "welcome" | "part" | "part_look" | "service" | "service_look" | "order" | "lines" | "work" | "finish" | "clean";
 
-// What the tour has made so far. The ids are what the clean-up deletes; the rest is for
-// naming the cards that are shown going.
+// What the tour has made so far. The ids are what the clean-up deletes; the rest names the
+// cards shown going. phone and plate are picked once per run, so a second run never trips over
+// the first.
 type Demo = {
+  phone?: string; plateGuess?: string;
   productId?: string; variantId?: string; partName?: string; partQty?: number; partCost?: number; partPrice?: number;
   menuItemId?: string; serviceName?: string;
   customerId?: string; customerName?: string; vehicleId?: string; plate?: string; car?: string;
@@ -67,6 +69,8 @@ const ITEMS: { key: string; steps: Step[]; icon: LucideIcon }[] = [
   { key: "tour_step_work", steps: ["work"], icon: Wrench },
 ];
 const DEMO_LITRES = 4;
+const DEMO_CAR = { make: "Chevrolet", model: "Cobalt", year: 2021, km: 45000 };
+const rnd = (n: number) => String(Math.floor(Math.random() * 10 ** n)).padStart(n, "0");
 
 export function OnboardingTour() {
   const { session } = useAuth();
@@ -80,8 +84,7 @@ export function OnboardingTour() {
   const [dockOpen, setDockOpen] = useState(true);
   const [exiting, setExiting] = useState(false);
   // Written to storage at once rather than when React next renders: a step is often followed
-  // straight away by a page load, and a record made but not remembered would be made twice and
-  // never cleaned up.
+  // straight away by a page load, and a record made but not remembered would never be cleaned up.
   const tourRef = useRef<Tour | null>(null);
   const commit = useCallback((next: Tour | null) => {
     tourRef.current = next;
@@ -119,19 +122,71 @@ export function OnboardingTour() {
     return () => window.removeEventListener(START_EVENT, on);
   }, [allowed, offer]);
 
-  // Show what was just made on its own screen. A page already open still holds the list it
-  // loaded before, so that one is reloaded rather than pointed at.
-  const show = (url: string, id: string) => {
-    if (pathname === url.split("?")[0]) { window.location.assign(url); return; }
-    router.push(url);
-    setTimeout(() => window.dispatchEvent(new CustomEvent("an:highlight", { detail: id })), 80);
-  };
+  // What the real forms should start from while this step is asking for a record.
+  const step = tour?.step;
+  const demo = tour?.demo;
+  useEffect(() => {
+    if (step === "part") {
+      setTourPrefill({ part: { name: t("tour_part_name"), unit: "L", qty: 8, cost: 60000, price: 90000 } });
+    } else if (step === "service") {
+      setTourPrefill({ service: {
+        name: t("tour_service_name"), price: 150000, minutes: 30,
+        // The part from the step before rides along: added to an order, the service brings its
+        // four litres with it and they come off the shelf.
+        material: demo?.variantId ? {
+          name: demo.partName ?? "", qty: DEMO_LITRES, unit: "L",
+          cost: demo.partCost ?? 0, price: demo.partPrice ?? 0, variantId: demo.variantId,
+        } : undefined,
+      } });
+    } else if (step === "order") {
+      setTourPrefill({ order: {
+        name: t("tour_customer_name"), phone: demo?.phone ?? `90 ${rnd(3)} ${rnd(2)} ${rnd(2)}`,
+        plate: demo?.plateGuess ?? `01 D ${100 + Math.floor(Math.random() * 900)} MO`,
+        make: DEMO_CAR.make, model: DEMO_CAR.model, year: DEMO_CAR.year, km: DEMO_CAR.km,
+      } });
+    } else {
+      setTourPrefill({});
+    }
+  }, [step, demo?.variantId, demo?.partName, demo?.partCost, demo?.partPrice, demo?.phone, demo?.plateGuess, t]);
+  useEffect(() => () => setTourPrefill({}), []);
+
+  // The records the shop makes on the real screens, caught as they land.
+  useEffect(() => {
+    const highlight = (id: string) => setTimeout(() => window.dispatchEvent(new CustomEvent("an:highlight", { detail: id })), 60);
+    const on = (e: Event) => {
+      const { kind, value } = (e as CustomEvent<{ kind: CreatedKind; value: unknown }>).detail;
+      const cur = tourRef.current?.step;
+      if (cur === "part" && kind === "product") {
+        const p = value as Product;
+        const take = (pp: Product) => {
+          const v = pp.variants?.[0];
+          go("part_look", {
+            productId: pp.id, variantId: v?.id, partName: pp.name,
+            partQty: num(v?.quantityOnHand), partCost: num(v?.unitCost), partPrice: num(v?.unitPrice),
+          });
+        };
+        take(p);
+        if (!p.variants?.[0]?.id) api.getProduct(p.id).then((pp) => { if (tourRef.current?.demo.productId === p.id) take(pp); }).catch(() => {});
+        highlight(p.id);
+      } else if (cur === "service" && kind === "menuItem") {
+        const m = value as MenuItem;
+        go("service_look", { menuItemId: m.id, serviceName: m.nameUzLatn || m.nameRu });
+        highlight(m.id);
+      } else if (cur === "order") {
+        // A client and car are the tour's only when made here, from the new-client form. An
+        // order opened for a car the shop already had leaves that car and client alone.
+        if (kind === "customer") { const c = value as Customer; go("order", { customerId: c.id, customerName: c.name }); }
+        if (kind === "vehicle") { const v = value as Vehicle; go("order", { vehicleId: v.id, plate: v.plate, car: [v.make, v.model].filter(Boolean).join(" ") }); }
+        if (kind === "workOrder") { const w = value as WorkOrder; go("lines", { workOrderId: w.id, orderNo: orderLabel(w) }); }
+      }
+    };
+    window.addEventListener(CREATED_EVENT, on);
+    return () => window.removeEventListener(CREATED_EVENT, on);
+  }, [go]);
 
   const end = () => { if (shopId) markSeen(shopId); commit(null); setExiting(false); };
 
-  if (!tour || !allowed) return null;
-  const step = tour.step;
-  const demo = tour.demo;
+  if (!tour || !allowed || !step || !demo) return null;
   const orderPath = demo.workOrderId ? `/work-orders/${demo.workOrderId}` : "";
   const onOrder = !!orderPath && pathname === orderPath;
   const cur = ITEMS.findIndex((i) => i.steps.includes(step));
@@ -143,7 +198,11 @@ export function OnboardingTour() {
 
       {step === "welcome" && (
         <Welcome
-          onStart={() => { if (shopId) markSeen(shopId); go("part"); setDockOpen(true); }}
+          onStart={() => {
+            if (shopId) markSeen(shopId);
+            commit({ step: "part", demo: { phone: `90 ${rnd(3)} ${rnd(2)} ${rnd(2)}`, plateGuess: `01 D ${100 + Math.floor(Math.random() * 900)} MO` } });
+            setDockOpen(true);
+          }}
           onLater={end}
         />
       )}
@@ -153,28 +212,33 @@ export function OnboardingTour() {
           open={dockOpen} setOpen={setDockOpen} cur={cur} doneCount={doneCount}
           exiting={exiting} setExiting={setExiting}
           onExit={() => { const any = demo.productId || demo.menuItemId || demo.workOrderId || demo.customerId; if (any) go("clean"); else end(); }}
-        >
-          {step === "part" && (
-            <PartForm onDone={(d) => { go("part_look", d); show(`/inventory?hl=${d.productId}`, d.productId!); }} />
-          )}
-          {step === "service" && (
-            <ServiceForm demo={demo} onDone={(d) => { go("service_look", d); show(`/menu?hl=${d.menuItemId}`, d.menuItemId!); }} />
-          )}
-          {step === "order" && (
-            <OrderForm onDone={(d) => { go("lines", d); router.push(`/work-orders/${d.workOrderId}`); }} />
-          )}
-        </Dock>
+        />
       )}
 
+      {step === "part" && (
+        pathname === "/inventory"
+          ? <Spotlight n={1} selector={`[data-tour="inv-add"]`} title={t("add_part_cta")} body={t("tour_press_add_part")} />
+          : <Spotlight n={1} selector={`[data-tour="nav-inventory"]`} title={t("nav_inventory")} body={`${t("tour_open_section")} ${t("tour_part_hint")}`} />
+      )}
       {step === "part_look" && (
         <Spotlight selector={demo.productId ? `[data-row-id="${demo.productId}"]` : undefined} n={1}
           title={t("tour_part_look_title")} body={t("tour_part_look_body")}
           action={<Button size="sm" onClick={() => go("service")}>{t("tour_next")}</Button>} />
       )}
+      {step === "service" && (
+        pathname === "/menu"
+          ? <Spotlight n={2} selector={`[data-tour="menu-add"]`} title={t("add_service")} body={t("tour_press_add_service")} />
+          : <Spotlight n={2} selector={`[data-tour="nav-menu"]`} title={t("nav_services")} body={`${t("tour_open_section")} ${t("tour_service_hint")}`} />
+      )}
       {step === "service_look" && (
         <Spotlight selector={demo.menuItemId ? `[data-row-id="${demo.menuItemId}"]` : undefined} n={2}
           title={t("tour_service_look_title")} body={t("tour_service_look_body")}
           action={<Button size="sm" onClick={() => go("order")}>{t("tour_next")}</Button>} />
+      )}
+      {step === "order" && (
+        pathname === "/work-orders" || pathname === "/dashboard"
+          ? <Spotlight n={3} selector={`[data-tour="new-wo"]`} title={t("new_wo")} body={t("tour_press_new_order")} />
+          : <Spotlight n={3} selector={`[data-tour="nav-workorders"]`} title={t("nav_workorders")} body={`${t("tour_open_section")} ${t("tour_order_hint")}`} />
       )}
       {(step === "lines" || step === "work") && (
         <OrderSteps step={step} demo={demo} onOrder={onOrder} orderPath={orderPath} go={go} />
@@ -301,18 +365,17 @@ function Welcome({ onStart, onLater }: { onStart: () => void; onLater: () => voi
   );
 }
 
-// ── the dock: progress, the current form, the checklist ──
-function Dock({ open, setOpen, cur, doneCount, exiting, setExiting, onExit, children }: {
+// ── the dock: where the shop is, and the way out ──
+function Dock({ open, setOpen, cur, doneCount, exiting, setExiting, onExit }: {
   open: boolean; setOpen: (o: boolean) => void; cur: number; doneCount: number;
-  exiting: boolean; setExiting: (e: boolean) => void; onExit: () => void; children?: React.ReactNode;
+  exiting: boolean; setExiting: (e: boolean) => void; onExit: () => void;
 }) {
   const { t } = useLang();
   const isMobile = useIsMobile();
   const pct = Math.round((doneCount / ITEMS.length) * 100);
-  const hasBody = React.Children.toArray(children).length > 0;
   return (
     <div
-      className={cn("an-anim fixed z-[145]", isMobile ? "inset-x-3" : "left-[270px] w-[340px]")}
+      className={cn("an-anim fixed z-[145]", isMobile ? "inset-x-3" : "left-[270px] w-[320px]")}
       style={{ bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 80px)" : 20, animation: "an-pop .3s ease-out" }}
     >
       <div className="overflow-hidden rounded-[16px] border border-border bg-card shadow-[var(--shadow-lg)]">
@@ -331,17 +394,17 @@ function Dock({ open, setOpen, cur, doneCount, exiting, setExiting, onExit, chil
         </div>
         <div className="h-1 bg-secondary"><div className="h-full bg-primary transition-[width] duration-700 ease-out" style={{ width: `${pct}%` }} /></div>
         {open && (
-          <div className="max-h-[min(62vh,560px)] overflow-y-auto p-4">
-            {exiting ? (
-              <div className="flex flex-col gap-3">
+          <div className="p-4">
+            {exiting && (
+              <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4">
                 <p className="text-[14px] font-medium text-foreground">{t("tour_exit_q")}</p>
                 <div className="flex gap-2">
                   <Button variant="destructive" size="sm" className="flex-1" onClick={onExit}>{t("tour_exit_yes")}</Button>
                   <Button variant="secondary" size="sm" className="flex-1" onClick={() => setExiting(false)}>{t("tour_exit_no")}</Button>
                 </div>
               </div>
-            ) : hasBody ? children : null}
-            <ol className={cn("flex flex-col gap-1.5", (hasBody || exiting) && "mt-4 border-t border-border pt-3")}>
+            )}
+            <ol className="flex flex-col gap-1.5">
               {ITEMS.map((it, i) => {
                 const done = i < doneCount;
                 const now = i === cur && !done;
@@ -364,135 +427,7 @@ function Dock({ open, setOpen, cur, doneCount, exiting, setExiting, onExit, chil
   );
 }
 
-function FormShell({ hint, error, busy, cta, onSubmit, children }: {
-  hint: string; error: string; busy: boolean; cta: string; onSubmit: () => void; children: React.ReactNode;
-}) {
-  return (
-    <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
-      <p className="text-[13.5px] leading-snug text-ink-2">{hint}</p>
-      {children}
-      {error && <p className="text-[12.5px] font-medium text-destructive">{error}</p>}
-      <Button type="submit" disabled={busy}>{busy ? <Spinner /> : <><Sparkles /> {cta}</>}</Button>
-    </form>
-  );
-}
-
-const digits = (s: string) => s.replace(/\D/g, "");
 const errText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
-
-function PartForm({ onDone }: { onDone: (d: Partial<Demo>) => void }) {
-  const { t } = useLang();
-  const { session } = useAuth();
-  const [name, setName] = useState(() => t("tour_part_name"));
-  const [qty, setQty] = useState("8");
-  const [cost, setCost] = useState("60000");
-  const [price, setPrice] = useState("90000");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async () => {
-    if (busy || !name.trim()) return;
-    setBusy(true); setError("");
-    try {
-      const p = await api.createProduct(session!.staff.shopId, {
-        name: name.trim(), unit: "L", properties: [], skipDebt: true,
-        variants: [{ quantityOnHand: num(qty), reorderLevel: 2, unitCost: num(cost), unitPrice: num(price), active: true, attributes: [] }],
-      });
-      const variantId = p.variants?.[0]?.id ?? (await api.getProduct(p.id).catch(() => p)).variants?.[0]?.id;
-      onDone({ productId: p.id, variantId, partName: p.name || name.trim(), partQty: num(qty), partCost: num(cost), partPrice: num(price) });
-    } catch (e) { setError(errText(e, t("error"))); setBusy(false); }
-  };
-  return (
-    <FormShell hint={t("tour_part_hint")} error={error} busy={busy} cta={t("tour_create_part")} onSubmit={submit}>
-      <Field label={t("name")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label={t("tour_qty_l")}><Input value={qty} onChange={(e) => setQty(digits(e.target.value))} inputMode="numeric" className="font-mono" /></Field>
-        <Field label={t("tour_buy")}><Input value={cost} onChange={(e) => setCost(digits(e.target.value))} inputMode="numeric" className="font-mono" /></Field>
-        <Field label={t("tour_sell")}><Input value={price} onChange={(e) => setPrice(digits(e.target.value))} inputMode="numeric" className="font-mono" /></Field>
-      </div>
-    </FormShell>
-  );
-}
-
-function ServiceForm({ demo, onDone }: { demo: Demo; onDone: (d: Partial<Demo>) => void }) {
-  const { t } = useLang();
-  const { session } = useAuth();
-  const [name, setName] = useState(() => t("tour_service_name"));
-  const [price, setPrice] = useState("150000");
-  const [minutes, setMinutes] = useState("30");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async () => {
-    if (busy || !name.trim()) return;
-    setBusy(true); setError("");
-    try {
-      const m = await api.createMenuItem(session!.staff.shopId, {
-        name: name.trim(), defaultPrice: num(price), estimatedMinutes: num(minutes),
-        // The part from the step before rides along: added to an order, the service brings its
-        // four litres with it and they come off the shelf.
-        materials: demo.variantId ? [{
-          name: demo.partName ?? "", quantity: DEMO_LITRES, unit: "L",
-          unitCost: demo.partCost ?? 0, unitPrice: demo.partPrice ?? 0, variantId: demo.variantId,
-        }] : [],
-      });
-      onDone({ menuItemId: m.id, serviceName: name.trim() });
-    } catch (e) { setError(errText(e, t("error"))); setBusy(false); }
-  };
-  return (
-    <FormShell hint={t("tour_service_hint")} error={error} busy={busy} cta={t("tour_create_service")} onSubmit={submit}>
-      <Field label={t("name")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label={t("tour_price")}><Input value={price} onChange={(e) => setPrice(digits(e.target.value))} inputMode="numeric" className="font-mono" /></Field>
-        <Field label={t("tour_minutes_label")}><Input value={minutes} onChange={(e) => setMinutes(digits(e.target.value))} inputMode="numeric" className="font-mono" /></Field>
-      </div>
-      {demo.variantId && (
-        <div className="flex items-center gap-2.5 rounded-[10px] border border-dashed border-border bg-secondary/50 px-3 py-2 text-[12.5px]">
-          <Package className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{demo.partName} × {DEMO_LITRES} L</span>
-          <span className="shrink-0 text-muted-foreground">{t("tour_material_auto")}</span>
-        </div>
-      )}
-    </FormShell>
-  );
-}
-
-function OrderForm({ onDone }: { onDone: (d: Partial<Demo>) => void }) {
-  const { t, lang } = useLang();
-  const { session } = useAuth();
-  const shopId = session!.staff.shopId;
-  const [name, setName] = useState(() => t("tour_customer_name"));
-  // A plate and a phone of its own each time, so a second run never trips over the first.
-  const [plate] = useState(() => `01 D ${100 + Math.floor(Math.random() * 900)} MO`);
-  const [phone] = useState(() => `+99890${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`);
-  const car = { make: "Chevrolet", model: "Cobalt", year: 2021, km: 45000 };
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async () => {
-    if (busy || !name.trim()) return;
-    setBusy(true); setError("");
-    try {
-      const c = await api.createCustomer(shopId, { phone, name: name.trim(), language: lang });
-      const v = await api.createVehicle({ customerId: c.id, plate, make: car.make, model: car.model, year: car.year, mileage: car.km, plateType: plateTypeToProto("standard") });
-      const w = await api.createWorkOrder(shopId, v.id, car.km);
-      onDone({
-        customerId: c.id, customerName: name.trim(), vehicleId: v.id, plate, car: `${car.make} ${car.model}`,
-        workOrderId: w.id, orderNo: orderLabel(w),
-      });
-    } catch (e) { setError(errText(e, t("error"))); setBusy(false); }
-  };
-  return (
-    <FormShell hint={t("tour_order_hint")} error={error} busy={busy} cta={t("tour_create_order")} onSubmit={submit}>
-      <Field label={t("name")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-      <div className="flex items-center gap-3 rounded-[12px] border border-border bg-secondary/40 px-3 py-2.5">
-        <div className="grid size-9 shrink-0 place-items-center rounded-[9px] bg-card text-ink-2"><Car className="size-[18px]" /></div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13.5px] font-bold text-foreground">{car.make} {car.model} · {car.year}</div>
-          <div className="font-mono text-[12px] text-muted-foreground">{money(car.km)} km</div>
-        </div>
-        <PlatePreview plate={plate} size="sm" />
-      </div>
-    </FormShell>
-  );
-}
 
 // ── the spotlight: dims the screen around one element and says what to do with it ──
 function Spotlight({ selector, n, title, body, note, action, skip }: {
@@ -532,8 +467,12 @@ function Spotlight({ selector, n, title, body, note, action, skip }: {
   let pos: React.CSSProperties;
   if (rect) {
     const below = view.h - (rect.y + rect.h) > 230 || rect.y < 230;
-    const left = Math.max(16, Math.min(rect.x + rect.w / 2 - W / 2, view.w - W - 16));
-    pos = below ? { left, top: rect.y + rect.h + 16, width: W } : { left, bottom: view.h - rect.y + 16, width: W };
+    // Beside a tall, narrow target (a sidebar link) rather than over the next ones down.
+    const side = rect.x + rect.w + W + 32 < view.w && rect.w < 280;
+    const left = side ? rect.x + rect.w + 18 : Math.max(16, Math.min(rect.x + rect.w / 2 - W / 2, view.w - W - 16));
+    pos = side
+      ? { left, top: Math.max(16, Math.min(rect.y - 12, view.h - 240)), width: W }
+      : below ? { left, top: rect.y + rect.h + 16, width: W } : { left, bottom: view.h - rect.y + 16, width: W };
   } else {
     pos = { left: (view.w - W) / 2, top: 84, width: W };
   }

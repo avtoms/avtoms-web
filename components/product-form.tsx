@@ -263,6 +263,11 @@ export type ProductPrefill = {
   barcode?: string;
   // The registry did not recognise the barcode: open with the MXIK search focused and say why.
   searchMxik?: boolean;
+  // The onboarding tour's demo part: its unit, the stock it arrives with, and its prices in so'm.
+  unit?: string;
+  quantity?: number;
+  unitCost?: number;
+  unitPrice?: number;
 };
 
 export function ProductForm({
@@ -366,8 +371,14 @@ export function ProductForm({
       // value that neither the brand filter nor the supplier list knows.
       const pb = prefill?.brand?.trim().toLowerCase();
       const knownBrand = pb ? brands.find((b) => b.name.trim().toLowerCase() === pb)?.name ?? "" : "";
-      setName(prefill?.name ?? ""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(knownBrand); setUnit("pcs"); setDescription("");
-      setProps([]); setVars([{ ...blankVar(), barcode: prefill?.barcode ?? "" }]); setOpeningQty({});
+      setName(prefill?.name ?? ""); setCategory(""); setSupplierId(""); setSupplierLegacy(""); setBrand(knownBrand); setUnit(prefill?.unit ?? "pcs"); setDescription("");
+      const amount = (n?: number) => (n ? { ...emptyFx(), typed: String(n) } : emptyFx());
+      setProps([]);
+      setVars([{
+        ...blankVar(), barcode: prefill?.barcode ?? "",
+        qty: prefill?.quantity ? String(prefill.quantity) : "", cost: amount(prefill?.unitCost), price: amount(prefill?.unitPrice),
+      }]);
+      setOpeningQty({});
       setMxik(prefill?.mxik ?? emptyMxik);
     }
     setPaidNow(emptyFx()); setSkipDebt(false); resetPayment(); setScanFor(null);

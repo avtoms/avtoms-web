@@ -2,6 +2,7 @@
 // NEXT_PUBLIC_API_BASE_URL; CORS is enabled on the gateway. The bearer token is read
 // from the session cookie.
 import { getSession, setSession, clearSession, sessionFromTokenPair } from "./session";
+import { announceCreated } from "./tour-bridge";
 import type {
   TokenPair, RequestOtpResponse, Staff, Customer, Vehicle, WorkOrder,
   MenuItem, Invoice, ShopCard, Dashboard, Report, LineItem, CarMake, CarModel, ShopSettings, Integration, Product, ProductProperty, ProductVariant, VariantAttribute, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Appointment, AuditEntry, ServiceReminder, ShopExpense, ProfitAndLoss, Warranty, DemoRequest, Lead, AiConversation, AiChatMessage, Sale, Statistics, ContragentBalance, ContragentLedgerEntry, ContragentEntryKind, CompanyDetails, BankAccount, CustomerBalance, CustomerLedgerEntry, CustomerEntryKind, ServiceBook, ShopRole, PublicReceipt, MaterialReturn, Shop, Currency, CurrencyRateChange, FxAmount, ProductTemplate, MxikLookup, MxikDetails,
@@ -487,7 +488,7 @@ export const api = {
     call<Customer>("POST", "/v1/customers", {
       shopId, phone: c.phone, name: c.name, language: langToProto(c.language),
       telegramHandle: c.telegramHandle ?? "", walkIn: !!c.walkIn,
-    }),
+    }).then(announceCreated<Customer>("customer")),
   updateCustomer: (id: string, c: { name: string; phone: string; language: Lang; telegramHandle?: string; notes?: string; email?: string; address?: string; birthday?: string }) =>
     call<Customer>("POST", `/v1/customers/${id}`, {
       name: c.name, phone: c.phone, language: langToProto(c.language), telegramHandle: c.telegramHandle ?? "",
@@ -502,7 +503,7 @@ export const api = {
       customerId: v.customerId, plate: v.plate, vin: v.vin ?? "", make: v.make ?? "",
       model: v.model ?? "", year: v.year ?? 0, mileage: String(v.mileage ?? 0),
       plateType: v.plateType ?? "PLATE_TYPE_STANDARD", imageUrl: v.imageUrl ?? "",
-    }),
+    }).then(announceCreated<Vehicle>("vehicle")),
   updateVehicle: (id: string, v: { plate: string; vin?: string; make?: string; model?: string; year?: number; mileage?: number; plateType?: string; color?: string; engine?: string; transmission?: string; notes?: string; imageUrl?: string }) =>
     call<Vehicle>("POST", `/v1/vehicles/${id}`, {
       plate: v.plate, vin: v.vin ?? "", make: v.make ?? "", model: v.model ?? "",
@@ -524,7 +525,8 @@ export const api = {
   // odometer is the reading taken at intake, in km. Optional: 0 means nobody wrote it down,
   // and the service book shows a gap rather than inventing a number.
   createWorkOrder: (shopId: string, vehicleId: string, odometer?: number) =>
-    call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId, odometer: String(odometer ?? 0) }),
+    call<WorkOrder>("POST", "/v1/work-orders", { shopId, vehicleId, odometer: String(odometer ?? 0) })
+      .then(announceCreated<WorkOrder>("workOrder")),
   // The note is internal to the shop: it is not printed on the customer's check or sent
   // with their copy. An empty string clears it.
   setNotes: (woId: string, notes: string) =>
@@ -634,7 +636,7 @@ export const api = {
       category: m.category ?? "", estimatedMinutes: m.estimatedMinutes ?? 0,
       materials: (m.materials ?? []).map(menuMaterialBody),
       options: (m.options ?? []).map(menuOptionBody),
-    }),
+    }).then(announceCreated<MenuItem>("menuItem")),
   updateMenuItem: (id: string, m: {
     name: string; defaultPrice: number; defaultCost?: number; active: boolean;
     category?: string; estimatedMinutes?: number;
@@ -732,7 +734,7 @@ export const api = {
     call<{ products?: Product[] }>("GET", "/v1/products" + qs({ shopId })).then((r) => r.products ?? []),
   getProduct: (id: string) => call<Product>("GET", `/v1/products/${id}`),
   createProduct: (shopId: string, p: ProductInput) =>
-    call<Product>("POST", "/v1/products", { shopId, ...productBody(p) }),
+    call<Product>("POST", "/v1/products", { shopId, ...productBody(p) }).then(announceCreated<Product>("product")),
   updateProduct: (id: string, p: ProductInput & { active?: boolean }) =>
     call<Product>("POST", `/v1/products/${id}`, { active: p.active ?? true, ...productBody(p) }),
   // paidAmount settles part of a delivery on the spot; the rest becomes debt on the

@@ -2024,6 +2024,22 @@ export const STR: Record<string, Triple> = {
   tour_exit_no: ["Davom etish", "Давом этиш", "Продолжить"],
   tour_demo_badge: ["demo", "демо", "демо"],
   tour_learn: ["O'rganish", "Ўрганиш", "Обучение"],
+  tour_open_section: ["Menyudan shu bo'limni oching.", "Менюдан шу бўлимни очинг.", "Откройте этот раздел в меню."],
+  tour_press_add_part: [
+    "Shu tugmani bosing — forma demo moy bilan o'zi to'ldiriladi. Tekshirib, saqlang.",
+    "Шу тугмани босинг — форма демо мой билан ўзи тўлдирилади. Текшириб, сақланг.",
+    "Нажмите эту кнопку — форма сама заполнится демо-маслом. Проверьте и сохраните.",
+  ],
+  tour_press_add_service: [
+    "Shu tugmani bosing — nomi, narxi va 4 L moy o'zi yoziladi. Tekshirib, saqlang.",
+    "Шу тугмани босинг — номи, нархи ва 4 L мой ўзи ёзилади. Текшириб, сақланг.",
+    "Нажмите — название, цена и 4 л масла впишутся сами. Проверьте и сохраните.",
+  ],
+  tour_press_new_order: [
+    "Shu tugmani bosing — demo mijoz va mashinasi o'zi to'ldiriladi. Buyurtmani yarating.",
+    "Шу тугмани босинг — демо мижоз ва машинаси ўзи тўлдирилади. Буюртмани яратинг.",
+    "Нажмите — демо-клиент и его машина заполнятся сами. Создайте заказ.",
+  ],
   tour_again: ["Yana bir bor o'tish", "Яна бир бор ўтиш", "Пройти ещё раз"],
 };
 

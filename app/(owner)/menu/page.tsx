@@ -31,6 +31,7 @@ import { canAny } from "@/lib/perms";
 import { currentMonth, monthRange } from "@/lib/range";
 import { money, num, qty } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { tourPrefill } from "@/lib/tour-bridge";
 import type { MenuItem, MenuMaterial, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
 import { activeOptions, priceLabel } from "@/components/service-options";
 
@@ -252,7 +253,7 @@ export default function MenuPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         meta={<span>{list.length} {t("svc_count")} · {categories.length} {t("cat_count")}</span>}
-        actions={<Button onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
+        actions={<Button data-tour="menu-add" onClick={() => setAdding(true)}><Plus /> {t("add_service")}</Button>}
       />
       {loading && list.length === 0 ? (
         <Card className="gap-2.5 p-5">{Array.from({ length: 7 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
@@ -340,7 +341,16 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
       setHistory(null);
       api.listMenuPriceHistory(item.id).then(setHistory).catch(() => setHistory([]));
     } else {
-      setF(emptyForm); setActive(true); setMaterials([]); setOptions([]); setHistory(null);
+      // The onboarding tour's demo service, when a tour step is asking for one: the shop sees
+      // this real form filled in, part attached, and only has to save it.
+      const demo = tourPrefill("service");
+      setF(demo ? { ...emptyForm, name: demo.name, minutes: String(demo.minutes), price: String(demo.price) } : emptyForm);
+      setActive(true);
+      setMaterials(demo?.material ? [{
+        name: demo.material.name, qty: String(demo.material.qty), unit: demo.material.unit,
+        cost: String(demo.material.cost), price: String(demo.material.price), variantId: demo.material.variantId,
+      }] : []);
+      setOptions([]); setHistory(null);
     }
   }, [open, item, lang, loadProducts, loadContragents]);
 

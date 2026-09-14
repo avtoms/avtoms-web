@@ -42,6 +42,7 @@ import type { Product, ProductVariant, PropertyDefinition, StockMovement, Catalo
 import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
 import { KpiCard } from "../_shared";
+import { tourPrefill } from "@/lib/tour-bridge";
 
 // Total on-hand across a product's variants, and whether any variant is low.
 const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
@@ -358,7 +359,13 @@ export default function InventoryPage() {
             <Button variant="secondary" disabled={scanBusy} onClick={() => setScanOpen(true)}>
               {scanBusy ? <Spinner /> : <ScanBarcode />} {t("scan_cta")}
             </Button>
-            <Button onClick={() => setFromCatalog(true)}><Plus /> {t("add_part_cta")}</Button>
+            <Button data-tour="inv-add" onClick={() => {
+              // During the onboarding tour the demo part goes straight to the hand-typed form,
+              // already filled in, rather than through the catalogue first.
+              const demo = tourPrefill("part");
+              if (demo) setEditing({ mode: "new", product: null, prefill: { name: demo.name, unit: demo.unit, quantity: demo.qty, unitCost: demo.cost, unitPrice: demo.price } });
+              else setFromCatalog(true);
+            }}><Plus /> {t("add_part_cta")}</Button>
           </>
         }
       />

@@ -23,6 +23,7 @@ import { orderLabel } from "@/lib/format";
 import { PLATE_TYPES, plateTypeToProto, plateTypeFromProto, type PlateType } from "@/lib/enums";
 import { isValidUzPhone, toE164 } from "@/lib/phone";
 import { ReminderRows, saveReminders, type ReminderDraft } from "@/components/reminder-rows";
+import { tourPrefill } from "@/lib/tour-bridge";
 
 export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { open: boolean; onClose: () => void; basePath?: string }) {
   const { session } = useAuth();
@@ -49,6 +50,15 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
 
   React.useEffect(() => {
     if (open) { setTried(false); setMode("search"); setQ(""); setMatches([]); setCf({ name: "", phone: "", telegram: "", language: "uz" }); setVf({ plate: "", make: "", model: "", year: "", vin: "", mileage: "", plateType: "standard" as PlateType }); setReminders([]); setOdo(""); }
+    // The onboarding tour's demo client and car, when a tour step is asking for an order: the
+    // shop sees this real form filled in and only has to press Create.
+    const demo = open ? tourPrefill("order") : undefined;
+    if (demo) {
+      setMode("new");
+      setCf({ name: demo.name, phone: demo.phone, telegram: "", language: "uz" });
+      setVf({ plate: demo.plate, make: demo.make, model: demo.model, year: String(demo.year), vin: "", mileage: "", plateType: "standard" });
+      setOdo(String(demo.km));
+    }
   }, [open]);
 
   // The shop's own cars, loaded once the dialog opens, so an empty box already offers
