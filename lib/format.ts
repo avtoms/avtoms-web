@@ -121,3 +121,15 @@ export function shortDateTime(iso: string | undefined): string {
   const p = parts(iso);
   return p ? `${p.d}.${p.m}.${p.y} ${p.hh}:${p.mm}` : "—";
 }
+
+// 28.07 — for a list already known to sit inside one period, where the year is noise.
+export function dayMonth(iso: string | undefined): string {
+  const p = parts(iso);
+  return p ? `${p.d}.${p.m}` : "—";
+}
+
+// 16:05 — 24-hour whatever the browser's locale, which put "4:05 PM" on some screens.
+export function shortTime(iso: string | undefined): string {
+  const p = parts(iso);
+  return p ? `${p.hh}:${p.mm}` : "—";
+}

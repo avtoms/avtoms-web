@@ -190,19 +190,26 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
   const [f, setF] = useState({ name: "", phone: "", telegram: "", language: "uz" as Lang, walkIn: false });
   const [reminders, setReminders] = useState<ReminderDraft[]>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setF({ name: "", phone: "", telegram: "", language: "uz", walkIn: false }); setReminders([]); } }, [open]);
+  // Set on the first Save, so a missing phone is said under its field (as the new-order form does).
+  const [tried, setTried] = useState(false);
+  useEffect(() => { if (open) { setF({ name: "", phone: "", telegram: "", language: "uz", walkIn: false }); setReminders([]); setTried(false); } }, [open]);
 
   const save = async () => {
-    if (!f.phone.trim() || busy) return;
+    if (busy) return;
+    setTried(true);
+    if (!f.phone.trim()) return;
     if (!isValidUzPhone(f.phone)) { toast(t("bad_phone"), { icon: "alert", tone: "danger" }); return; }
     setBusy(true);
     try {
       const cust = await api.createCustomer(shopId, { phone: toE164(f.phone), name: f.name.trim(), language: f.language, telegramHandle: f.telegram.trim(), walkIn: f.walkIn });
       // Set up the requested recurring service reminders for the new client (best-effort: the
       // client is already saved, so a reminder hiccup only warns rather than failing the create).
+      let remindersOk = true;
       try { await saveReminders(shopId, reminders, { customerName: cust.name, phone: cust.phone }); }
-      catch { toast(t("error"), { icon: "alert", tone: "danger" }); }
-      toast(t("save"), { icon: "check" }); onClose(); onCreated();
+      catch { remindersOk = false; }
+      if (remindersOk) toast(t("save"), { icon: "check" });
+      else toast(t("cust_saved_no_reminders"), { icon: "alert", tone: "danger" });
+      onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };
@@ -213,7 +220,10 @@ function AddCustomerModal({ open, onClose, shopId, onCreated }: { open: boolean;
         <DialogHeader><DialogTitle>{t("new_customer")}</DialogTitle></DialogHeader>
         <DialogBody className="flex flex-col gap-3.5 py-1">
           <Field label={t("name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-          <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
+          <div className="flex flex-col gap-1">
+            <PhoneField label={t("phone")} value={f.phone} onChange={(p) => setF({ ...f, phone: p })} invalidHint={t("bad_phone")} />
+            {tried && !f.phone.trim() && <span className="text-[12px] font-medium text-destructive">{t("req_phone")}</span>}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("telegram")}><Input value={f.telegram} onChange={(e) => setF({ ...f, telegram: e.target.value })} placeholder="@username" /></Field>
             <Field label={t("language")}>

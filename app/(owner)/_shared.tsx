@@ -10,7 +10,7 @@ import { Icon } from "@/components/icons";
 import { Badge as KitBadge } from "@/components/ui-kit/badge";
 import { useT } from "@/components/providers";
 import { useIsMobile } from "@/components/ui";
-import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
+import { money, num, orderLabel, shortDate, vehicleTitle } from "@/lib/format";
 import { woStateFromProto } from "@/lib/enums";
 import { StateBadge } from "@/components/ui";
 import { CarImage } from "@/components/car-image";
@@ -102,7 +102,7 @@ export function WORow({ wo }: { wo: WorkOrder }) {
   const isMobile = useIsMobile();
   const state = woStateFromProto(wo.state);
   const total = num(wo.total);
-  const created = wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
+  const created = wo.createdAt ? shortDate(wo.createdAt) : "";
   const title = vehicleTitle(wo) || t("work_order");
   return (
     <Link href={`/work-orders/${wo.id}`} className="flex items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 hover:bg-secondary/60 sm:px-5">

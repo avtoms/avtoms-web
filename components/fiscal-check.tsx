@@ -7,7 +7,7 @@
 // VAT (QQS/НДС) is disabled for this deployment, so no VAT line is shown.
 // An owner-only panel (.inv-noprint) shows cost + income (doxod); it never prints.
 import React from "react";
-import { money, num, orderLabel } from "@/lib/format";
+import { money, num, orderLabel, shortDateTime } from "@/lib/format";
 import { paymentFromProto, paymentLabelKey, fiscalFromProto } from "@/lib/enums";
 import { qtyUnit } from "@/components/catalog-fields";
 import { useLang, useAuth } from "@/components/providers";
@@ -83,7 +83,7 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
   // it always did; a split has several.
   const parts = invoice.payments ?? [];
   const fiscal = fiscalFromProto(invoice.fiscalStatus);
-  const created = invoice.createdAt ? new Date(invoice.createdAt).toLocaleString("ru-RU") : "";
+  const created = invoice.createdAt ? shortDateTime(invoice.createdAt) : "";
   const cashier = session?.staff?.name || "";
   const orderNo = wo ? orderLabel(wo) : "";
   const vehicle = wo ? [wo.make, wo.model].filter(Boolean).join(" ") : "";

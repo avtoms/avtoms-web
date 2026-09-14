@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Icon } from "./icons";
 import { useT } from "./providers";
+import { innerPopupOpen } from "./ui-kit/dialog";
 import { STATE_LABEL, type WoState, type FiscalStatus } from "@/lib/enums";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { QRCodeSVG } from "qrcode.react";
@@ -153,7 +154,8 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 520, 
   const isMobile = useIsMobile();
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose?.(); };
+    // Escape closes an open dropdown inside the modal first, not the modal (see innerPopupOpen).
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !innerPopupOpen()) onClose?.(); };
     window.addEventListener("keydown", onKey);
     // Lock page scroll while the modal is open — with scrollbar-gutter (globals.css) this
     // stops the background layout from shifting when a modal opens/closes.

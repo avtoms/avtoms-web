@@ -11,6 +11,7 @@ import { Card, Badge, Btn, Modal, Field, TextInput, Spinner } from "@/components
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { plateTypeFromProto } from "@/lib/enums";
+import { shortDate } from "@/lib/format";
 import { ServiceBookPanel } from "@/components/service-book";
 import { PlatePreview } from "@/components/plate";
 import type { Vehicle, Warranty } from "@/lib/types";
@@ -74,7 +75,7 @@ export function VehicleHistoryModal({ vehicle, shopId, onClose }: { vehicle: Veh
                       <div style={{ fontSize: 11.5, color: "var(--ink-3)", display: "flex", gap: 7, flexWrap: "wrap" }}>
                         {!!w.months && <span>{w.months} {t("months")}</span>}
                         {!!Number(w.kmLimit) && <span style={{ fontFamily: "var(--font-mono)" }}>· {Number(w.kmLimit).toLocaleString("ru-RU")} km</span>}
-                        {w.expiresOn && <span>· {t("until")} {new Date(w.expiresOn).toLocaleDateString("ru-RU")}</span>}
+                        {w.expiresOn && <span>· {t("until")} {shortDate(w.expiresOn)}</span>}
                       </div>
                     </div>
                     <Badge tone={s === "active" ? "ok" : s === "expired" ? "warn" : "neutral"} dot>{t("warranty_" + s)}</Badge>

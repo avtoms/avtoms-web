@@ -29,7 +29,7 @@ import { useShopFlow } from "@/lib/shop";
 import { canWork } from "@/lib/use-staff";
 import { serverMessage } from "@/lib/system-text";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { minutesBetween, money, num, orderLabel, vehicleTitle } from "@/lib/format";
+import { minutesBetween, money, num, orderLabel, shortDate, vehicleTitle } from "@/lib/format";
 import type { Invoice, MaterialReturn, Staff, WorkOrder } from "@/lib/types";
 import { WorkOrderBoard, type CardExtras, type ColDef } from "@/components/wo-board";
 import { MaterialReturnDialog, returnableMaterials, type ReturnableMaterial } from "@/components/material-return-dialog";
@@ -111,7 +111,8 @@ export default function WorkOrdersPage() {
       setStaff(st);
       setInvoices(invs);
     } catch (e) {
-      setList([]);
+      // Keep what is on the board: a blip during the auto-refresh must not read as "no orders".
+      setList((prev) => prev ?? []);
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     }
   }, [shopId, view, filter, canBill, t, toast]);
@@ -227,9 +228,7 @@ export default function WorkOrdersPage() {
       header: ({ column }) => <SortHeader column={column}>{t("work_order")}</SortHeader>,
       cell: ({ row }) => {
         const w = row.original;
-        const created = w.createdAt
-          ? new Date(w.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
-          : "";
+        const created = w.createdAt ? shortDate(w.createdAt) : "";
         return (
           <div className="flex flex-col">
             <span className="font-mono text-[13.5px] font-bold text-foreground">{orderLabel(w)}</span>

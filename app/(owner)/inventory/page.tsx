@@ -33,7 +33,7 @@ import { PageHeader } from "@/components/page-header";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { countVariants, money, num, qty } from "@/lib/format";
+import { countVariants, money, num, qty, shortDateTime } from "@/lib/format";
 import { currentMonth, monthRange } from "@/lib/range";
 import { pickLangText, type Lang } from "@/lib/i18n";
 import { stockReason } from "@/lib/system-text";
@@ -774,12 +774,6 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
   const supplierName = (id?: string) => contragents.find((c) => c.id === id)?.name;
   const staffName = (id?: string) => staff.find((s) => s.id === id)?.name;
 
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso);
-    // ru-RU for every language: browsers ship no Uzbek date data and fell back to "26-09-12".
-    return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-  };
-
   return (
     <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2.5">
       {items === null && <div className="flex justify-center py-2"><Spinner /></div>}
@@ -829,7 +823,7 @@ function HistoryPanel({ variantId, unit, contragents, staff }: {
                   {fxLabel(m.fxUnitCost, currencies)}
                 </span>
               )}
-              <span className="ml-auto font-mono">{fmtDate(m.createdAt)}</span>
+              <span className="ml-auto font-mono">{shortDateTime(m.createdAt)}</span>
             </div>
           </div>
         );

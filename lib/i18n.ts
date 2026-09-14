@@ -413,6 +413,9 @@ export const STR: Record<string, Triple> = {
   dismiss: ["Bekor qilish", "Бекор қилиш", "Отклонить"],
   st_dismissed: ["Bekor qilingan", "Бекор қилинган", "Отклонено"],
   add_appointment: ["Yozuv qo'shish", "Ёзув қўшиш", "Добавить запись"],
+  // The booking saved, but the new client (or their car) it should have registered did not.
+  appt_saved_no_client: ["Yozuv saqlandi, lekin mijoz qo'shilmadi", "Ёзув сақланди, лекин мижоз қўшилмади", "Запись сохранена, но клиента добавить не удалось"],
+  appt_saved_no_car: ["Yozuv saqlandi, lekin mashina qo'shilmadi", "Ёзув сақланди, лекин машина қўшилмади", "Запись сохранена, но машину добавить не удалось"],
   appt_when: ["Sana va vaqt", "Сана ва вақт", "Дата и время"],
   appt_new_client: ["Yangi mijoz", "Янги мижоз", "Новый клиент"],
   duration_min: ["Davomiyligi (daq)", "Давомийлиги (дақ)", "Длительность (мин)"],
@@ -1036,6 +1039,7 @@ export const STR: Record<string, Triple> = {
   add_next_service: ["Eslatma qo'shish", "Эслатма қўшиш", "Добавить напоминание"],
   skip_reminder: ["Kerak emas", "Керак эмас", "Не нужно"],
   reminders_saved: ["Eslatma saqlandi", "Эслатма сақланди", "Напоминание сохранено"],
+  cust_saved_no_reminders: ["Mijoz saqlandi, lekin eslatmalar saqlanmadi", "Мижоз сақланди, лекин эслатмалар сақланмади", "Клиент сохранён, но напоминания не сохранились"],
   // ── contragent account columns ──
   cg_turnover: ["Aylanma", "Айланма", "Оборот"],
   cg_last_move: ["Oxirgi harakat", "Охирги ҳаракат", "Последнее движение"],
@@ -1687,6 +1691,8 @@ export const STR: Record<string, Triple> = {
   no_mechanic: ["Usta yo'q", "Уста йўқ", "Без мастера"],
   dash_more: ["Batafsil", "Батафсил", "Подробнее"],
   dash_more_n: ["Yana", "Яна", "Ещё"],
+  // The Uzbek counter word after a bare number ("5 ta"). Russian writes the number alone.
+  n_ta: ["ta", "та", ""],
   dash_more_panels: ["Qo'shimcha", "Қўшимча", "Дополнительно"],
   dur_min: ["daqiqa", "дақиқа", "мин"],
   dur_day: ["kun", "кун", "дн."],

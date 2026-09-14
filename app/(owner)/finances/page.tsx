@@ -23,7 +23,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { PeriodPicker, usePeriod, monthRange, lastNMonths } from "../_period";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { money, num } from "@/lib/format";
+import { dayMonth, money, num, shortDate, shortDateTime } from "@/lib/format";
 import { expenseCategory } from "@/lib/system-text";
 import { cn } from "@/lib/utils";
 import type { ShopExpense, ProfitAndLoss, Staff } from "@/lib/types";
@@ -36,9 +36,6 @@ import { PageHeader } from "@/components/page-header";
 
 const CATS = ["rent", "salary", "utilities", "supplies", "tax", "other"] as const;
 
-// dd.mm, the way dates are written in Uzbek and Russian alike (ru-RU is the locale every browser
-// carries that writes it so; the browser's own locale put "Sep 12" on an Uzbek screen).
-const dateStr = (iso: string) => new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 
 export default function FinancesPage() {
@@ -195,7 +192,7 @@ export default function FinancesPage() {
                       {/* Date, then how it was paid and by whom — the three things somebody
                           checking the till against the book needs off one line. */}
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-mono text-[12px] text-muted-foreground">{dateStr(e.incurredOn)}</span>
+                        <span className="font-mono text-[12px] text-muted-foreground">{dayMonth(e.incurredOn)}</span>
                         <PaidBadge paid={e} />
                         {payer && <span className="text-[12px] text-muted-foreground">{payer}</span>}
                       </div>
@@ -325,8 +322,7 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
   // For rendering the stamp: the symbol and decimal places come from the list, the rate and
   // the amount from the row itself, so the figure shown is the one that was recorded.
   const currencies = useCurrencies();
-  const fullDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—");
-  const recorded = e?.createdAt ? new Date(e.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const recorded = shortDateTime(e?.createdAt);
 
   const remove = async () => {
     if (busy || !e) return; setBusy(true);
@@ -346,7 +342,7 @@ function ExpenseDetailModal({ expense, receiver, paidByName, onClose, onDeleted 
               {e.fxAmount?.currency && <Row label={t("fx_in_currency")} value={fxLabel(e.fxAmount, currencies)} mono />}
               <Separator className="my-2" />
               <Row label={t("category")} value={expenseCategory(lang, e.category)} />
-              <Row label={t("date")} value={fullDate(e.incurredOn)} />
+              <Row label={t("date")} value={shortDate(e.incurredOn)} />
               {receiver && <Row label={t("receiver")} value={receiver} />}
               {paidByName && <Row label={t("paid_by")} value={paidByName} />}
               {(e.method || e.parts?.length) && (

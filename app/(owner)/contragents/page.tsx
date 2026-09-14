@@ -6,7 +6,7 @@
 // the screen had before (turnover and debit/credit columns, sortable) is one tab away.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Phone, MapPin, Tag, Wallet, Landmark, ChevronDown, Search } from "lucide-react";
+import { Plus, Pencil, Phone, MapPin, Wallet, Landmark, ChevronDown, Search } from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
@@ -86,13 +86,6 @@ export default function ContragentsPage() {
   }, [pendingOpen, list, isMobile]);
   useEffect(() => { api.listCatalogTerms("brand").then(setBrands).catch(() => {}); }, []);
 
-  // Brand name -> logo URL, so a supplier's brand shows its mark next to the name.
-  const brandLogos = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
-    return m;
-  }, [brands]);
-
   // The list on the left: who is owed most first, then the rest by name.
   const ordered = useMemo(() => {
     const n = q.trim().toLowerCase();
@@ -129,25 +122,7 @@ export default function ContragentsPage() {
         );
       },
     },
-    {
-      id: "brand",
-      accessorFn: (c) => c.brand ?? "",
-      header: ({ column }) => <SortHeader column={column}>{t("brand")}</SortHeader>,
-      cell: ({ row }) => {
-        const b = row.original.brand;
-        if (!b) return <span className="text-muted-foreground">—</span>;
-        const logo = brandLogos[b];
-        return (
-          <Badge tone="neutral">
-            {logo
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={logo} alt="" aria-hidden className="mr-1 size-4 rounded-[3px] object-contain" />
-              : <Tag className="mr-1 size-3" />}
-            {b}
-          </Badge>
-        );
-      },
-    },
+    // No brand column: a supplier sells many brands, and it showed whichever came first.
     // Turnover: what the shop has taken from them and handed over. Separate from the balance
     // because a supplier you buy 50m from and settle every week is a different relationship
     // from one you buy 2m from and owe 2m to, and a single balance column hides that.
@@ -168,13 +143,13 @@ export default function ContragentsPage() {
     {
       id: "debit",
       accessorFn: (c) => Math.max(0, -num(balances[c.id]?.balance)),
-      header: ({ column }) => <SortHeader column={column}>{t("cg_debit")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("cg_they_owe")}</SortHeader>,
       cell: ({ row }) => <Amount value={Math.max(0, -num(balances[row.original.id]?.balance))} tone="success" />,
     },
     {
       id: "credit",
       accessorFn: (c) => Math.max(0, num(balances[c.id]?.balance)),
-      header: ({ column }) => <SortHeader column={column}>{t("cg_credit")}</SortHeader>,
+      header: ({ column }) => <SortHeader column={column}>{t("cg_we_owe")}</SortHeader>,
       cell: ({ row }) => <Amount value={Math.max(0, num(balances[row.original.id]?.balance))} tone="destructive" />,
     },
     {
@@ -199,7 +174,7 @@ export default function ContragentsPage() {
         </div>
       ),
     },
-  ], [t, brandLogos, balances]);
+  ], [t, balances]);
 
   const listPane = (
     <Card className="overflow-hidden p-0">
@@ -271,10 +246,10 @@ export default function ContragentsPage() {
             searchPlaceholder={t("search") + "…"}
             emptyText={t("no_contragents")}
             columnLabels={{
-              name: t("contragent_name"), brand: t("brand"),
+              name: t("contragent_name"),
               purchased: t("cg_purchased"), paid: t("cg_paid"),
-              debit: `${t("cg_debit")} · ${t("cg_debit_hint")}`,
-              credit: `${t("cg_credit")} · ${t("cg_credit_hint")}`,
+              debit: t("cg_they_owe"),
+              credit: t("cg_we_owe"),
               lastMove: t("cg_last_move"),
             }}
             pageSize={12}

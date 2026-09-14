@@ -29,7 +29,7 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { canAny } from "@/lib/perms";
 import { currentMonth, monthRange } from "@/lib/range";
-import { money, num, qty } from "@/lib/format";
+import { money, num, qty, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { tourPrefill } from "@/lib/tour-bridge";
 import type { MenuItem, MenuMaterial, MenuPriceChange, Product, PropertyDefinition, CatalogTerm, Contragent } from "@/lib/types";
@@ -538,7 +538,7 @@ function MenuModal({ open, onClose, shopId, item, onSaved }: { open: boolean; on
                       <ChevronRight className="size-3.5 text-muted-foreground" />
                       <span className="font-mono font-bold text-foreground">{money(h.newPrice)}</span>
                       <span className="ml-auto truncate font-mono text-[11.5px] text-muted-foreground">
-                        {new Date(h.changedAt).toLocaleDateString("ru-RU")}{who(h.changedBy) ? " · " + who(h.changedBy) : ""}
+                        {shortDate(h.changedAt)}{who(h.changedBy) ? " · " + who(h.changedBy) : ""}
                       </span>
                     </div>
                   ))}

@@ -1039,7 +1039,12 @@ function PaymentPanel({ open, onClose, wo, shopId, total, customer, onChange }: 
                         </button>
                       ))}
                     </div>
-                    <button onClick={() => void pay("other")} disabled={busy} className="mt-1.5 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">
+                    {/* Picks the method like the four above; the confirm button below takes the money. */}
+                    <button onClick={() => setMethod("other")} aria-pressed={method === "other"}
+                      className={cn(
+                        "-mx-2 mt-1.5 inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-[12.5px] font-semibold transition-colors",
+                        method === "other" ? "bg-primary-soft text-primary-emphasis" : "text-muted-foreground hover:text-foreground",
+                      )}>
                       <Wallet className="size-3.5" /> {t("other_method")}
                     </button>
                   </div>

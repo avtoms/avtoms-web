@@ -27,7 +27,7 @@ import { Skeleton } from "@/components/ui-kit/misc";
 import { StateBadge } from "@/components/ui";
 import { useLang } from "@/components/providers";
 import { api } from "@/lib/api";
-import { money, num, orderLabel } from "@/lib/format";
+import { money, num, orderLabel, shortTime } from "@/lib/format";
 import { expenseCategory } from "@/lib/system-text";
 import { PaidBadge } from "@/components/payment-picker";
 import { woStateFromProto, paymentFromProto, paymentLabelKey } from "@/lib/enums";
@@ -48,11 +48,7 @@ const COUNTS_TOWARD_REVENUE = new Set(["invoiced", "closed"]);
 // trades falls inside that, so the two never disagree in practice; a sale rung up at two in the
 // morning would land on the previous day, and is a price worth paying to keep single days
 // adding up exactly to the month above them.
-const clock = (iso?: string) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-};
+const clock = (iso?: string) => (iso ? shortTime(iso) : "");
 
 export function DaySheet({ shopId, from, to }: { shopId: string; from: string; to: string }) {
   const { t, lang } = useLang();

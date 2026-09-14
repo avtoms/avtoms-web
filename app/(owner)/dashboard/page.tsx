@@ -21,12 +21,11 @@ import { Skeleton } from "@/components/ui-kit/misc";
 import { ChartCard, HBarChart, type BarDatum } from "@/components/admin/charts";
 import { PlatePreview } from "@/components/plate";
 import { PageHeader } from "@/components/page-header";
-import { GlobalSearch } from "@/components/global-search";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { can, canAny } from "@/lib/perms";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { compactMln, makeModel, minutesBetween, money, num, orderLabel } from "@/lib/format";
+import { compactMln, makeModel, minutesBetween, money, num, orderLabel, shortDate } from "@/lib/format";
 import { apptStateFromProto, fiscalFromProto, paymentFromProto, woStateFromProto, STATE_LABEL, type WoState } from "@/lib/enums";
 import { dayRange, shiftDay, spanRange, todayYMD } from "@/lib/range";
 import { canWork } from "@/lib/use-staff";
@@ -276,7 +275,6 @@ export default function DashboardPage() {
       }
       actions={
         <>
-          {!isMobile && <GlobalSearch shopId={shopId} orders={orders} canCustomers={canAppts} className="w-[340px]" />}
           <button
             aria-label={t("dash_notifications")}
             title={t("dash_notifications")}
@@ -383,7 +381,7 @@ export default function DashboardPage() {
             ))}
             {!allAttention && attention.length > 4 && (
               <button onClick={() => setAllAttention(true)} className="w-full border-t border-border px-5 py-2.5 text-left text-[13px] font-semibold text-primary-emphasis hover:bg-secondary/60">
-                {t("dash_more_n")} {attention.length - 4} ta
+                {t("dash_more_n")} {attention.length - 4} {t("n_ta")}
               </button>
             )}
           </Card>
@@ -393,7 +391,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle>
                 {t("dash_cars_in_shop")}
-                <span className="text-[13px] font-medium text-muted-foreground">{inShop.length} ta</span>
+                <span className="text-[13px] font-medium text-muted-foreground">{inShop.length} {t("n_ta")}</span>
               </CardTitle>
               <Link href="/work-orders" className="text-[13px] font-semibold text-primary-emphasis hover:underline">
                 {isMobile ? t("dash_board_short") : t("dash_to_board")}
@@ -476,7 +474,7 @@ export default function DashboardPage() {
             </div>
             <div className="mt-4 flex h-[128px] items-end gap-2">
               {weekBars.map((b) => (
-                <div key={b.day} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5" title={`${b.day} · ${money(b.value)}`}>
+                <div key={b.day} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5" title={`${shortDate(b.day + "T00:00")} · ${money(b.value)}`}>
                   <div className="w-full rounded-t-[6px]" style={{ height: `${Math.max(4, (b.value / weekMax) * 100)}%`, background: b.today ? "var(--accent)" : "color-mix(in oklch, var(--accent) 32%, transparent)" }} />
                   <span className={cn("text-[11.5px]", b.today ? "font-bold text-primary-emphasis" : "text-muted-foreground")}>{b.label}</span>
                 </div>

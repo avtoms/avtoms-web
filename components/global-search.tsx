@@ -3,9 +3,10 @@
 // client by name or phone, and opens it. ⌘K / Ctrl+K puts the cursor in it from anywhere on
 // the page, because the person at the counter reaching for it has a phone in the other hand.
 //
-// Orders are searched in the list the page already holds — they are what somebody is most
-// often looking for, and they must answer instantly. Clients come from the server once two
-// characters are typed, since a shop's client book is not something to download up front.
+// It lives in the owner layout's header, so it works on every page. The shop's orders are
+// fetched each time the box is opened — they are what somebody is most often looking for, and
+// once loaded they answer instantly as each letter is typed. Clients come from the server once
+// two characters are typed, since a shop's client book is not something to download up front.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ClipboardList, User } from "lucide-react";
@@ -18,13 +19,14 @@ import { cn } from "@/lib/utils";
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s\-·]+/g, "");
 
-export function GlobalSearch({ shopId, orders, canCustomers, className }: {
-  shopId: string; orders: WorkOrder[]; canCustomers: boolean; className?: string;
+export function GlobalSearch({ shopId, canOrders, canCustomers, className }: {
+  shopId: string; canOrders: boolean; canCustomers: boolean; className?: string;
 }) {
   const { t } = useLang();
   const router = useRouter();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [clients, setClients] = useState<Customer[]>([]);
   const [cursor, setCursor] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -42,6 +44,15 @@ export function GlobalSearch({ shopId, orders, canCustomers, className }: {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    if (!open || !canOrders) return;
+    let alive = true;
+    api.listWorkOrders(shopId)
+      .then((r) => { if (alive) setOrders(r); })
+      .catch(() => { /* keep the last list; the search still finds clients */ });
+    return () => { alive = false; };
+  }, [open, shopId, canOrders]);
 
   useEffect(() => {
     const term = q.trim();
@@ -65,7 +76,7 @@ export function GlobalSearch({ shopId, orders, canCustomers, className }: {
 
   const items = useMemo(() => [
     ...hits.map((w) => ({ key: "o" + w.id, href: `/work-orders/${w.id}` })),
-    ...clients.map((c) => ({ key: "c" + c.id, href: `/customers?focus=${c.id}` })),
+    ...clients.map((c) => ({ key: "c" + c.id, href: `/customers/${c.id}` })),
   ], [hits, clients]);
 
   useEffect(() => { setCursor(0); }, [q]);
@@ -133,7 +144,7 @@ export function GlobalSearch({ shopId, orders, canCustomers, className }: {
                 idx += 1;
                 const i = idx;
                 return (
-                  <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => go(`/customers?focus=${c.id}`)}
+                  <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => go(`/customers/${c.id}`)}
                     onMouseEnter={() => setCursor(i)}
                     className={cn("flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left", cursor === i && "bg-secondary")}>
                     <User className="size-4 shrink-0 text-muted-foreground" />

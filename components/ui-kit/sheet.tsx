@@ -3,6 +3,7 @@ import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { innerPopupOpen } from "./dialog";
 
 const Sheet = SheetPrimitive.Root;
 const SheetTrigger = SheetPrimitive.Trigger;
@@ -25,7 +26,7 @@ function SheetContent({
         )}
         // Escape closes an open dropdown inside the sheet, not the sheet (see innerPopupOpen).
         onEscapeKeyDown={(e) => {
-          if (typeof document !== "undefined" && document.querySelector('[data-popup-open="true"]')) e.preventDefault();
+          if (innerPopupOpen()) e.preventDefault();
           onEscapeKeyDown?.(e);
         }}
         {...props}

@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { BUILD_VERSION } from "@/lib/version";
 import { CreateWOModal } from "./_create-wo";
 import { ChatWidget } from "@/components/ai-chat";
+import { GlobalSearch } from "@/components/global-search";
 import { OnboardingTour, startTour } from "@/components/onboarding-tour";
 
 // Every nav item names the permission that opens it. A person is shown the shop they were
@@ -234,6 +235,10 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const title = cur ? t(cur.labelKey) : t("app_name");
   const modal = <CreateWOModal open={creating} onClose={() => setCreating(false)} />;
   const hasChat = can(session, "ai.use");
+  // The header search (⌘K), on every page on a desktop: orders for whoever can see them,
+  // clients for whoever manages them.
+  const searchOrders = can(session, "orders.view");
+  const searchClients = can(session, "customers.manage");
   // The walk-through is the owner's: it creates stock, prices and an order, then deletes them.
   // It can be taken as often as wanted — from the header on every screen, or the sidebar.
   const canLearn = can(session, "settings.manage");
@@ -255,6 +260,10 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         <div ref={setTitleEl} className="contents" />
         <div ref={setMetaEl} className={cn("min-w-0 truncate text-[13px] text-muted-foreground", mobile && "hidden")} />
       </div>
+      {/* Outside the scrolling button row, which would clip its results panel. */}
+      {!mobile && (searchOrders || searchClients) && (
+        <GlobalSearch shopId={session.staff.shopId} canOrders={searchOrders} canCustomers={searchClients} className="w-[300px] shrink-0" />
+      )}
       <div className="flex max-w-full items-center gap-2 overflow-x-auto">
         <div ref={setActionsEl} className="flex items-center gap-2 empty:hidden" />
         {!mobile && showNewWo && (

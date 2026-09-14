@@ -23,6 +23,7 @@ import { Spinner } from "@/components/ui-kit/misc";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { BASE_CURRENCY, inputToRate, rateToInput } from "@/lib/currency";
+import { shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Currency, CurrencyRateChange } from "@/lib/types";
 import { SecTitle } from "../_shared";
@@ -66,12 +67,6 @@ function RateRow({ currency, onSaved }: { currency: Currency; onSaved: () => voi
     }
   };
 
-  const when = (iso: string) => {
-    const d = new Date(iso);
-    // ru-RU for every language: browsers ship no Uzbek date data and fall back to year-first.
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString("ru-RU");
-  };
-
   return (
     <div className="flex flex-col gap-2 border-t border-border/60 pt-3 first:border-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-2">
@@ -110,7 +105,7 @@ function RateRow({ currency, onSaved }: { currency: Currency; onSaved: () => voi
             <ul className="flex flex-col gap-1">
               {history.map((h) => (
                 <li key={h.id} className="flex items-baseline gap-2 font-mono text-[12px]">
-                  <span className="text-muted-foreground">{when(h.changedAt)}</span>
+                  <span className="text-muted-foreground">{shortDate(h.changedAt)}</span>
                   {/* Whose change this was. Without the label the two histories read as one
                       list of contradictory numbers. */}
                   <span className={cn("shrink-0 rounded px-1 text-[10.5px] font-bold not-italic",

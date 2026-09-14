@@ -151,6 +151,22 @@ export function TemplatePicker({
             </span>
           </DialogTitle>
         </DialogHeader>
+        {/* The stock step brings its own body and footer, so its button sits under the form
+            rather than floating over the supplier block at the bottom of it. */}
+        {step === 3 && picked ? (
+          <StockStep
+            key={picked.id}
+            template={picked}
+            existing={existingFor(picked)}
+            shopId={shopId}
+            definitions={definitions}
+            contragents={contragents}
+            onContragentsChange={onContragentsChange}
+            onSaved={() => { onClose(); onSaved(); }}
+            onError={(m) => toast(m, { icon: "alert", tone: "danger" })}
+            onOk={() => toast(t("save"), { icon: "check" })}
+          />
+        ) : (
         <DialogBody className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto py-1">
           {templates.length === 0 && (
             <div className="flex flex-col items-center gap-3 py-6">
@@ -222,22 +238,8 @@ export function TemplatePicker({
               })}
             </div>
           )}
-
-          {step === 3 && picked && (
-            <StockStep
-              key={picked.id}
-              template={picked}
-              existing={existingFor(picked)}
-              shopId={shopId}
-              definitions={definitions}
-              contragents={contragents}
-              onContragentsChange={onContragentsChange}
-              onSaved={() => { onClose(); onSaved(); }}
-              onError={(m) => toast(m, { icon: "alert", tone: "danger" })}
-              onOk={() => toast(t("save"), { icon: "check" })}
-            />
-          )}
         </DialogBody>
+        )}
         {step < 3 && templates.length > 0 && (
           <DialogFooter className="justify-between">
             {/* Not a second button competing at the top of the warehouse screen, but the answer
@@ -449,7 +451,8 @@ function StockStep({
   const published = rateToInput(effectiveRate(cur));
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
+    <DialogBody className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto py-1">
       {existing && (
         <p className="rounded-[9px] bg-success-soft px-3 py-2 text-[12.5px] text-foreground">
           {t("tpl_already_note")}
@@ -600,8 +603,9 @@ function StockStep({
         )}
         <NoSupplierNote show={!supplierId && arriving > 0} />
       </div>
+    </DialogBody>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-border bg-card pt-2.5">
+    <DialogFooter className="items-center justify-between">
         <span className="text-[12.5px] text-muted-foreground">
           {picks.length > 0
             ? <>{picks.length} {t("variants").toLowerCase()}{arriving > 0 && <> · <span className="font-mono font-semibold text-foreground">{money(arriving)}</span></>}</>
@@ -610,8 +614,8 @@ function StockStep({
         <Button disabled={busy || picks.length === 0 || payIncomplete} onClick={save}>
           {busy ? <Spinner /> : t("tpl_add_to_warehouse")}
         </Button>
-      </div>
-    </div>
+    </DialogFooter>
+    </>
   );
 }
 

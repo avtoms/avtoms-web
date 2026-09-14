@@ -428,6 +428,9 @@ function AddModal({ open, onClose, shopId, mechanics, titles, onCreated, preset 
       // time. Reuse an existing client when the phone already matches; never block the
       // booking if client creation fails.
       let vehicleId = f.vehicleId;
+      // What the booking could not register, said once it has saved — otherwise it stands with
+      // no client or no car and nobody knows.
+      let missed: "" | "appt_saved_no_client" | "appt_saved_no_car" = "";
       if (!f.customerId && name) {
         const digits = (s: string) => s.replace(/\D/g, "");
         const dupe = phone ? customers.find((c) => c.phone && digits(c.phone) === digits(phone)) : undefined;
@@ -438,10 +441,10 @@ function AddModal({ open, onClose, shopId, mechanics, titles, onCreated, preset 
             // later be booked by plate, and the booking could not become an order.
             if (f.plate.trim()) {
               try { vehicleId = (await api.createVehicle({ customerId: c.id, plate: f.plate.trim() })).id; }
-              catch { /* the booking still stands on its plate */ }
+              catch { missed = "appt_saved_no_car"; /* the booking still stands on its plate */ }
             }
           }
-          catch { /* non-fatal — still create the appointment */ }
+          catch { missed = "appt_saved_no_client"; /* non-fatal — still create the appointment */ }
         }
       }
       // The car picked above goes with the booking. It used to be chosen and then dropped here,
@@ -451,7 +454,9 @@ function AddModal({ open, onClose, shopId, mechanics, titles, onCreated, preset 
         mechanicId: f.mechanicId || undefined, scheduledAt: new Date(f.when).toISOString(),
         durationMinutes: parseInt(f.duration, 10) || 0, notes: f.notes.trim(),
       });
-      toast(t("save"), { icon: "check" }); onClose(); onCreated();
+      if (missed) toast(t(missed), { icon: "alert", tone: "accent" });
+      else toast(t("save"), { icon: "check" });
+      onClose(); onCreated();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
     finally { setBusy(false); }
   };

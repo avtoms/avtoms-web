@@ -377,7 +377,8 @@ function ItemCard({ title, subtitle, items, t }: { title: string; subtitle: stri
           {items.map((it) => (
             <RankRow key={it.key}
               name={it.name}
-              sub={`${qty(it.quantity)}${it.sku ? " · " + it.sku : ""}`}
+              // No SKU: most are generated numbers ("1177583001") that tell nobody anything.
+              sub={qty(it.quantity)}
               value={money(it.revenue)}
               share={num(it.revenue) / max}
               color={CHART[0]}
