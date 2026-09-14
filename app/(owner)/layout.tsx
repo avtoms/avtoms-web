@@ -12,7 +12,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid, ClipboardList, CalendarDays, Users, Car, CreditCard, BarChart3, Wallet,
   Tag, Package, Truck, Bell, UserRound, Settings, Plus, Wrench, LogOut, Globe, ShoppingCart,
-  Check, ChevronDown, MoreHorizontal, Sparkles, type LucideIcon,
+  Check, ChevronDown, MoreHorizontal, Sparkles, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
 import { can, canAny, type Permission } from "@/lib/perms";
@@ -235,7 +235,9 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const modal = <CreateWOModal open={creating} onClose={() => setCreating(false)} />;
   const hasChat = can(session, "ai.use");
   // The walk-through is the owner's: it creates stock, prices and an order, then deletes them.
-  const tourButton = can(session, "settings.manage") && (
+  // It can be taken as often as wanted — from the header on every screen, or the sidebar.
+  const canLearn = can(session, "settings.manage");
+  const tourButton = canLearn && (
     <button onClick={() => { setDrawer(false); startTour(); }}
       className="mx-3 mb-1 flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13.5px] font-semibold text-primary-emphasis transition-colors hover:bg-primary-soft">
       <Sparkles className="size-[17px]" /> {t("tour_start_btn")}
@@ -257,6 +259,11 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         <div ref={setActionsEl} className="flex items-center gap-2 empty:hidden" />
         {!mobile && showNewWo && (
           <Button onClick={() => setCreating(true)}><Plus />{t("new_wo")}</Button>
+        )}
+        {canLearn && (
+          <Button variant="secondary" size={mobile ? "icon" : "default"} onClick={startTour} aria-label={t("tour_learn")} title={t("tour_learn")}>
+            <GraduationCap />{!mobile && t("tour_learn")}
+          </Button>
         )}
         <LangMenu lang={lang} setLang={setLang} />
       </div>

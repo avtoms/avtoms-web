@@ -2023,6 +2023,8 @@ export const STR: Record<string, Triple> = {
   tour_exit_yes: ["Ha, to'xtatish", "Ҳа, тўхтатиш", "Да, прервать"],
   tour_exit_no: ["Davom etish", "Давом этиш", "Продолжить"],
   tour_demo_badge: ["demo", "демо", "демо"],
+  tour_learn: ["O'rganish", "Ўрганиш", "Обучение"],
+  tour_again: ["Yana bir bor o'tish", "Яна бир бор ўтиш", "Пройти ещё раз"],
 };
 
 const WEEKDAYS_SHORT: Triple[] = [

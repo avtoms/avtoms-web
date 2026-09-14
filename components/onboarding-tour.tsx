@@ -14,7 +14,7 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Car, Check, ChevronDown, ChevronUp, ClipboardList, Package, PartyPopper, Sparkles, Tag, Trash2, User, Wrench, X,
+  Car, Check, ChevronDown, ChevronUp, ClipboardList, Package, PartyPopper, RotateCcw, Sparkles, Tag, Trash2, User, Wrench, X,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth, useLang } from "@/components/providers";
@@ -188,6 +188,9 @@ export function OnboardingTour() {
           onClose={(target) => {
             end();
             const onDemo = (orderPath && pathname.startsWith(orderPath)) || (demo.customerId && pathname.includes(demo.customerId));
+            // Straight round again: the welcome card comes back, and the new run makes its own
+            // part, service, car and order from scratch.
+            if (target === "replay") { if (onDemo) router.push("/dashboard"); offer(); setDockOpen(true); return; }
             if (target) router.push(target);
             else if (onDemo) router.push("/dashboard");
             else if (pathname === "/menu" || pathname === "/inventory") window.location.assign(pathname);
@@ -704,6 +707,9 @@ function Cleanup({ demo, onClose, onKeep }: { demo: Demo; onClose: (target?: str
               <Button size="lg" className="flex-1" onClick={() => onClose("/work-orders")}><ClipboardList /> {t("tour_first_order")}</Button>
               <Button size="lg" variant="secondary" onClick={() => onClose()}>{t("tour_close")}</Button>
             </div>
+            <button onClick={() => onClose("replay")} className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-white/65 transition-colors hover:text-white">
+              <RotateCcw className="size-4" /> {t("tour_again")}
+            </button>
           </div>
         )}
       </div>
