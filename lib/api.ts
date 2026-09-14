@@ -777,6 +777,10 @@ export const api = {
       .then((r) => r.changes ?? []),
   listStockMovements: (variantId: string) =>
     call<{ movements?: StockMovement[] }>("GET", `/v1/products/variants/${variantId}/movements`).then((r) => r.movements ?? []),
+  // The whole warehouse's ledger over a window, oldest first. from/to as YYYY-MM-DD or RFC3339;
+  // the shop is the one in the token.
+  listShopMovements: (shopId: string, from?: string, to?: string) =>
+    call<{ movements?: StockMovement[] }>("GET", "/v1/stock-movements" + qs({ shopId, from, to })).then((r) => r.movements ?? []),
 
   // ── MXIK: the tax committee's product classifier ──
   // One search box, three kinds of query: the gateway tells a 17-digit code, a barcode and a

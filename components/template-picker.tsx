@@ -40,7 +40,8 @@ import {
 } from "@/lib/currency";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
-import { money, num } from "@/lib/format";
+import { money, num, qty as fmtQty } from "@/lib/format";
+import { fill, marginPct, suggestedPrice } from "@/lib/stock";
 import { pickLangText } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type {
@@ -459,6 +460,22 @@ function StockStep({
         </p>
       )}
 
+      {/* Where this stock comes from decides whether a debt is written: goods the shop already
+          owned go in as opening stock, a delivery goes on the supplier's account. */}
+      <div className="flex flex-col gap-2 rounded-[12px] border border-border p-3">
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("whx_src_title")}</span>
+        <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-secondary p-1">
+          {([[true, t("whx_src_opening")], [false, t("whx_src_purchase")]] as const).map(([on, lbl]) => (
+            <button key={String(on)} type="button" onClick={() => setSkipDebt(on)} aria-pressed={skipDebt === on}
+              className={cn("min-h-9 rounded-[8px] px-2 text-[12.5px] font-semibold transition-colors",
+                skipDebt === on ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground")}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        <p className="text-[12px] text-muted-foreground">{t("whx_src_hint")}</p>
+      </div>
+
       <div className="flex items-center justify-between gap-2">
         <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
           {t("tpl_pick_variants")}
@@ -557,6 +574,16 @@ function StockStep({
                 </Field>
               </div>
             )}
+            {row && (() => {
+              // Selling under cost is allowed — a clearance is a decision — but never unnoticed.
+              const c = soum(row.cost), p = soum(row.price);
+              const m = marginPct(c, p);
+              return m !== null && p < c ? (
+                <p className="pl-[30px] text-[12px] font-semibold text-destructive">
+                  {fill(t("whx_price_below_cost"), { p: m, x: money(suggestedPrice(c)) })}
+                </p>
+              ) : null;
+            })()}
           </div>
         );
       })}
@@ -567,11 +594,11 @@ function StockStep({
       <div className="flex flex-col gap-2.5 rounded-[12px] border border-border p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[12.5px] font-bold text-foreground">{t("cg_delivery")}</span>
+          {/* Opening stock or a purchase is chosen once, at the top; this only says which. */}
           {supplierId && arriving > 0 && (
-            <label className="flex cursor-pointer items-center gap-2 text-[11.5px] text-muted-foreground">
-              {t("cg_no_debt")}
-              <Switch checked={skipDebt} onCheckedChange={setSkipDebt} />
-            </label>
+            <span className={cn("text-[11.5px] font-semibold", skipDebt ? "text-muted-foreground" : "text-warning")}>
+              {skipDebt ? t("whx_no_debt_short") : t("whx_debt_short")}
+            </span>
           )}
         </div>
         <Field label={t("supplier")}>
@@ -608,7 +635,12 @@ function StockStep({
     <DialogFooter className="items-center justify-between">
         <span className="text-[12.5px] text-muted-foreground">
           {picks.length > 0
-            ? <>{picks.length} {t("variants").toLowerCase()}{arriving > 0 && <> · <span className="font-mono font-semibold text-foreground">{money(arriving)}</span></>}</>
+            ? <>
+                {picks.length} {t("variants").toLowerCase()}
+                {" · "}{fmtQty(picks.reduce((s, { row }) => s + (parseFloat(row.qty) || 0), 0))}{template.unit ? ` ${unitLabel(t, template.unit)}` : ""}
+                {arriving > 0 && <> · <span className="font-mono font-semibold text-foreground">{money(arriving)}</span></>}
+                {" · "}{skipDebt || !supplierId ? t("whx_no_debt_short") : t("whx_debt_short")}
+              </>
             : t("tpl_pick_at_least_one")}
         </span>
         <Button disabled={busy || picks.length === 0 || payIncomplete} onClick={save}>

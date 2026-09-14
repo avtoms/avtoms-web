@@ -1,112 +1,110 @@
 "use client";
-// Warehouse products, after the redesign: what the stock is worth, what is running low, what
-// left the shelf this month and what the shop owes its suppliers, over one row per product —
-// its brand, pack and article number, unit, supplier, how much is left against its minimum,
-// and the cost and shelf price. Tabs split out what is low and each category.
+// Warehouse, after the "Ombor" redesign. Four figures over the list — what the stock is worth at
+// cost, what is running low, what left the shelf this month (for jobs and by hand), and what the
+// shop owes its suppliers — then one row per variant: brand, name and pack; what is left against
+// its minimum and how many days that lasts at the current rate; cost, shelf price and margin;
+// who supplies it and when it last came in. Rows that are low or empty are tinted, and a banner
+// says what to reorder and puts the order together.
 //
-// A product still carries named properties whose value combinations define variants; a row
-// opens the manage dialog to view and move each variant's stock, and the form edits the rest.
+// The header carries the three jobs done here most: a stock count (Tuzatish), a new product
+// (Mahsulot — the catalogue first, then a hand-typed form), and a delivery (Kirim hujjati).
+//
+// Kept from before though the design does not draw them: the barcode scanner, the stock-value
+// line under the shelf price, the warnings about variants with no cost or price, and the column
+// picker.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
-import { QRCodeSVG } from "qrcode.react";
-import { Plus, ScanBarcode, ArrowRight } from "lucide-react";
+import {
+  AlertTriangle, ArrowRight, BarChart3, Check, ChevronDown, ClipboardCheck, Download, FileDown,
+  MoreHorizontal, MoreVertical, Plus, Printer, ScanBarcode, Search,
+} from "lucide-react";
 import { DataTable, SortHeader } from "@/components/admin/data-table";
 import { Card } from "@/components/ui-kit/card";
 import { Badge } from "@/components/ui-kit/badge";
 import { Button } from "@/components/ui-kit/button";
-import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
 import { Spinner } from "@/components/ui-kit/misc";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui-kit/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui-kit/popover";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
-} from "@/components/ui-kit/dialog";
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui-kit/dropdown-menu";
 import { ProductForm, type ProductPrefill } from "@/components/product-form";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { TemplatePicker } from "@/components/template-picker";
-import { SearchSelect } from "@/components/ui-kit/search-select";
-import { MoneyInput, unitLabel, qtyUnit } from "@/components/catalog-fields";
-import { FxMoneyInput } from "@/components/fx-money";
-import { emptyFx, findCurrency, fxLabel, fxPayload, fxSoum, useCurrencies, type FxValue } from "@/lib/currency";
+import { qtyUnit, unitLabel } from "@/components/catalog-fields";
 import { PageHeader } from "@/components/page-header";
+import { VariantSheet, type SheetTab } from "@/components/inventory/variant-sheet";
+import { ReceiptDoc, type ReceiptSeed } from "@/components/inventory/receipt-doc";
+import { Stocktake } from "@/components/inventory/stocktake";
+import { ReorderSheet, type ReorderRow } from "@/components/inventory/reorder";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
-import { countVariants, money, num, qty, shortDateTime } from "@/lib/format";
-import { currentMonth, monthRange } from "@/lib/range";
-import { pickLangText, type Lang } from "@/lib/i18n";
-import { stockReason } from "@/lib/system-text";
+import { useShopProfile } from "@/lib/shop";
+import { countVariants, dayMonth, money, num, qty as fmtQty } from "@/lib/format";
+import { currentMonth, monthRange, todayYMD } from "@/lib/range";
+import {
+  downloadCsv, fill, inputFromProduct, isLoss, isLow, marginPct, moveKind, printLabels, reorderQty,
+  statsByVariant, variantText, type LabelItem,
+} from "@/lib/stock";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant, PropertyDefinition, StockMovement, CatalogTerm, Contragent, Staff, ProductTemplate, Statistics } from "@/lib/types";
-import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
-import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
+import type {
+  CatalogTerm, Contragent, MenuItem, Product, ProductTemplate, ProductVariant, PropertyDefinition, Staff, Statistics, StockMovement,
+} from "@/lib/types";
 import { KpiCard } from "../_shared";
 import { tourPrefill } from "@/lib/tour-bridge";
 
-// Total on-hand across a product's variants, and whether any variant is low.
-const totalStock = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.quantityOnHand), 0);
-const totalMin = (p: Product) => (p.variants ?? []).reduce((s, v) => s + num(v.reorderLevel), 0);
-const anyLow = (p: Product) => (p.variants ?? []).some((v) => num(v.quantityOnHand) <= num(v.reorderLevel));
-
-// What a product's stock on hand is worth, both ways round: what it would bring in at the
-// shelf price, and what the shop paid to have it sitting there.
-//
-// Only stock actually on hand counts. A variant at zero is worth nothing however it is priced,
-// and a negative count is a correction waiting to happen, not stock the shop can sell.
-const productValue = (p: Product) => {
-  let sell = 0, cost = 0;
-  for (const v of p.variants ?? []) {
-    const qty = num(v.quantityOnHand);
-    if (qty <= 0) continue;
-    sell += Math.round(qty * num(v.unitPrice));
-    cost += Math.round(qty * num(v.unitCost));
-  }
-  return { sell, cost };
-};
-const variantLabel = (v: ProductVariant) =>
-  (v.attributes ?? []).map((a) => a.value).join(" · ") || (v.sku ?? "");
-
-// Resolve a color swatch for an attribute value from the predefined catalog.
-const hexOf = (defs: PropertyDefinition[], prop: string, value: string) =>
-  defs.find((d) => d.name === prop && d.kind === "color")?.values?.find((x) => x.value === value)?.colorHex || undefined;
-
-// Attributes store the canonical value; show the admin's translation for the active language.
-const attrLabelOf = (defs: PropertyDefinition[], lang: Lang, prop: string, value: string) => {
-  const v = defs.find((d) => d.name === prop)?.values?.find((x) => x.value === value);
-  return v ? pickLangText(lang, v.valueUzLatn, v.valueUzCyrl, v.valueRu, value) : value;
-};
-
-const ALL = "__all";
-const LOW = "__low";
+// One row per variant: the product it belongs to and the variant itself. `id` is the product's,
+// so pointing at a product (?hl=) finds its rows.
+type Row = { id: string; key: string; p: Product; v: ProductVariant };
+type Seg = "all" | "low" | "loss" | "archive";
+const DAY = 86_400_000;
 
 export default function InventoryPage() {
   const { session } = useAuth();
   const shopId = session!.staff.shopId;
   const { t, lang } = useLang();
   const { toast } = useToast();
+  const router = useRouter();
+  const profile = useShopProfile();
 
   const [list, setList] = useState<Product[]>([]);
   const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
   const [brands, setBrands] = useState<CatalogTerm[]>([]);
   const [categories, setCategories] = useState<CatalogTerm[]>([]);
   const [contragents, setContragents] = useState<Contragent[]>([]);
-  // What each supplier is owed right now, so receiving stock can show the debt it is about
-  // to add to an account that already has one.
+  // What each supplier is owed right now, so receiving stock can show the debt it adds to.
   const [balances, setBalances] = useState<Record<string, number>>({});
   const [staff, setStaff] = useState<Staff[]>([]);
-  // The super admin's ready-made products: the catalogue this screen stocks from, and where
-  // the picture on a row comes from for anything already stocked that way.
+  // The super admin's ready-made products: the catalogue this screen stocks from, and where the
+  // picture on a row comes from for anything already stocked that way.
   const [templates, setTemplates] = useState<ProductTemplate[]>([]);
-  // This month's figures: what left the shelf at cost, and what is owed to suppliers.
+  // The price list, to say which services an empty shelf is holding up.
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  // This month's figures, for the supplier debt and as a fallback for the outflow.
   const [month, setMonth] = useState<Statistics | null>(null);
+  // The last month or so of the whole warehouse's ledger: usage rates, last deliveries, and this
+  // month's outflow split by where it went. A gateway that predates it leaves those figures to
+  // the statistics instead.
+  const [moves, setMoves] = useState<StockMovement[]>([]);
+  const [movesOk, setMovesOk] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ mode: "new" | "edit"; product: Product | null; prefill?: ProductPrefill } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false); // the registry lookup after a read
   const [fromCatalog, setFromCatalog] = useState(false);
-  const [managing, setManaging] = useState<Product | null>(null);
-  const [tab, setTab] = useState(ALL);
+  const [detail, setDetail] = useState<{ productId: string; variantId?: string; tab?: SheetTab } | null>(null);
+  const [receipt, setReceipt] = useState<ReceiptSeed | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [stocktake, setStocktake] = useState(false);
+  const [reorder, setReorder] = useState<ReorderRow[] | null>(null);
+  const [seg, setSeg] = useState<Seg>("all");
+  const [cats, setCats] = useState<string[]>([]);
+  const [supplier, setSupplier] = useState("");
+
+  const monthStart = useMemo(() => Date.parse(monthRange(currentMonth()).from), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,15 +113,18 @@ export default function InventoryPage() {
     finally { setLoading(false); }
     const r = monthRange(currentMonth());
     api.getStatistics(shopId, r.from, r.to).then(setMonth).catch(() => setMonth(null));
-  }, [shopId, t, toast]);
+    const since = new Date(Math.min(monthStart, Date.now() - 31 * DAY)).toISOString();
+    api.listShopMovements(shopId, since)
+      .then((m) => { setMoves(m); setMovesOk(true); })
+      .catch(() => { setMoves([]); setMovesOk(false); });
+  }, [shopId, t, toast, monthStart]);
 
   useEffect(() => { load(); }, [load]);
   // Other staff change these records while this tab sits open; refresh when it regains focus.
   useAutoRefresh(load);
-  // The predefined property catalog + brand/category lists power the product form.
   const loadContragents = useCallback(() => {
     api.listContragents().then(setContragents).catch(() => {});
-    // Owner-only; a worker managing stock simply sees the form without the running debt.
+    // Owner-only; a worker managing stock simply sees the forms without the running debt.
     api.contragentBalances(shopId).then((r) => {
       const m: Record<string, number> = {};
       for (const b of r.balances ?? []) m[b.contragentId] = num(b.balance);
@@ -136,79 +137,182 @@ export default function InventoryPage() {
     api.listCatalogTerms("category").then(setCategories).catch(() => {});
     api.listStaff(shopId).then(setStaff).catch(() => {});
     api.listProductTemplates().then(setTemplates).catch(() => {});
+    api.listMenuItems(shopId).then(setMenu).catch(() => {});
     loadContragents();
   }, [loadContragents, shopId]);
 
-  // Brand name -> logo URL, so a product's brand can show its logo in the list.
+  // Brand name -> logo, and template id -> the admin's picture of the goods.
   const brandLogos = useMemo(() => {
     const m: Record<string, string> = {};
     for (const b of brands) if (b.logoUrl) m[b.name] = b.logoUrl;
     return m;
   }, [brands]);
-
-  // Template id -> the admin's picture of the goods. Resolved here rather than stored on the
-  // product, so replacing a bad photo in the console fixes every shop's list at once.
   const templateImages = useMemo(() => {
     const m: Record<string, string> = {};
     for (const tpl of templates) if (tpl.imageUrl) m[tpl.id] = tpl.imageUrl;
     return m;
   }, [templates]);
 
-  // What the whole warehouse is worth. Summed here from the same rows the table shows, so the
-  // figure above the list and the list itself can never disagree.
-  //
-  // Missing prices are counted rather than assumed. A variant with stock and no cost recorded
-  // makes the cost total understate — quietly, and by exactly the amount nobody would notice —
-  // so the screen says how many, instead of presenting a short number as the whole truth.
+  const stats = useMemo(() => statsByVariant(moves, list), [moves, list]);
+  const variantById = useMemo(() => {
+    const m = new Map<string, { p: Product; v: ProductVariant }>();
+    for (const p of list) for (const v of p.variants ?? []) if (v.id) m.set(v.id, { p, v });
+    return m;
+  }, [list]);
+  const contragentName = useCallback((id?: string) => (id ? contragents.find((c) => c.id === id)?.name : undefined), [contragents]);
+  const lastCost = useCallback((vid: string) => num(stats.get(vid)?.lastIn?.unitCost), [stats]);
+
+  // Which services draw on a variant, so an empty shelf can say what it is holding up.
+  const usedIn = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const it of menu) {
+      if (it.active === false) continue;
+      const name = (lang === "ru" ? it.nameRu : lang === "uzc" ? it.nameUzCyrl : it.nameUzLatn) || it.nameUzLatn;
+      for (const mat of it.materials ?? []) if (mat.variantId) m.set(mat.variantId, [...(m.get(mat.variantId) ?? []), name]);
+    }
+    return m;
+  }, [menu, lang]);
+
+  // Who supplies a row: the product's own supplier, else whoever delivered it last.
+  const supplierOf = useCallback((r: Row) => {
+    const id = r.p.supplierId || stats.get(r.key)?.lastIn?.contragentId || "";
+    return { id, name: contragentName(id) || r.p.supplier || "" };
+  }, [stats, contragentName]);
+
+  const rowsAll = useMemo<Row[]>(() => list.flatMap((p) => (p.variants ?? [])
+    .filter((v) => v.id && (v.active !== false || p.active === false))
+    .map((v) => ({ id: p.id, key: v.id!, p, v }))), [list]);
+  const activeRows = useMemo(() => rowsAll.filter((r) => r.p.active !== false), [rowsAll]);
+  const archivedRows = useMemo(() => rowsAll.filter((r) => r.p.active === false), [rowsAll]);
+
+  const catOptions = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of activeRows) { const c = (r.p.category || "").trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [activeRows]);
+  const supplierOptions = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; n: number }>();
+    for (const r of activeRows) {
+      const s = supplierOf(r);
+      if (!s.name) continue;
+      const k = s.id || `name:${s.name}`;
+      const g = m.get(k) ?? { id: k, name: s.name, n: 0 };
+      g.n++;
+      m.set(k, g);
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  }, [activeRows, supplierOf]);
+
+  const narrow = useCallback((rows: Row[]) => rows.filter((r) => {
+    if (cats.length && !cats.includes((r.p.category || "").trim())) return false;
+    if (supplier) { const s = supplierOf(r); if ((s.id || `name:${s.name}`) !== supplier) return false; }
+    return true;
+  }), [cats, supplier, supplierOf]);
+  const base = useMemo(() => narrow(activeRows), [narrow, activeRows]);
+  const lowRows = useMemo(() => base.filter((r) => isLow(r.v)), [base]);
+  const lossRows = useMemo(() => base.filter((r) => isLoss(r.v)), [base]);
+  const archBase = useMemo(() => narrow(archivedRows), [narrow, archivedRows]);
+  const shown = seg === "archive" ? archBase : seg === "low" ? lowRows : seg === "loss" ? lossRows : base;
+
+  // What the whole warehouse is worth, summed from the same rows the table shows. Missing prices
+  // are counted rather than assumed: a variant with stock and no cost makes the total understate,
+  // and the screen says by how many rather than presenting a short number as the whole truth.
   const wh = useMemo(() => {
     let sell = 0, cost = 0, positions = 0, noCost = 0, noPrice = 0;
-    for (const p of list) {
-      for (const v of p.variants ?? []) {
-        const qty = num(v.quantityOnHand);
-        if (qty <= 0) continue;
-        positions++;
-        sell += Math.round(qty * num(v.unitPrice));
-        cost += Math.round(qty * num(v.unitCost));
-        if (num(v.unitCost) <= 0) noCost++;
-        if (num(v.unitPrice) <= 0) noPrice++;
-      }
+    for (const r of activeRows) {
+      const q = num(r.v.quantityOnHand);
+      if (q <= 0) continue;
+      positions++;
+      sell += Math.round(q * num(r.v.unitPrice));
+      cost += Math.round(q * num(r.v.unitCost));
+      if (num(r.v.unitCost) <= 0) noCost++;
+      if (num(r.v.unitPrice) <= 0) noPrice++;
     }
-    return { sell, cost, margin: sell - cost, positions, noCost, noPrice };
-  }, [list]);
-  // Margin against the sell price, which is the number a shop prices against.
-  const marginPct = wh.sell > 0 ? Math.round((wh.margin / wh.sell) * 1000) / 10 : 0;
-  const low = useMemo(() => list.filter((p) => p.active !== false && anyLow(p)), [list]);
-  const variantCount = list.reduce((s, p) => s + (p.variants ?? []).length, 0);
-  const cats = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const p of list) { const c = (p.category || "").trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-  }, [list]);
-  const shown = useMemo(
-    () => (tab === ALL ? list : tab === LOW ? low : list.filter((p) => (p.category || "").trim() === tab)),
-    [list, low, tab],
-  );
+    return { sell, cost, positions, noCost, noPrice };
+  }, [activeRows]);
+  const avgMargin = wh.sell > 0 ? Math.round(((wh.sell - wh.cost) / wh.sell) * 1000) / 10 : 0;
+  const lowAll = useMemo(() => activeRows.filter((r) => isLow(r.v)), [activeRows]);
+  const lossAll = useMemo(() => activeRows.filter((r) => isLoss(r.v)).length, [activeRows]);
 
-  // A barcode read at the warehouse screen. Three outcomes, cheapest first:
-  //  - a variant here already carries it: open that product, because the goods are in stock and
-  //    the job at hand is a delivery or a count, not a second card for the same thing;
-  //  - the tax registry knows it: open a new product with its name, brand and MXIK filled in;
-  //  - neither (usual for imported parts), or the registry is unreachable: open a new product
-  //    with just the barcode, and the MXIK search waiting to be done by name.
+  // This month's outflow at cost: for jobs and sales, and issued by hand.
+  const out = useMemo(() => {
+    let orders = 0, manual = 0;
+    for (const m of moves) {
+      if (Date.parse(m.createdAt) < monthStart) continue;
+      const k = moveKind(m);
+      const c = num(variantById.get(m.variantId)?.v.unitCost);
+      if (k === "order" || k === "sale") orders += -m.delta * c;
+      else if (k === "manual") manual += -m.delta * c;
+    }
+    return { orders: Math.round(orders), manual: Math.round(manual) };
+  }, [moves, monthStart, variantById]);
+
+  const topDebt = useMemo(() => {
+    let best: [string, number] | null = null;
+    for (const [id, b] of Object.entries(balances)) if (b > 0 && (!best || b > best[1])) best = [id, b];
+    return best ? { name: contragentName(best[0]) ?? "", amount: best[1] } : null;
+  }, [balances, contragentName]);
+
+  // The banner: which low variant runs out first at its rate, and what to order.
+  const soonest = useMemo(() => {
+    let best: { r: Row; d: number } | null = null;
+    for (const r of lowRows) {
+      const d = stats.get(r.key)?.daysLeft;
+      if (d !== null && d !== undefined && (!best || d < best.d)) best = { r, d };
+    }
+    return best;
+  }, [lowRows, stats]);
+  const recText = lowRows.slice(0, 3)
+    .map((r) => qtyUnit(t, reorderQty(r.v, stats.get(r.key)?.perDay ?? 0), r.p.unit)).join(" + ") + (lowRows.length > 3 ? " …" : "");
+
+  const toReorder = (rows: Row[]): ReorderRow[] => rows.map((r) => {
+    const s = supplierOf(r);
+    return { p: r.p, v: r.v, rec: reorderQty(r.v, stats.get(r.key)?.perDay ?? 0), supplierId: s.id, supplierName: s.name, lastCost: lastCost(r.key) };
+  });
+  const labelOf = (r: Row): LabelItem => ({
+    name: `${r.p.brand ? r.p.brand + " " : ""}${r.p.name}`, variant: variantText(r.v), sku: r.v.sku ?? "", barcode: r.v.barcode, price: num(r.v.unitPrice),
+  });
+
+  // Archiving takes a product off the list without losing its history; the Arxiv tab brings it back.
+  const archive = async (p: Product) => {
+    const back = p.active === false;
+    try {
+      await api.updateProduct(p.id, { ...inputFromProduct(p), active: back });
+      toast(back ? t("whx_unarchived") : t("whx_archived"), { icon: "check" });
+      setDetail(null);
+      load();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
+  };
+
+  const exportCsv = () => downloadCsv(`ombor-${todayYMD()}.csv`, [
+    [t("product_name"), t("brand"), t("variant"), t("art"), t("barcode"), t("category"), t("supplier"),
+      t("whx_stock"), t("unit"), t("reorder_level"), t("cost"), t("sell_price"), `${t("whx_margin_word")} %`, t("whx_value_cost")],
+    ...shown.map((r) => [
+      r.p.name, r.p.brand ?? "", variantText(r.v), r.v.sku ?? "", r.v.barcode ?? "", r.p.category ?? "", supplierOf(r).name,
+      num(r.v.quantityOnHand), r.p.unit ? unitLabel(t, r.p.unit) : "", num(r.v.reorderLevel), num(r.v.unitCost), num(r.v.unitPrice),
+      marginPct(num(r.v.unitCost), num(r.v.unitPrice)) ?? "", Math.round(Math.max(0, num(r.v.quantityOnHand)) * num(r.v.unitCost)),
+    ]),
+  ]);
+  const shownCost = shown.reduce((s, r) => s + Math.round(Math.max(0, num(r.v.quantityOnHand)) * num(r.v.unitCost)), 0);
+
+  // A barcode read at the warehouse screen. Cheapest first: a variant here already carries it —
+  // open it, because the job is a delivery or a count; the tax registry knows it — a new product
+  // with its name, brand and MXIK filled in; neither, or the registry is down — a new product
+  // with just the barcode and the MXIK search waiting.
   const onScanned = async (code: string) => {
-    const own = list.find((p) => (p.variants ?? []).some((v) => v.barcode === code));
-    if (own) {
-      setManaging(own);
-      toast(t("scan_in_stock"), { icon: "check", tone: "accent" });
-      return;
+    for (const p of list) {
+      const v = (p.variants ?? []).find((x) => x.barcode === code);
+      if (v) {
+        setDetail({ productId: p.id, variantId: v.id });
+        toast(t("scan_in_stock"), { icon: "check", tone: "accent" });
+        return;
+      }
     }
     setScanBusy(true);
     try {
       const r = await api.mxikLookup(code, lang);
       const hit = r.kind === "gtin" ? r.items[0] : undefined;
       if (hit) {
-        // The package list lives on the code's record. Without it the code and name still
-        // stand, and the form offers the packages once the service answers.
         const mxik = await api.mxikDetails(hit.code, lang)
           .then((d) => ({ mxikCode: d.code, mxikName: d.name, packageCode: d.packages[0]?.code ?? "", packageName: d.packages[0]?.name ?? "" }))
           .catch(() => ({ mxikCode: hit.code, mxikName: hit.name, packageCode: "", packageName: "" }));
@@ -217,8 +321,6 @@ export default function InventoryPage() {
       }
       setEditing({ mode: "new", product: null, prefill: { barcode: code, searchMxik: true } });
     } catch (e) {
-      // The goods still have to go on the shelf when the tax service is down: say what failed,
-      // then carry on without it.
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
       setEditing({ mode: "new", product: null, prefill: { barcode: code, searchMxik: true } });
     } finally {
@@ -226,108 +328,144 @@ export default function InventoryPage() {
     }
   };
 
-  const columns = useMemo<ColumnDef<Product>[]>(() => [
+  const addProduct = () => {
+    // During the onboarding tour the demo part goes straight to the hand-typed form, already
+    // filled in, rather than through the catalogue first.
+    const demo = tourPrefill("part");
+    if (demo) setEditing({ mode: "new", product: null, prefill: { name: demo.name, unit: demo.unit, quantity: demo.qty, unitCost: demo.cost, unitPrice: demo.price } });
+    else setFromCatalog(true);
+  };
+
+  const columns = useMemo<ColumnDef<Row>[]>(() => [
     {
       id: "name",
-      // The variants' barcodes and article numbers ride along in the searchable text, so a code
-      // typed, pasted or scanned by a USB reader into the search box finds its product. They
-      // come after the name, so the column still sorts by name.
-      accessorFn: (p) => `${p.name || ""} ${p.brand || ""} ${(p.variants ?? []).map((v) => `${v.barcode ?? ""} ${v.sku ?? ""}`).join(" ")}`,
+      // Barcodes and article numbers ride along in the searchable text, so a code typed, pasted or
+      // read by a USB scanner into the search box finds its variant.
+      accessorFn: (r) => `${r.p.name} ${r.p.brand ?? ""} ${variantText(r.v)} ${r.v.barcode ?? ""} ${r.v.sku ?? ""} ${r.p.category ?? ""}`,
       header: ({ column }) => <SortHeader column={column}>{t("col_product_variant")}</SortHeader>,
       cell: ({ row }) => {
-        const p = row.original;
-        // The brand mark wins at this size, and the photograph is the fallback. This thumbnail
-        // is 32px: a mark is drawn to survive that, a photograph of a bottle does not.
+        const { p, v } = row.original;
         const photo = p.templateId ? templateImages[p.templateId] : undefined;
         const logo = p.brand ? brandLogos[p.brand] : undefined;
         const thumb = logo || photo;
-        const vs = p.variants ?? [];
-        const one = vs.length === 1 ? vs[0] : undefined;
-        const sub = [
-          one ? variantLabel(one) : vs.length > 1 ? countVariants(vs.length, t) : "",
-          one?.sku ? `${t("art")} ${one.sku}` : "",
-          p.category || "",
-        ].filter(Boolean).join(" · ");
-        const isLow = anyLow(p);
+        const q = num(v.quantityOnHand);
+        const services = q <= 0 ? usedIn.get(v.id!) : undefined;
+        const sub = [variantText(v), p.unit ? unitLabel(t, p.unit) : "", v.sku ? `${t("art")} ${v.sku}` : "", p.category || ""].filter(Boolean).join(" · ");
         return (
           <div className="flex min-w-0 items-center gap-2.5">
             {thumb ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumb} alt="" className="size-8 shrink-0 rounded-[7px] bg-card object-contain" />
+              <img src={thumb} alt="" className="size-9 shrink-0 rounded-[8px] bg-card object-contain" />
             ) : (
-              <span className="grid size-8 shrink-0 place-items-center rounded-[7px] bg-secondary font-mono text-[10.5px] font-bold text-ink-2">
+              <span className={cn("grid size-9 shrink-0 place-items-center rounded-[8px] font-mono text-[10.5px] font-bold",
+                q <= 0 ? "bg-destructive-soft text-destructive" : isLow(v) ? "bg-warning-soft text-warning" : "bg-secondary text-ink-2")}>
                 {(p.brand || p.name || "?").slice(0, 3).toUpperCase()}
               </span>
             )}
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
-                {p.brand && !thumb && <Badge tone="info">{p.brand}</Badge>}
+                {p.brand && <Badge tone="info">{p.brand}</Badge>}
                 <span className="truncate text-[14px] font-semibold text-foreground">{p.name}</span>
               </div>
-              {sub && <div className={cn("truncate text-[12.5px]", isLow && totalStock(p) <= 0 ? "text-destructive" : "text-muted-foreground")}>{sub}</div>}
+              {services?.length
+                ? <div className="truncate text-[12.5px] font-medium text-destructive">{fill(t("whx_out_used_in"), { s: services[0] })}</div>
+                : sub && <div className="truncate text-[12.5px] text-muted-foreground">{sub}</div>}
             </div>
           </div>
         );
       },
-    },
-    {
-      id: "unit",
-      accessorFn: (p) => p.unit || "",
-      header: ({ column }) => <SortHeader column={column}>{t("col_unit")}</SortHeader>,
-      cell: ({ row }) => <span className="text-[13px] text-ink-2">{row.original.unit ? unitLabel(t, row.original.unit) : "—"}</span>,
-    },
-    {
-      id: "supplier",
-      accessorFn: (p) => p.supplier || "",
-      header: ({ column }) => <SortHeader column={column}>{t("supplier")}</SortHeader>,
-      cell: ({ row }) => row.original.supplier
-        ? <span className="text-[13px] text-foreground">{row.original.supplier}</span>
-        : <span className="text-muted-foreground">—</span>,
     },
     {
       id: "stock",
-      accessorFn: (p) => totalStock(p),
+      accessorFn: (r) => num(r.v.quantityOnHand),
       header: ({ column }) => <SortHeader column={column}>{t("col_stock")}</SortHeader>,
       cell: ({ row }) => {
-        const p = row.original;
-        const have = totalStock(p);
-        const min = totalMin(p);
-        const isLow = anyLow(p);
+        const { p, v, key } = row.original;
+        const have = num(v.quantityOnHand);
+        const min = num(v.reorderLevel);
         const out = have <= 0;
+        const low = isLow(v);
         const pct = Math.max(4, Math.min(100, (have / Math.max(min * 3, have, 1)) * 100));
+        const d = stats.get(key)?.daysLeft;
         return (
-          <div className="flex w-[170px] flex-col gap-1">
+          <div className="flex w-[190px] flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2">
-              <span className={cn("font-mono text-[14px] font-bold", out ? "text-destructive" : isLow ? "text-warning" : "text-foreground")}>
+              <span className={cn("font-mono text-[14px] font-bold", out ? "text-destructive" : low ? "text-warning" : "text-foreground")}>
                 {qtyUnit(t, have, p.unit)}
               </span>
-              {min > 0 && <span className="font-mono text-[11px] text-muted-foreground">{t("min_label")} {qty(min)}</span>}
+              {min > 0 && <span className="font-mono text-[11px] text-muted-foreground">{t("min_label")} {fmtQty(min)}</span>}
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-              <div className={cn("h-full rounded-full", out ? "bg-destructive" : isLow ? "bg-warning" : "bg-success")} style={{ width: `${out ? 0 : pct}%` }} />
+              <div className={cn("h-full rounded-full", out ? "bg-destructive" : low ? "bg-warning" : "bg-success")} style={{ width: `${out ? 0 : pct}%` }} />
             </div>
+            {!out && d !== null && d !== undefined && (
+              <span className={cn("text-[11.5px]", d < 7 ? "font-semibold text-warning" : "text-muted-foreground")}>{fill(t("whx_days_left"), { n: d })}</span>
+            )}
           </div>
         );
       },
     },
     {
-      id: "value",
-      accessorFn: (p) => productValue(p).sell,
-      header: ({ column }) => <SortHeader column={column}>{t("col_cost_price")}</SortHeader>,
-      // Cost → shelf price for a single-variant product, the price range for several; what the
-      // stock on hand is worth underneath, which is what the figures at the top add up.
+      id: "cost",
+      accessorFn: (r) => num(r.v.unitCost),
+      header: ({ column }) => <SortHeader column={column}>{t("cost")}</SortHeader>,
       cell: ({ row }) => {
-        const p = row.original;
-        const vs = p.variants ?? [];
-        const { sell } = productValue(p);
-        const prices = vs.map((v) => num(v.unitPrice)).filter((n) => n > 0);
-        const top = vs.length === 1
-          ? <>{money(num(vs[0].unitCost))} <span className="text-muted-foreground">→</span> {money(num(vs[0].unitPrice))}</>
-          : prices.length ? <>{money(Math.min(...prices))}{Math.max(...prices) !== Math.min(...prices) ? ` – ${money(Math.max(...prices))}` : ""}</> : "—";
+        const c = num(row.original.v.unitCost);
+        return <span className="whitespace-nowrap font-mono text-[13.5px] text-ink-2">{c > 0 ? money(c) : "—"}</span>;
+      },
+    },
+    {
+      id: "price",
+      accessorFn: (r) => num(r.v.unitPrice),
+      header: ({ column }) => <SortHeader column={column}>{t("sell_price")}</SortHeader>,
+      // The shelf price, and under it what the stock on hand is worth at it.
+      cell: ({ row }) => {
+        const { v } = row.original;
+        const price = num(v.unitPrice);
+        const worth = Math.round(Math.max(0, num(v.quantityOnHand)) * price);
         return (
           <div className="flex flex-col items-start">
-            <span className="whitespace-nowrap font-mono text-[13.5px] text-foreground">{top}</span>
-            {sell > 0 && <span className="font-mono text-[11.5px] text-muted-foreground">{t("wh_value_col")}: {money(sell)}</span>}
+            <span className="whitespace-nowrap font-mono text-[13.5px] font-semibold text-foreground">{price > 0 ? money(price) : "—"}</span>
+            {worth > 0 && <span className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">{t("wh_value_col")}: {money(worth)}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "margin",
+      accessorFn: (r) => marginPct(num(r.v.unitCost), num(r.v.unitPrice)) ?? -9999,
+      header: ({ column }) => <SortHeader column={column}>{t("whx_margin_word")}</SortHeader>,
+      cell: ({ row }) => {
+        const { v } = row.original;
+        const c = num(v.unitCost), p = num(v.unitPrice);
+        const m = marginPct(c, p);
+        if (m === null) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div className="flex flex-col items-start gap-0.5">
+            <span className={cn("rounded-full px-2 py-0.5 font-mono text-[12px] font-bold",
+              m < 0 ? "bg-destructive-soft text-destructive" : "bg-success-soft text-success")}>{m > 0 ? "+" : ""}{m}%</span>
+            {p < c && <span className="whitespace-nowrap text-[11px] text-destructive">{t("whx_loss_per")} {money(c - p)}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      id: "supplier",
+      accessorFn: (r) => supplierOf(r).name,
+      header: ({ column }) => <SortHeader column={column}>{t("supplier")}</SortHeader>,
+      // Who supplies it, and the last time it came in: when, how much, at what.
+      cell: ({ row }) => {
+        const r = row.original;
+        const s = supplierOf(r);
+        const li = stats.get(r.key)?.lastIn;
+        return (
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-[13px] text-foreground">{s.name || "—"}</span>
+            {li && (
+              <span className="truncate font-mono text-[11px] text-muted-foreground">
+                {dayMonth(li.createdAt)} · +{fmtQty(li.delta)}{num(li.unitCost) > 0 && <> @ {money(num(li.unitCost))}</>}
+              </span>
+            )}
           </div>
         );
       },
@@ -337,35 +475,73 @@ export default function InventoryPage() {
       enableHiding: false,
       header: () => <span className="sr-only">{t("adjust_stock")}</span>,
       cell: ({ row }) => {
-        const isLow = anyLow(row.original);
+        const r = row.original;
+        const empty = num(r.v.quantityOnHand) <= 0;
+        const archived = r.p.active === false;
         return (
-          <div className="flex justify-end gap-2">
-            <Button variant={isLow ? "default" : "secondary"} size="sm" onClick={(e) => { e.stopPropagation(); setManaging(row.original); }}>{t("act_receive")}</Button>
-            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", product: row.original }); }}>{t("edit_product")}</Button>
+          <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {!archived && (empty
+              ? <Button size="sm" onClick={() => setReorder(toReorder([r]))}>{t("whx_order_btn")}</Button>
+              : <Button variant={isLow(r.v) ? "default" : "secondary"} size="sm" onClick={() => setDetail({ productId: r.p.id, variantId: r.key, tab: "in" })}>{t("act_receive")}</Button>)}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" className="size-8 touch:size-11" aria-label={t("nav_more")}><MoreVertical /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[210px]">
+                <DropdownMenuItem onClick={() => setDetail({ productId: r.p.id, variantId: r.key })}>{t("whx_open")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEditing({ mode: "edit", product: r.p })}>{t("edit_product")}</DropdownMenuItem>
+                {!archived && <DropdownMenuItem onClick={() => setDetail({ productId: r.p.id, variantId: r.key, tab: "adjust" })}>{t("whx_adjust_btn")}</DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => printLabels([labelOf(r)])}>{t("whx_label")}</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant={archived ? undefined : "destructive"} onClick={() => archive(r.p)}>
+                  {archived ? t("whx_unarchive") : t("whx_archive_do")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         );
       },
     },
-  ], [t, brandLogos, templateImages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [t, brandLogos, templateImages, usedIn, stats, supplierOf, lastCost]);
+
+  const segBtn = (k: Seg, label: string, n: number, tone?: string) => (
+    <button key={k} onClick={() => setSeg(k)} aria-pressed={seg === k}
+      className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+        seg === k ? "bg-card text-foreground shadow-[var(--shadow)]" : tone ?? "text-muted-foreground hover:text-foreground")}>
+      {label}<span className="font-mono text-[11.5px] text-muted-foreground">{n}</span>
+    </button>
+  );
+
+  const detailProduct = detail ? list.find((p) => p.id === detail.productId) ?? null : null;
+  const activeProducts = list.filter((p) => p.active !== false).length;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        meta={list.length > 0 ? <span>{list.length} {t("inv_products")} · {variantCount} {t("svc_variants")}</span> : undefined}
+        meta={list.length > 0 ? <span>{activeProducts} {t("inv_products")} · {activeRows.length} {t("svc_variants")} · {catOptions.length} {t("whx_cats")}</span> : undefined}
         actions={
           <>
-            {/* Scanning sits beside adding rather than being a second way to add: a scan of
-                something already on the shelf opens that product instead of starting a new one. */}
-            <Button variant="secondary" disabled={scanBusy} onClick={() => setScanOpen(true)}>
-              {scanBusy ? <Spinner /> : <ScanBarcode />} {t("scan_cta")}
+            <Button variant="secondary" onClick={() => setStocktake(true)}><ClipboardCheck /> <span className="hidden md:inline">{t("whx_adjust_btn")}</span></Button>
+            {/* Scanning sits beside adding: a scan of something already on the shelf opens it
+                instead of starting a second card for the same goods. */}
+            <Button variant="secondary" size="icon" disabled={scanBusy} onClick={() => setScanOpen(true)} aria-label={t("scan_cta")} title={t("scan_cta")}>
+              {scanBusy ? <Spinner /> : <ScanBarcode />}
             </Button>
-            <Button data-tour="inv-add" onClick={() => {
-              // During the onboarding tour the demo part goes straight to the hand-typed form,
-              // already filled in, rather than through the catalogue first.
-              const demo = tourPrefill("part");
-              if (demo) setEditing({ mode: "new", product: null, prefill: { name: demo.name, unit: demo.unit, quantity: demo.qty, unitCost: demo.cost, unitPrice: demo.price } });
-              else setFromCatalog(true);
-            }}><Plus /> {t("add_part_cta")}</Button>
+            <Button variant="secondary" data-tour="inv-add" onClick={addProduct}><Plus /> {t("whx_product_btn")}</Button>
+            <Button onClick={() => { setReceipt(null); setReceiptOpen(true); }}><Download /> {t("whx_receipt_btn")}</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" aria-label={t("nav_more")}><MoreHorizontal /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[230px]">
+                <DropdownMenuItem onClick={() => router.push("/inventory/movements")}><BarChart3 /> {t("whx_movements")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEditing({ mode: "new", product: null })}><Plus /> {t("add_part")}</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={exportCsv}><FileDown /> {t("whx_export")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => printLabels(shown.map(labelOf))}><Printer /> {t("whx_labels")}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         }
       />
@@ -374,35 +550,39 @@ export default function InventoryPage() {
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
-              label={t("inv_stock_cost")}
+              label={t("whx_stock_at_cost")}
               value={money(wh.cost)}
-              sub={`${t("inv_at_sell")} ${money(wh.sell)} · ${t("margin").toLowerCase()} ${money(wh.margin)} (${marginPct}%)`}
+              sub={<>{t("whx_on_sale")} {money(wh.sell)} · {t("whx_avg_margin")} {avgMargin}%
+                {lossAll > 0 && <> · <span className="font-semibold text-destructive">{lossAll} {t("whx_at_loss_n")}</span></>}</>}
+              onClick={lossAll > 0 ? () => setSeg("loss") : undefined}
             />
             <KpiCard
               label={t("inv_low")}
-              value={low.length}
-              tone={low.length ? "warn" : "neutral"}
-              edge={low.length ? "warn" : undefined}
-              sub={low.length ? low.slice(0, 3).map((p) => p.name).join(" · ") : undefined}
-              onClick={low.length ? () => setTab(LOW) : undefined}
+              value={lowAll.length}
+              tone={lowAll.length ? "warn" : "neutral"}
+              edge={lowAll.length ? "warn" : undefined}
+              sub={lowAll.length ? lowAll.slice(0, 3).map((r) => [r.p.name, variantText(r.v)].filter(Boolean).join(" ")).join(" · ") : undefined}
+              onClick={lowAll.length ? () => setSeg("low") : undefined}
             />
             <KpiCard
-              label={month ? t("inv_out_month") : t("wh_positions")}
-              value={month ? money(num(month.costOfGoods)) : wh.positions}
-              sub={month ? `${t("inv_out_sub")} · ${wh.positions} ${t("inv_positions")}` : t("wh_in_stock_now")}
+              label={t("inv_out_month")}
+              value={movesOk ? money(out.orders + out.manual) : month ? money(num(month.costOfGoods)) : wh.positions}
+              sub={movesOk
+                ? `${t("whx_at_cost")} · ${t("whx_to_orders")} ${money(out.orders)} · ${t("whx_manual")} ${money(out.manual)}`
+                : month ? `${t("inv_out_sub")} · ${wh.positions} ${t("inv_positions")}` : t("wh_in_stock_now")}
+              onClick={() => router.push("/inventory/movements")}
             />
             <KpiCard
               label={t("inv_supplier_debt")}
               value={month ? money(num(month.payable)) : "—"}
               tone={month && num(month.payable) > 0 ? "danger" : "neutral"}
+              sub={topDebt?.name ? `${topDebt.name} · ${money(topDebt.amount)}` : undefined}
             >
               <Link href="/contragents" className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-semibold text-primary-emphasis hover:underline">
                 {t("nav_contragents")} <ArrowRight className="size-3.5" />
               </Link>
             </KpiCard>
           </div>
-          {/* Say what the totals are missing rather than let a short number pass for the whole
-              shelf. Only shown when there is something to say. */}
           {(wh.noCost > 0 || wh.noPrice > 0) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-[12px] text-muted-foreground">
               {wh.noCost > 0 && <span>⚠ {countVariants(wh.noCost, t)} {t("wh_no_cost")}</span>}
@@ -411,30 +591,57 @@ export default function InventoryPage() {
           )}
         </div>
       )}
+
+      {seg !== "archive" && lowRows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-[14px] border border-warning/40 bg-warning-soft px-4 py-3">
+          <AlertTriangle className="size-5 shrink-0 text-warning" />
+          <p className="min-w-0 flex-1 text-[13.5px] text-foreground">
+            <b>{lowRows.length} {t("whx_low_banner")}</b>{" "}
+            {soonest && <>{fill(t("whx_runs_out"), { name: [soonest.r.p.name, variantText(soonest.r.v)].filter(Boolean).join(" "), n: soonest.d })}{" "}</>}
+            {recText && <>{t("whx_recommend")} {recText}.</>}
+          </p>
+          <Button size="sm" onClick={() => setReorder(toReorder(lowRows))}>{t("whx_make_order")} · {lowRows.length} {t("whx_positions")}</Button>
+        </div>
+      )}
+
       {loading && list.length === 0 ? (
         <Card className="gap-2.5 p-5">{Array.from({ length: 7 }).map((_, i) => <div key={i} className="an-skel h-11 w-full rounded-[8px]" />)}</Card>
       ) : (
         <DataTable
           columns={columns}
           data={shown}
-          onRowClick={(p) => setManaging(p)}
-          searchPlaceholder={t("search") + "…"}
+          onRowClick={(r) => setDetail({ productId: r.p.id, variantId: r.key })}
+          rowClassName={(r) => (num(r.v.quantityOnHand) <= 0 ? "bg-destructive-soft/40" : isLow(r.v) ? "bg-warning-soft/50" : undefined)}
+          searchPlaceholder={t("whx_search_ph")}
           emptyText={t("empty")}
           toolbar={
-            <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
-              {[[ALL, t("all"), list.length] as const, [LOW, t("inv_low"), low.length] as const, ...cats.map(([c, n]) => [c, c, n] as const)].map(([key, label, n]) => (
-                <button key={key} onClick={() => setTab(key)} aria-pressed={tab === key}
-                  className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
-                    tab === key ? "bg-card text-foreground shadow-[var(--shadow)]" : key === LOW && n ? "text-warning hover:text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                  {label}<span className="font-mono text-[11.5px] text-muted-foreground">{n}</span>
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+                {segBtn("all", t("all"), base.length)}
+                {segBtn("low", t("inv_low"), lowRows.length, lowRows.length ? "text-warning hover:text-foreground" : undefined)}
+                {segBtn("loss", t("whx_loss"), lossRows.length, lossRows.length ? "text-destructive hover:text-foreground" : undefined)}
+                {segBtn("archive", t("whx_archive"), archBase.length)}
+              </div>
+              {catOptions.length > 0 && <CategoryFilter options={catOptions} value={cats} onChange={setCats} />}
+              {supplierOptions.length > 0 && <SupplierFilter options={supplierOptions} value={supplier} onChange={setSupplier} />}
             </div>
           }
-          columnLabels={{ name: t("col_product_variant"), unit: t("col_unit"), supplier: t("supplier"), stock: t("col_stock"), value: t("col_cost_price") }}
-          pageSize={12}
+          columnLabels={{ name: t("col_product_variant"), stock: t("col_stock"), cost: t("cost"), price: t("sell_price"), margin: t("whx_margin_word"), supplier: t("supplier") }}
+          pageSize={15}
         />
       )}
+
+      {list.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[12.5px] text-muted-foreground">
+          <span>{shown.length} {t("whx_rows")} · {t("whx_total_cost")} <span className="font-mono">{money(shownCost)}</span></span>
+          <span className="flex items-center gap-2">
+            <button onClick={exportCsv} className="font-semibold hover:text-foreground">{t("whx_export")}</button>
+            <span aria-hidden>·</span>
+            <button onClick={() => printLabels(shown.map(labelOf))} className="font-semibold hover:text-foreground">{t("whx_labels")}</button>
+          </span>
+        </div>
+      )}
+
       <ProductForm
         open={!!editing}
         mode={editing?.mode ?? "new"}
@@ -445,6 +652,8 @@ export default function InventoryPage() {
         brands={brands}
         categories={categories}
         contragents={contragents}
+        existing={list}
+        onOpenExisting={(p) => setDetail({ productId: p.id })}
         onContragentsChange={loadContragents}
         onClose={() => setEditing(null)}
         // A product save can bring stock in, so the supplier balances move with it.
@@ -461,373 +670,135 @@ export default function InventoryPage() {
         onContragentsChange={loadContragents}
         onClose={() => setFromCatalog(false)}
         onManual={() => { setFromCatalog(false); setEditing({ mode: "new", product: null }); }}
-        // Stocking from the catalogue brings goods in, so the supplier balances move with it.
         onSaved={() => { load(); loadContragents(); }}
       />
       <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={onScanned} />
-      <ManageModal
-        product={managing}
+      <VariantSheet
+        product={detailProduct}
+        variantId={detail?.variantId}
+        tab={detail?.tab}
         definitions={definitions}
         contragents={contragents}
         balances={balances}
         staff={staff}
         brandLogos={brandLogos}
         templateImages={templateImages}
-        onClose={() => setManaging(null)}
-        onEdit={(p) => { setManaging(null); setEditing({ mode: "edit", product: p }); }}
-        // A receipt moves stock and the supplier's balance together, so refresh both —
-        // otherwise the next delivery in the same sitting quotes a stale debt.
+        stats={stats}
+        onClose={() => setDetail(null)}
+        onEdit={(p) => { setDetail(null); setEditing({ mode: "edit", product: p }); }}
+        // A receipt moves stock and the supplier's balance together, so refresh both.
         onDone={() => { load(); loadContragents(); }}
+        onArchive={archive}
+        onLabel={printLabels}
+      />
+      <ReceiptDoc
+        open={receiptOpen}
+        seed={receipt}
+        shopId={shopId}
+        products={list}
+        contragents={contragents}
+        balances={balances}
+        lastCost={lastCost}
+        onClose={() => { setReceiptOpen(false); setReceipt(null); }}
+        onDone={() => { load(); loadContragents(); }}
+      />
+      <Stocktake open={stocktake} products={list} onClose={() => setStocktake(false)} onDone={load} />
+      <ReorderSheet
+        open={!!reorder}
+        rows={reorder ?? []}
+        shopName={profile.name || t("app_name")}
+        onClose={() => setReorder(null)}
+        onReceive={(seed) => { setReorder(null); setReceipt(seed); setReceiptOpen(true); }}
       />
     </div>
   );
 }
 
-// ManageModal lists a product's variants with their stock and a per-variant
-// receive/consume stock adjustment.
-function ManageModal({
-  product, definitions, contragents, balances, staff, brandLogos, templateImages, onClose, onEdit, onDone,
-}: {
-  product: Product | null;
-  definitions: PropertyDefinition[];
-  contragents: Contragent[];
-  balances: Record<string, number>;
-  staff: Staff[];
-  brandLogos: Record<string, string>;
-  templateImages: Record<string, string>;
-  onClose: () => void;
-  onEdit: (p: Product) => void;
-  onDone: () => void;
-}) {
-  const { t, lang } = useLang();
-  const [adjust, setAdjust] = useState<ProductVariant | null>(null);
-  const [history, setHistory] = useState<string | null>(null); // variant id whose history is open
-  useEffect(() => { if (!product) { setAdjust(null); setHistory(null); } }, [product]);
-
+// The category filter: several at once, searched — a shop with a hundred categories cannot scroll
+// a row of tabs. Picked ones stay at the top; nothing applies until "Qo'llash".
+function CategoryFilter({ options, value, onChange }: { options: [string, number][]; value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useLang();
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [draft, setDraft] = useState<string[]>(value);
+  useEffect(() => { if (open) { setDraft(value); setQ(""); } }, [open, value]);
+  const s = q.trim().toLowerCase();
+  const items = options
+    .filter(([c]) => !s || c.toLowerCase().includes(s))
+    .sort((a, b) => Number(draft.includes(b[0])) - Number(draft.includes(a[0])));
   return (
-    <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="flex min-w-0 items-center gap-2">
-            {(() => {
-              const thumb = (product?.templateId && templateImages[product.templateId])
-                || (product?.brand ? brandLogos[product.brand] : undefined);
-              // eslint-disable-next-line @next/next/no-img-element
-              return thumb ? <img src={thumb} alt="" aria-hidden className="size-6 shrink-0 rounded-[5px] object-contain" /> : null;
-            })()}
-            <span className="truncate">{product ? `${product.brand ? product.brand + " · " : ""}${product.name}` : ""}</span>
-          </DialogTitle>
-        </DialogHeader>
-        <DialogBody className="flex max-h-[65vh] flex-col gap-2 overflow-y-auto py-1">
-          {product && (product.variants ?? []).length === 0 && (
-            <p className="text-[13px] text-muted-foreground">{t("no_variants")}</p>
-          )}
-          {product?.variants?.map((v) => {
-            const low = num(v.quantityOnHand) <= num(v.reorderLevel);
-            const isAdjusting = adjust?.id === v.id;
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className={cn("inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13.5px] font-semibold transition-colors touch:h-11",
+          value.length ? "border-primary bg-primary-soft text-primary-emphasis" : "border-input bg-card text-foreground hover:bg-secondary")}>
+          {t("category")}
+          {value.length > 0 && <>: <span className="max-w-[130px] truncate">{value[0]}</span></>}
+          {value.length > 1 && <span className="grid size-5 place-items-center rounded-full bg-primary text-[11px] text-primary-foreground">{value.length}</span>}
+          <ChevronDown className="size-4 opacity-60" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-2">
+        <div className="relative mb-2">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`${t("whx_cat_search")} (${options.length})`} className="h-9 pl-8" autoFocus />
+        </div>
+        <div className="flex max-h-[280px] flex-col overflow-y-auto">
+          {items.map(([c, n]) => {
+            const on = draft.includes(c);
             return (
-              <div key={v.id} className="flex flex-col gap-2 rounded-[10px] border border-border/60 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  {v.sku && (
-                    <span className="shrink-0 rounded-[6px] bg-white p-0.5">
-                      <QRCodeSVG value={v.sku} size={40} />
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
-                      {(v.attributes ?? []).length ? (v.attributes ?? []).map((a) => {
-                        const hex = hexOf(definitions, a.property, a.value);
-                        return (
-                          <span key={a.property} className="inline-flex items-center gap-1">
-                            {hex && <span className="inline-block size-2.5 rounded-full border border-black/10" style={{ background: hex }} />}
-                            {attrLabelOf(definitions, lang, a.property, a.value)}
-                          </span>
-                        );
-                      }) : (variantLabel(v) || t("variant"))}
-                    </div>
-                    {/* Bought for → sells for, then what this variant's stock is worth on the
-                        shelf. The same arithmetic as the totals at the top of the screen, shown
-                        where somebody is actually deciding whether to reorder. */}
-                    <div className="flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
-                      {v.sku && <span className="font-mono">{v.sku}</span>}
-                      {num(v.unitPrice) > 0 && (
-                        <span className="font-mono">
-                          · {num(v.unitCost) > 0 && <>{money(v.unitCost!)} → </>}{money(v.unitPrice!)}
-                        </span>
-                      )}
-                      {num(v.quantityOnHand) > 0 && num(v.unitPrice) > 0 && (
-                        <span className="font-mono">
-                          · {t("wh_value_col").toLowerCase()} <span className="font-semibold text-foreground">
-                            {money(Math.round(num(v.quantityOnHand) * num(v.unitPrice)))}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("font-mono text-[14px] font-bold", low ? "text-destructive" : "text-foreground")}>
-                      {qtyUnit(t, v.quantityOnHand, product.unit)}
-                    </span>
-                    {low && <Badge tone="danger" dot>{t("low_stock")}</Badge>}
-                    <Button variant="ghost" size="sm" onClick={() => setHistory(history === v.id ? null : v.id!)}>{t("history")}</Button>
-                    <Button variant="soft" size="sm" onClick={() => setAdjust(isAdjusting ? null : v)}>{t("adjust_stock")}</Button>
-                  </div>
-                </div>
-                {isAdjusting && <AdjustPanel variant={v} unit={product.unit} brand={product.brand} contragents={contragents} balances={balances} onClose={() => setAdjust(null)} onDone={onDone} />}
-                {history === v.id && v.id && <HistoryPanel variantId={v.id} unit={product.unit} contragents={contragents} staff={staff} />}
-              </div>
+              <button key={c} onClick={() => setDraft(on ? draft.filter((x) => x !== c) : [...draft, c])}
+                className={cn("flex items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13.5px]",
+                  on ? "bg-primary-soft font-semibold text-primary-emphasis" : "text-foreground hover:bg-secondary")}>
+                <span className={cn("grid size-4 shrink-0 place-items-center rounded-[4px] border", on ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
+                  {on && <Check className="size-3" strokeWidth={3} />}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{c}</span>
+                <span className="font-mono text-[12px] text-muted-foreground">{n}</span>
+              </button>
             );
           })}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          {product && <Button onClick={() => onEdit(product)}>{t("edit_product")}</Button>}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {items.length === 0 && <p className="px-2.5 py-2 text-[12.5px] text-muted-foreground">{t("empty")}</p>}
+        </div>
+        <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+          <button onClick={() => { onChange([]); setOpen(false); }} className="px-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground">{t("clear")}</button>
+          <button onClick={() => { onChange(draft); setOpen(false); }} className="px-2 text-[13px] font-semibold text-primary-emphasis hover:underline">{t("whx_apply")}</button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
-// AdjustPanel is an inline receive/consume control for one variant. On receive it
-// also records which supplier delivered the stock and the purchase price per unit,
-// so the history shows a full procurement picture.
-//
-// A receipt is also a purchase on credit: whatever is not handed over now becomes a debt on
-// the supplier's account, and it is repaid there rather than here. The panel says that in
-// full — running balance, what this delivery adds, and a way through to the account — because
-// stock arriving is the moment the debt is created and the only moment the shop is looking.
-function AdjustPanel({
-  variant, unit, brand, contragents, balances, onClose, onDone,
-}: {
-  variant: ProductVariant;
-  unit?: string;
-  brand?: string;
-  contragents: Contragent[];
-  balances: Record<string, number>;
-  onClose: () => void;
-  onDone: () => void;
+function SupplierFilter({ options, value, onChange }: {
+  options: { id: string; name: string; n: number }[]; value: string; onChange: (v: string) => void;
 }) {
   const { t } = useLang();
-  const { toast } = useToast();
-  const [mode, setMode] = useState<"receive" | "consume">("receive");
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
-  const [supplierId, setSupplierId] = useState("");
-  // Both amounts carry the currency they were agreed in. A delivery priced in dollars and
-  // settled partly in so'm is an ordinary Tuesday here, so each amount says for itself
-  // which it was rather than inheriting one setting for the whole panel.
-  const [unitCost, setUnitCost] = useState<FxValue>(() => emptyFx());
-  // How much of the delivery was handed over now. Empty is the honest default: the shop
-  // took the goods and owes for them until it says otherwise.
-  const [paidNow, setPaidNow] = useState<FxValue>(() => emptyFx());
-  // How that money left the shop. Receiving goods from an MCHJ and wiring them the money is
-  // one action on one screen: this is where the shop is standing when the payment is made,
-  // and asking later — or not at all — is how a ledger stops matching a bank statement.
-  const { payment, setPayment } = usePayment();
-  const { session } = useAuth();
-  const cards = useShopCards(session?.staff.shopId);
-  const shopAccounts = useShopAccounts();
-  // The supplier's own accounts, so "where is this money going" is answered on this screen
-  // and a new one can be added the moment the delivery note shows a different number.
-  const theirAccounts = useContragentAccounts(supplierId);
-  const [busy, setBusy] = useState(false);
-  const currencies = useCurrencies();
-
-  // Narrow suppliers to the product's brand (keeping brand-agnostic ones), so receiving
-  // stock offers the same brand-scoped supplier list as the product form.
-  const suppliers = useMemo(() => {
-    const b = (brand ?? "").trim();
-    if (!b) return contragents;
-    return contragents.filter((c) => c.id === supplierId || !c.brand || c.brand === b);
-  }, [contragents, brand, supplierId]);
-
-  const receiving = mode === "receive";
-  const qty = parseFloat(amount) || 0;
-  // so'm previews of what the server is about to work out, for the summary below. What
-  // gets POSTed is the typed amount and its rate — see the fx* fields in save().
-  const cost = fxSoum(unitCost, findCurrency(currencies, unitCost.currency));
-  const total = Math.round(qty * cost);
-  // Never let the form claim more was paid than the delivery was worth.
-  const paid = Math.min(fxSoum(paidNow, findCurrency(currencies, paidNow.currency)), total);
-  const owed = Math.max(0, total - paid);
-
-  // A payment that has been described but not finished — "card" with no card named — must not
-  // save as though nothing was said about it. The button goes dark instead, the same rule the
-  // supplier's account uses.
-  const parts = paid > 0 ? toParts(payment, paid, shopAccounts.accounts) : null;
-  const payIncomplete = paid > 0 && !parts;
-
-  const save = async () => {
-    if (qty <= 0 || busy || !variant.id || payIncomplete) return;
-    setBusy(true);
-    try {
-      await api.adjustVariantStock(
-        variant.id,
-        receiving ? qty : -qty,
-        reason.trim() || mode,
-        receiving ? {
-          contragentId: supplierId, unitCost: cost, paidAmount: paid,
-          // Only when money actually moved: a delivery taken on credit has no payment to
-          // describe, and describing one would put it on the account.
-          parts: parts ?? undefined,
-          fxUnitCost: fxPayload(unitCost, findCurrency(currencies, unitCost.currency)),
-          // The settled amount only goes as a stamp when it was NOT capped above: `paid` is
-          // clamped to the delivery's worth, and a stamp saying "$200" beside a so'm figure
-          // that is no longer $200 would contradict it. A capped payment falls back to the
-          // plain so'm number, which is the one that is true.
-          fxPaidAmount: paid === fxSoum(paidNow, findCurrency(currencies, paidNow.currency))
-            ? fxPayload(paidNow, findCurrency(currencies, paidNow.currency))
-            : undefined,
-        } : undefined,
-      );
-      toast(t("save"), { icon: "check" });
-      onClose();
-      onDone();
-    } catch (e) { toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" }); }
-    finally { setBusy(false); }
-  };
-
+  const [open, setOpen] = useState(false);
+  const cur = options.find((o) => o.id === value);
   return (
-    <div className="flex flex-col gap-2.5 border-t border-border/60 pt-2.5">
-      <Tabs value={mode} onValueChange={(v) => setMode(v as "receive" | "consume")}>
-        <TabsList className="w-full">
-          <TabsTrigger value="receive" className="flex-1">{t("receive")}</TabsTrigger>
-          <TabsTrigger value="consume" className="flex-1">{t("consume")}</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label={t("qty") + (unit ? ` (${unitLabel(t, unit)})` : "")}>
-          <Input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="0" className="font-mono" />
-        </Field>
-        <Field label={t("notes")}><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-      </div>
-      {receiving && (
-        <div className="grid grid-cols-2 gap-2">
-          <Field label={t("supplier")}>
-            <SearchSelect
-              value={supplierId}
-              options={suppliers.map((c) => ({ value: c.id, label: c.name }))}
-              placeholder={t("supplier")}
-              onChange={setSupplierId}
-            />
-          </Field>
-          <Field label={t("purchase_price") + (unit ? ` (${unitLabel(t, unit)})` : "")}>
-            <FxMoneyInput value={unitCost} onChange={setUnitCost} currencies={currencies} placeholder="0" hideHint />
-          </Field>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className={cn("inline-flex h-10 max-w-[240px] items-center gap-2 rounded-[10px] border px-3 text-[13.5px] font-semibold transition-colors touch:h-11",
+          cur ? "border-primary bg-primary-soft text-primary-emphasis" : "border-input bg-card text-foreground hover:bg-secondary")}>
+          <span className="truncate">{cur ? cur.name : t("supplier")}</span>
+          <ChevronDown className="size-4 shrink-0 opacity-60" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-2">
+        <div className="flex max-h-[300px] flex-col overflow-y-auto">
+          <button onClick={() => { onChange(""); setOpen(false); }}
+            className={cn("rounded-[8px] px-2.5 py-2 text-left text-[13.5px]", !value ? "bg-primary-soft font-semibold text-primary-emphasis" : "text-foreground hover:bg-secondary")}>
+            {t("whx_supplier_all")}
+          </button>
+          {options.map((o) => (
+            <button key={o.id} onClick={() => { onChange(o.id); setOpen(false); }}
+              className={cn("flex items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-[13.5px]",
+                o.id === value ? "bg-primary-soft font-semibold text-primary-emphasis" : "text-foreground hover:bg-secondary")}>
+              <span className="min-w-0 truncate">{o.name}</span>
+              <span className="font-mono text-[12px] text-muted-foreground">{o.n}</span>
+            </button>
+          ))}
         </div>
-      )}
-      {/* Settling on the spot is optional, and only means anything once a supplier is named —
-          without one there is no account for the rest to become a debt on. */}
-      {receiving && supplierId && (
-        <Field label={t("paid_now")}>
-          <FxMoneyInput value={paidNow} onChange={setPaidNow} currencies={currencies} placeholder="0" hideHint />
-        </Field>
-      )}
-      {receiving && supplierId && paid > 0 && (
-        <Field label={t("payment_method")}>
-          <PaymentPicker value={payment} onChange={setPayment} total={paid} cards={cards} disabled={busy}
-            accounts={shopAccounts.accounts}
-            payee={{ contragentId: supplierId, accounts: theirAccounts.accounts }}
-            onAccountsChanged={() => { shopAccounts.reload(); theirAccounts.reload(); }} />
-        </Field>
-      )}
-      {/* Where the money is going, once it is going by bank. Read straight off the supplier's
-          card, so nobody has to open another screen to check an account number mid-delivery. */}
-
-      <NoSupplierNote show={receiving && total > 0 && !supplierId} />
-      {receiving && (
-        <DeliverySummary supplierId={supplierId} total={total} paid={paid} balance={balances[supplierId] ?? 0} />
-      )}
-      <div className="flex justify-end">
-        <Button disabled={busy || payIncomplete} size="sm" onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
-      </div>
-    </div>
-  );
-}
-
-
-// HistoryPanel shows a variant's income/outcome ledger, newest first, with the full
-// procurement detail per entry: who received it, which supplier delivered it, and the
-// purchase price (per unit + line total).
-function HistoryPanel({ variantId, unit, contragents, staff }: {
-  variantId: string;
-  unit?: string;
-  contragents: Contragent[];
-  staff: Staff[];
-}) {
-  const { t, lang } = useLang();
-  const [items, setItems] = useState<StockMovement[] | null>(null);
-  const currencies = useCurrencies();
-
-  useEffect(() => {
-    let alive = true;
-    setItems(null);
-    api.listStockMovements(variantId).then((m) => { if (alive) setItems(m); }).catch(() => { if (alive) setItems([]); });
-    return () => { alive = false; };
-  }, [variantId]);
-
-  // Where a movement's document lives. A sale has no page of its own — the sales screen is a
-  // list of today's takings, not a per-sale route — so its number is shown without a link
-  // rather than linking somewhere that cannot show it.
-  const doc = (m: StockMovement) => (m.sourceKind === "work_order" && m.sourceId ? `/work-orders/${m.sourceId}` : null);
-
-  const supplierName = (id?: string) => contragents.find((c) => c.id === id)?.name;
-  const staffName = (id?: string) => staff.find((s) => s.id === id)?.name;
-
-  return (
-    <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2.5">
-      {items === null && <div className="flex justify-center py-2"><Spinner /></div>}
-      {items?.length === 0 && <p className="py-1 text-[12.5px] text-muted-foreground">{t("no_movements")}</p>}
-      {items?.map((m) => {
-        const income = m.delta >= 0;
-        const supplier = supplierName(m.contragentId);
-        const receiver = staffName(m.staffId);
-        const cost = num(m.unitCost);
-        return (
-          <div key={m.id} className="flex flex-col gap-1 rounded-[8px] bg-secondary/30 px-2.5 py-2 text-[12.5px]">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <Badge tone={income ? "ok" : "danger"}>{income ? t("receive") : t("consume")}</Badge>
-                {/* Why it moved, in the language on screen. A reason typed by hand on an
-                    adjustment is not one the system wrote and passes through as typed. */}
-                <span className="truncate text-muted-foreground">{stockReason(lang, m.reason, !m.sourceNo)}</span>
-                {/* And WHICH document moved it — the whole point of a ledger. A shop chasing a
-                    count that no longer matches opens the job from here instead of guessing at
-                    it from the timestamp. Absent on opening stock, on a hand-made adjustment,
-                    and on work-order movements recorded before this was kept. */}
-                {m.sourceNo && (doc(m)
-                  ? <Link href={doc(m)!} onClick={(e) => e.stopPropagation()}
-                      className="shrink-0 font-mono text-[12px] font-bold text-primary-emphasis hover:underline">{m.sourceNo}</Link>
-                  : <span className="shrink-0 font-mono text-[12px] font-bold text-foreground">{m.sourceNo}</span>)}
-              </div>
-              <div className="flex shrink-0 items-center gap-2.5 font-mono">
-                <span className={cn("font-bold", income ? "text-success" : "text-destructive")}>
-                  {income ? "+" : ""}{qtyUnit(t, m.delta)}
-                </span>
-                <span className="text-muted-foreground">= {qtyUnit(t, m.balanceAfter, unit)}</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground">
-              {supplier && <span>🚚 {supplier}</span>}
-              {receiver && <span>👤 {receiver}</span>}
-              {income && cost > 0 && (
-                <span className="font-mono">
-                  {money(cost)}{unit ? "/" + unitLabel(t, unit) : ""} · {t("total")} <span className="font-semibold text-foreground">{money(cost * Math.abs(num(m.delta)))}</span>
-                </span>
-              )}
-              {/* What was actually agreed, when it was not so'm. This is the sentence the
-                  whole feature exists to keep: six months on, a bare 3 175 000 is a number
-                  nobody can account for, and "$250 × 12 700" is an answer. */}
-              {income && m.fxUnitCost?.currency && (
-                <span className="font-mono font-semibold text-foreground">
-                  {fxLabel(m.fxUnitCost, currencies)}
-                </span>
-              )}
-              <span className="ml-auto font-mono">{shortDateTime(m.createdAt)}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -49,6 +49,8 @@ type DataTableProps<TData, TValue> = {
   pageSize?: number;
   emptyText?: string;
   onRowClick?: (row: TData) => void;
+  /** Extra classes for one row — a tint for a row that needs attention. */
+  rowClassName?: (row: TData) => string | undefined;
   /** Column id → readable label for the visibility menu. */
   columnLabels?: Record<string, string>;
   enableColumnToggle?: boolean;
@@ -56,7 +58,7 @@ type DataTableProps<TData, TValue> = {
 
 export function DataTable<TData, TValue>({
   columns, data, searchPlaceholder, toolbar, leading, pageSize = 10, emptyText,
-  onRowClick, columnLabels = {}, enableColumnToggle = true,
+  onRowClick, columnLabels = {}, enableColumnToggle = true, rowClassName,
 }: DataTableProps<TData, TValue>) {
   const { t } = useLang();
   // Defaults live here rather than in the signature so they follow the language on screen.
@@ -223,6 +225,7 @@ export function DataTable<TData, TValue>({
                 className={cn(
                   "flex flex-col gap-2.5 rounded-[14px] border border-border bg-card p-3.5 shadow-[var(--shadow)]",
                   onRowClick && "cursor-pointer active:bg-secondary/60",
+                  rowClassName?.(row.original),
                   hl && rowIdOf(row.original) === hl && "an-row-hl",
                 )}
               >
@@ -275,7 +278,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                   data-row-id={rowIdOf(row.original) || undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                  className={cn(onRowClick && "cursor-pointer", hl && rowIdOf(row.original) === hl && "an-row-hl")}
+                  className={cn(onRowClick && "cursor-pointer", rowClassName?.(row.original), hl && rowIdOf(row.original) === hl && "an-row-hl")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>

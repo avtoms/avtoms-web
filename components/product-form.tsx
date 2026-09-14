@@ -5,7 +5,7 @@
 // number/text/ad-hoc -> type the values. Variants are generated from the property-
 // value combinations, each with its own SKU, cost, price, stock and reorder level.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus, ScanBarcode, Search, Trash2, Wand2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, Plus, ScanBarcode, Search, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui-kit/button";
 import { Field } from "@/components/ui-kit/label";
 import { Input } from "@/components/ui-kit/input";
@@ -27,7 +27,8 @@ import { DeliverySummary, NoSupplierNote } from "@/components/delivery-summary";
 import { PaymentPicker, toParts, usePayment, useShopCards, useShopAccounts, useContragentAccounts } from "@/components/payment-picker";
 import { useLang, useToast } from "@/components/providers";
 import { api, ApiError, type ProductInput } from "@/lib/api";
-import { num } from "@/lib/format";
+import { money, num } from "@/lib/format";
+import { fill, marginPct, suggestedPrice } from "@/lib/stock";
 import { pickLangText } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Product, PropertyDefinition, PropertyDefinitionValue, CatalogTerm, Contragent, Currency } from "@/lib/types";
@@ -272,8 +273,12 @@ export type ProductPrefill = {
 
 export function ProductForm({
   open, mode, product, shopId, definitions, brands, categories, contragents, onContragentsChange, onClose, onSaved, prefill,
+  existing, onOpenExisting,
 }: {
   prefill?: ProductPrefill;
+  // The warehouse as it stands, to catch a "new" product that is already on the shelf.
+  existing?: Product[];
+  onOpenExisting?: (p: Product) => void;
   open: boolean;
   mode: "new" | "edit";
   product: Product | null;
@@ -346,6 +351,20 @@ export function ProductForm({
   // Owner-only, and the form is still usable without it.
   const [balances, setBalances] = useState<Record<string, number>>({});
 
+  // What the form held when it opened, to tell an edit worth keeping from a look. Taken a tick
+  // after the reset below fills the fields, so it is the filled-in form and not the empty one
+  // before it — closing then asks only when something was actually changed.
+  const current = JSON.stringify([name, category, supplierId, brand, unit, description, props, vars, mxik]);
+  const [snap, setSnap] = useState<string | null>(null);
+  const [snapTick, setSnapTick] = useState(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (snapTick) setSnap(current); }, [snapTick]);
+  const dirty = open && snap !== null && snap !== current;
+  const [askClose, setAskClose] = useState(false);
+  // A product already on the shelf under the name being saved as new, and what to do about it.
+  const [dup, setDup] = useState<Product | null>(null);
+  const [dupChoice, setDupChoice] = useState<"receive" | "separate" | "open">("receive");
+
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && product) {
@@ -382,6 +401,8 @@ export function ProductForm({
       setMxik(prefill?.mxik ?? emptyMxik);
     }
     setPaidNow(emptyFx()); setSkipDebt(false); resetPayment(); setScanFor(null);
+    setSnap(null); setAskClose(false); setDup(null);
+    setTimeout(() => setSnapTick((n) => n + 1), 0);
     api.contragentBalances(shopId).then((r) => {
       const m: Record<string, number> = {};
       for (const b of r.balances ?? []) m[b.contragentId] = parseInt(b.balance, 10) || 0;
@@ -452,7 +473,7 @@ export function ProductForm({
   const setVar = (key: string, patch: Partial<VarRow>) =>
     setVars((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
 
-  const save = async () => {
+  const save = async (opts: { skipDup?: boolean; name?: string; brand?: string } = {}) => {
     if (!name.trim() || busy || payIncomplete) return;
     const activeVars = vars.filter((v) => !hasProps || Object.keys(v.attrs).length > 0);
     if (activeVars.length === 0) { toast(t("no_variants"), { icon: "alert", tone: "danger" }); return; }
@@ -461,18 +482,26 @@ export function ProductForm({
       toast(t("scan_bad_code"), { icon: "alert", tone: "danger" });
       return;
     }
+    // A "new" product with the name of one already on the shelf is most often the same goods
+    // arriving again. Ask, rather than quietly starting a second card for it.
+    if (mode === "new" && !opts.skipDup) {
+      const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+      const same = (existing ?? []).find((p) => p.active !== false && norm(p.name) === norm(name)
+        && (!brand.trim() || !p.brand || norm(p.brand) === norm(brand)));
+      if (same) { setDupChoice("receive"); setDup(same); return; }
+    }
     // Resolve the supplier name from the linked contragent; keep the legacy free-typed
     // name only when nothing is linked (so old unlinked products don't lose their label).
     const linked = contragents.find((c) => c.id === supplierId);
     const supplierName = linked ? linked.name : (supplierId ? "" : supplierLegacy.trim());
     const payload: ProductInput = {
-      name: name.trim(),
+      name: opts.name ?? name.trim(),
       description: description.trim(),
       category: category.trim(),
       unit,
       supplier: supplierName,
       supplierId,
-      brand: brand.trim(),
+      brand: opts.brand ?? brand.trim(),
       ...mxik,
       properties: props
         .filter((p) => p.name.trim() && propValues(p).length > 0)
@@ -515,14 +544,84 @@ export function ProductForm({
     }
   };
 
+  const requestClose = () => { if (dirty && !busy) setAskClose(true); else onClose(); };
+
+  // "Name (2)", "Name (3)" … whichever the warehouse does not have yet.
+  const nextName = (base: string) => {
+    const taken = new Set((existing ?? []).map((p) => p.name.trim().toLowerCase()));
+    for (let i = 2; i < 100; i++) { const n = `${base} (${i})`; if (!taken.has(n.toLowerCase())) return n; }
+    return `${base} (2)`;
+  };
+
+  const resolveDup = async () => {
+    const d = dup;
+    if (!d || busy) return;
+    if (dupChoice === "open") { setDup(null); onClose(); onOpenExisting?.(d); return; }
+    if (dupChoice === "separate") { setDup(null); await save({ skipDup: true, name: nextName(d.name) }); return; }
+    // Into the existing product. One variant each side: a receipt on that variant, exactly as its
+    // receive panel would record it. Otherwise the save goes in under the existing product's name
+    // and brand, which the server folds into it variant by variant.
+    const ev = (d.variants ?? []).filter((x) => x.active !== false && x.id);
+    const fv = vars[0];
+    if (ev.length === 1 && vars.length === 1 && fv) {
+      const qty = parseFloat(fv.qty) || 0;
+      if (qty <= 0) { setDup(null); onClose(); onOpenExisting?.(d); return; }
+      setBusy(true);
+      try {
+        await api.adjustVariantStock(ev[0].id!, qty, "receive", {
+          contragentId: skipDebt ? "" : supplierId,
+          unitCost: fxSoum(fv.cost, findCurrency(currencies, fv.cost.currency)),
+          paidAmount: skipDebt ? 0 : paidNowAmount,
+          parts: skipDebt ? undefined : payParts ?? undefined,
+        });
+        toast(t("save"), { icon: "check" });
+        setDup(null);
+        onClose();
+        onSaved();
+      } catch (e) {
+        toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    setDup(null);
+    await save({ skipDup: true, name: d.name, brand: d.brand ?? "" });
+  };
+
+  // Under the shelf price: the margin it makes, loudly when it is a loss, and — while the price
+  // is still empty — the cost plus 30% as one tap. Offered in so'm only.
+  const priceHint = (v: VarRow): React.ReactNode => {
+    const c = fxSoum(v.cost, findCurrency(currencies, v.cost.currency));
+    const p = fxSoum(v.price, findCurrency(currencies, v.price.currency));
+    const m = marginPct(c, p);
+    if (m !== null && p < c) {
+      return <span className="font-semibold text-destructive">{fill(t("whx_margin_loss"), { p: m, x: money(c - p) })}</span>;
+    }
+    if (c > 0 && !v.price.typed && v.price.currency === BASE_CURRENCY) {
+      const s = suggestedPrice(c);
+      return (
+        <button type="button" onClick={() => setVar(v.key, { price: { ...v.price, typed: String(s) } })}
+          className="bg-transparent text-left text-[11.5px] font-semibold text-primary hover:underline">
+          {fill(t("whx_suggest_price"), { x: money(s) })}
+        </button>
+      );
+    }
+    return m !== null ? <span className="text-muted-foreground">{fill(t("whx_margin_ok"), { p: m })}</span> : undefined;
+  };
+
   // Catalog options not already added.
   const available = definitions.filter((d) => !props.some((p) => p.defId === d.id));
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && requestClose()}>
       <DialogContent className="max-w-[660px]">
         <DialogHeader>
-          <DialogTitle>{mode === "edit" ? t("edit_product") : t("add_part")}</DialogTitle>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            {mode === "edit" ? t("edit_product") : t("add_part")}
+            {mode === "edit" && product && <span className="text-[13.5px] font-medium text-muted-foreground">{product.brand ? `${product.brand} · ` : ""}{product.name}</span>}
+            {dirty && <Badge tone="warn">{t("whx_unsaved")}</Badge>}
+          </DialogTitle>
         </DialogHeader>
         <DialogBody className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto py-1">
           {/* Shared product fields */}
@@ -654,7 +753,7 @@ export function ProductForm({
                     <Field label={t("cost")} hint={mode === "edit" ? t("cost_avg_hint") : undefined}>
                       <FxMoneyInput value={v.cost} currencies={currencies} onChange={(val) => setVar(v.key, { cost: val })} />
                     </Field>
-                    <Field label={t("sell_price")}>
+                    <Field label={t("sell_price")} hint={priceHint(v)}>
                       <FxMoneyInput value={v.price} currencies={currencies} onChange={(val) => setVar(v.key, { price: val })} />
                     </Field>
                   </div>
@@ -722,9 +821,98 @@ export function ProductForm({
           <NoSupplierNote show={!supplierId && arriving > 0} />
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button disabled={busy || payIncomplete} onClick={save}>{busy ? <Spinner /> : t("save")}</Button>
+          <Button variant="ghost" onClick={requestClose}>{t("cancel")}</Button>
+          <Button disabled={busy || payIncomplete} onClick={() => save()}>{busy ? <Spinner /> : t("save")}</Button>
         </DialogFooter>
+
+        {/* Closing with changes made: say so once, and offer both ways out. */}
+        {askClose && (
+          <div className="absolute inset-0 z-20 grid place-items-center rounded-[inherit] bg-black/35 p-4">
+            <div className="w-full max-w-[420px] rounded-[18px] bg-card p-5 shadow-[var(--shadow-lg)]">
+              <div className="text-[16.5px] font-bold text-foreground">{t("whx_unsaved_q")}</div>
+              <p className="mt-1.5 text-[13.5px] text-ink-2">{t("whx_unsaved_body")}</p>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <Button variant="destructive" onClick={() => { setAskClose(false); onClose(); }}>{t("whx_close_nosave")}</Button>
+                <Button disabled={busy || payIncomplete} onClick={() => { setAskClose(false); void save(); }}>{t("whx_save_close")}</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {dup && (() => {
+          const ev = dup.variants ?? [];
+          const fv = vars[0];
+          const typedQty = fv ? parseFloat(fv.qty) || 0 : 0;
+          const typedCost = fv ? fxSoum(fv.cost, findCurrency(currencies, fv.cost.currency)) : 0;
+          const typedPrice = fv ? fxSoum(fv.price, findCurrency(currencies, fv.price.currency)) : 0;
+          const exCost = num(ev[0]?.unitCost);
+          const exQty = ev.reduce((s, x) => s + num(x.quantityOnHand), 0);
+          const exMin = ev.reduce((s, x) => s + num(x.reorderLevel), 0);
+          const exSupplier = contragents.find((c) => c.id === dup.supplierId)?.name || dup.supplier || "—";
+          const typedSupplier = contragents.find((c) => c.id === supplierId)?.name || "—";
+          // A typed cost wildly off the average is flagged: it is usually a slip of a zero.
+          const costOff = typedCost > 0 && exCost > 0 && Math.abs(typedCost - exCost) / exCost > 0.5;
+          const rows: [string, string, string, boolean][] = [
+            [t("brand"), dup.brand || "—", brand || "—", false],
+            [t("whx_stock"), `${exQty}${exMin ? ` · ${t("min_label")} ${exMin}` : ""}`, String(typedQty), false],
+            [t("cost"), exCost ? money(exCost) : "—", typedCost ? money(typedCost) : "—", costOff],
+            [t("sell_price"), num(ev[0]?.unitPrice) ? money(num(ev[0]?.unitPrice)) : "—", typedPrice ? money(typedPrice) : "—", false],
+            [t("supplier"), exSupplier, typedSupplier, false],
+          ];
+          const choices: ["receive" | "separate" | "open", string, string][] = [
+            ["receive", t("whx_dup_receive"), t("whx_dup_receive_hint")],
+            ["separate", t("whx_dup_separate"), fill(t("whx_dup_separate_hint"), { n: nextName(dup.name) })],
+            ["open", t("whx_dup_open"), t("whx_dup_open_hint")],
+          ];
+          return (
+            <div className="absolute inset-0 z-20 grid place-items-center overflow-y-auto rounded-[inherit] bg-black/35 p-4">
+              <div className="w-full max-w-[560px] rounded-[18px] bg-card p-5 shadow-[var(--shadow-lg)]">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-warning-soft text-warning"><AlertTriangle className="size-5" /></span>
+                  <div className="min-w-0">
+                    <div className="text-[17px] font-bold text-foreground">{t("whx_dup_title")}</div>
+                    <p className="text-[13.5px] text-ink-2">{fill(t("whx_dup_body"), { n: dup.name })}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-[12px] bg-secondary/60 px-4 py-3 text-[13px]">
+                  <span />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("whx_in_wh")}</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("whx_you_typed")}</span>
+                  {rows.map(([k, a, b, warn]) => (
+                    <React.Fragment key={k}>
+                      <span className="text-muted-foreground">{k}</span>
+                      <span className="truncate font-mono text-foreground">{a}</span>
+                      <span className={cn("truncate font-mono", warn ? "font-semibold text-destructive" : "text-foreground")}>{b}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-col gap-2">
+                  {choices.map(([k, title, hint]) => (
+                    <button key={k} type="button" onClick={() => setDupChoice(k)}
+                      className={cn("flex items-start gap-3 rounded-[12px] border px-4 py-3 text-left transition-colors",
+                        dupChoice === k ? "border-primary bg-primary-soft/50" : "border-border hover:bg-secondary")}>
+                      <span className={cn("mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border-2", dupChoice === k ? "border-primary" : "border-input")}>
+                        {dupChoice === k && <span className="size-1.5 rounded-full bg-primary" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[14px] font-semibold text-foreground">{title}</span>
+                        <span className="block text-[12.5px] text-muted-foreground">{hint}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="secondary" onClick={() => setDup(null)}>{t("cancel")}</Button>
+                  <Button disabled={busy} onClick={resolveDup}>
+                    {busy ? <Spinner /> : dupChoice === "receive"
+                      ? `${t("whx_receive_do")}${typedQty > 0 ? ` · +${typedQty}` : ""}`
+                      : dupChoice === "separate" ? t("whx_dup_separate") : t("whx_dup_open")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </DialogContent>
     </Dialog>
   );

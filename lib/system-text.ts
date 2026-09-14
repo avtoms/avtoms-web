@@ -30,6 +30,7 @@ const REASON_KEY: Record<string, string> = {
   wo_canceled: "reason_wo_canceled",
   opening: "reason_opening",
   receive: "reason_receive",
+  consume: "reason_consume",
   // what the same movements were called before they were codes
   "used on work order": "reason_wo_used",
   "returned from work order": "reason_wo_returned",
@@ -70,8 +71,17 @@ export function stockReason(lang: Lang, raw?: string, numbered = true): string {
   const sale = SALE.exec(s);
   if (sale) return withNo(sale[2] ? "reason_sale_void" : "reason_sale", sale[1]);
 
+  // A correction: "adj:count · 2 not found at the count" → "Inventarizatsiya · 2 not found…".
+  const adj = ADJUST.exec(s);
+  if (adj) {
+    const label = translate(lang, `whx_adj_${adj[1]}`);
+    return adj[2] ? `${label} · ${adj[2]}` : label;
+  }
+
   return s;
 }
+
+const ADJUST = /^adj:([a-z_]+)(?:\s·\s([\s\S]*))?$/;
 
 // Every action avtoms-workorder writes to the audit trail. Anything not here falls back to a
 // neutral "history" line rather than showing the raw code.
