@@ -309,7 +309,7 @@ export default function WorkOrdersPage() {
   );
 
   const search = (
-    <div className={cn("relative", isMobile ? "w-full" : "w-[300px]")}>
+    <div className={cn("relative", isMobile ? "w-full" : "w-full max-w-[360px]")}>
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("wo_search_ph")} aria-label={t("search")} className="pl-9" />
     </div>
@@ -323,22 +323,20 @@ export default function WorkOrdersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title={
-          <div className="flex min-w-0 items-center gap-3">
-            <h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_workorders")}</h1>
-            <Tabs value={view} onValueChange={(v) => setView(v as "board" | "list")}>
-              <TabsList>
-                <TabsTrigger value="board">{t("view_board")}</TabsTrigger>
-                <TabsTrigger value="list">{t("view_list")}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        }
-        actions={!isMobile ? search : undefined}
-      />
+      <PageHeader title={<h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_workorders")}</h1>} />
 
-      {isMobile && search}
+      {/* Board / list, and the search that narrows both. Under the header rather than in it:
+          the header already holds the global search and the New-order button, and a second
+          search box beside them left no room for this page's own name. */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Tabs value={view} onValueChange={(v) => setView(v as "board" | "list")} className="shrink-0">
+          <TabsList>
+            <TabsTrigger value="board">{t("view_board")}</TabsTrigger>
+            <TabsTrigger value="list">{t("view_list")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="min-w-0 flex-1 basis-[220px]">{search}</div>
+      </div>
 
       {/* window · mechanic ←→ what it is worth */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">

@@ -345,9 +345,14 @@ export default function SchedulePage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_schedule")}</h1>
+        title={<h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_schedule")}</h1>}
+        meta={<span>{mechanics.length} {t("sch_masters")} · {(view === "day" ? onDay : list).filter((a) => apptStateFromProto(a.state) !== "canceled").length} {t("sch_bookings")}</span>}
+        actions={<Button onClick={() => setAdding({ when: view === "list" ? undefined : `${day}T${String(Math.min(END - 1, Math.max(START, new Date().getHours() + 1))).padStart(2, "0")}:00` })}><Plus /> {t("add_appointment")}</Button>}
+      />
+
+      {/* The view switch and the date, in a row of their own: inside the header they were
+          pushed under the buttons on a phone and clipped on a desktop. */}
+      <div className="flex flex-wrap items-center gap-3">
             <Tabs value={view} onValueChange={(v) => setView(v as View)}>
               <TabsList>
                 {!isMobile && <TabsTrigger value="day">{t("sch_day")}</TabsTrigger>}
@@ -363,11 +368,7 @@ export default function SchedulePage() {
                 {day !== todayYMD() && <button onClick={() => setDay(todayYMD())} className="text-[13px] font-semibold text-primary-emphasis hover:underline">{t("today")}</button>}
               </div>
             )}
-          </div>
-        }
-        meta={<span>{mechanics.length} {t("sch_masters")} · {(view === "day" ? onDay : list).filter((a) => apptStateFromProto(a.state) !== "canceled").length} {t("sch_bookings")}</span>}
-        actions={<Button onClick={() => setAdding({ when: view === "list" ? undefined : `${day}T${String(Math.min(END - 1, Math.max(START, new Date().getHours() + 1))).padStart(2, "0")}:00` })}><Plus /> {t("add_appointment")}</Button>}
-      />
+      </div>
       {loading && list.length === 0 ? (
         <Card className="gap-2.5 p-5">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="an-skel h-12 w-full rounded-[8px]" />)}</Card>
       ) : effective === "day" ? dayView : effective === "week" ? weekView : listView}
