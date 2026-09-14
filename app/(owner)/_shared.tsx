@@ -176,20 +176,22 @@ export function KpiCard({
         onClick && "cursor-pointer transition-shadow hover:shadow-[var(--shadow-lg)]",
       )}
     >
+      {/* The label and the line under the figure wrap to a second line rather than being cut:
+          "US..." and "o'rtacha marja 10..." say nothing. */}
       <div className="flex min-h-6 items-start justify-between gap-2">
-        <span className={cn("min-w-0 truncate pt-0.5 text-[11.5px] font-bold uppercase tracking-[0.06em]", edge ? TONE_TEXT[edge] : "text-muted-foreground")}>{label}</span>
+        <span className={cn("line-clamp-2 min-w-0 pt-0.5 text-[11.5px] font-bold uppercase leading-tight tracking-[0.06em]", edge ? TONE_TEXT[edge] : "text-muted-foreground")}>{label}</span>
         {pill !== undefined && pill !== null && pill !== "" && (
           <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-semibold", PILL[pillTone])}>{pill}</span>
         )}
       </div>
-      <div className="mt-2.5 flex min-w-0 items-baseline gap-2">
+      <div className="mt-2.5 flex min-w-0 items-baseline gap-1.5">
         <span
           className={cn("min-w-0 truncate font-mono font-bold leading-none tracking-[-0.02em]", TONE_TEXT[tone])}
-          style={{ fontSize: `clamp(20px, 3.2vw, ${statCap(value, true) + 2}px)` }}
+          style={{ fontSize: `clamp(22px, 3.2vw, ${statCap(value, true) + 2}px)` }}
         >{value}</span>
-        {unit && <span className="shrink-0 font-mono text-[14px] text-muted-foreground">{unit}</span>}
+        {unit && <span className="shrink-0 text-[13px] font-medium text-muted-foreground">{unit}</span>}
       </div>
-      {sub && <div className="mt-2 min-w-0 truncate text-[12.5px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="mt-2 line-clamp-2 min-w-0 text-[12.5px] leading-snug text-muted-foreground">{sub}</div>}
       {children}
     </div>
   );

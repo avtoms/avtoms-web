@@ -388,7 +388,7 @@ export default function InventoryPage() {
         const pct = Math.max(4, Math.min(100, (have / Math.max(min * 3, have, 1)) * 100));
         const d = stats.get(key)?.daysLeft;
         return (
-          <div className="flex w-[190px] flex-col gap-1">
+          <div className="flex w-[190px] max-w-full flex-col gap-1 max-md:ml-auto max-md:w-full max-md:max-w-[220px]">
             <div className="flex items-baseline justify-between gap-2">
               <span className={cn("font-mono text-[14px] font-bold", out ? "text-destructive" : low ? "text-warning" : "text-foreground")}>
                 {qtyUnit(t, have, p.unit)}
@@ -507,7 +507,7 @@ export default function InventoryPage() {
 
   const segBtn = (k: Seg, label: string, n: number, tone?: string) => (
     <button key={k} onClick={() => setSeg(k)} aria-pressed={seg === k}
-      className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+      className={cn("inline-flex min-h-8 items-center gap-1.5 shrink-0 whitespace-nowrap rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
         seg === k ? "bg-card text-foreground shadow-[var(--shadow)]" : tone ?? "text-muted-foreground hover:text-foreground")}>
       {label}<span className="font-mono text-[11.5px] text-muted-foreground">{n}</span>
     </button>
@@ -616,7 +616,7 @@ export default function InventoryPage() {
           emptyText={t("empty")}
           toolbar={
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+              <div className="inline-flex max-w-full flex-nowrap gap-0.5 overflow-x-auto rounded-[10px] bg-secondary p-1 [scrollbar-width:none]">
                 {segBtn("all", t("all"), base.length)}
                 {segBtn("low", t("inv_low"), lowRows.length, lowRows.length ? "text-warning hover:text-foreground" : undefined)}
                 {segBtn("loss", t("whx_loss"), lossRows.length, lossRows.length ? "text-destructive hover:text-foreground" : undefined)}
@@ -633,7 +633,7 @@ export default function InventoryPage() {
 
       {list.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[12.5px] text-muted-foreground">
-          <span>{shown.length} {t("whx_rows")} · {t("whx_total_cost")} <span className="font-mono">{money(shownCost)}</span></span>
+          <span>{t("whx_total_cost")} <span className="font-mono">{money(shownCost)}</span></span>
           <span className="flex items-center gap-2">
             <button onClick={exportCsv} className="font-semibold hover:text-foreground">{t("whx_export")}</button>
             <span aria-hidden>·</span>

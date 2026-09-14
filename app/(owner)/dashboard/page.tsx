@@ -266,7 +266,7 @@ export default function DashboardPage() {
   const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const header = (
     <PageHeader
-      title={<h1 className="truncate text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("today")}, {formatDayMonth(lang, today)}</h1>}
+      title={<h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("today")}, {formatDayMonth(lang, today)}</h1>}
       meta={
         <span>
           {formatWeekday(lang, today)} · {mechanicsWorking} {t("dash_mech_working")}
@@ -371,8 +371,8 @@ export default function DashboardPage() {
                 <span className={cn("size-2 shrink-0 rounded-full", a.tone === "danger" ? "bg-destructive" : "bg-warning")} />
                 <span className="w-16 shrink-0 font-mono text-[13px] font-semibold text-ink-2">{a.ref}</span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold text-foreground">{a.title}</div>
-                  <div className="truncate text-[12.5px] text-muted-foreground">{a.sub}</div>
+                  <div className="text-[14px] font-semibold leading-snug text-foreground md:truncate">{a.title}</div>
+                  <div className="text-[12.5px] text-muted-foreground md:truncate">{a.sub}</div>
                 </div>
                 <Button size="sm" variant={a.primary ? "default" : "secondary"} className="touch:w-full" onClick={() => router.push(a.href)}>
                   {isMobile && a.primary ? t("act_take_payment_short") : a.action}
@@ -435,7 +435,7 @@ export default function DashboardPage() {
                       const mech = staffName(w.assignedMechanicId);
                       return (
                         <tr key={w.id} onClick={() => router.push(`/work-orders/${w.id}`)} className="cursor-pointer border-b border-border last:border-0 hover:bg-secondary/50">
-                          <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink-2">{orderLabel(w)}</td>
+                          <td className="whitespace-nowrap px-5 py-3 font-mono text-[13px] font-semibold text-ink-2">{orderLabel(w)}</td>
                           <td className="px-3 py-3">{w.plate ? <PlatePreview plate={w.plate} size="sm" /> : "—"}</td>
                           <td className="px-3 py-3">
                             <div className="max-w-[220px] truncate text-[14px] font-semibold text-foreground">{car(w) || "—"}</div>
@@ -544,17 +544,16 @@ export default function DashboardPage() {
 
       {/* ── the panels the dashboard had before ── */}
       <SecTitle>{t("dash_more_panels")}</SecTitle>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-5 lg:col-span-1">
-          <SecTitle>{t("income_title")}</SecTitle>
+      {/* Three cards with the same kind of heading, each as tall as its own content. */}
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <ChartCard title={t("income_title")} subtitle={t("today")}>
           <IncomeBreakdownPanel shopId={shopId} from={today} to={today} />
-        </Card>
+        </ChartCard>
         <ChartCard title={t("nav_workorders")} subtitle={`${orders.length} ${t("total").toLowerCase()}`}>
           {statusBars.length ? <HBarChart data={statusBars} color="var(--accent)" /> : <div className="grid h-[160px] place-items-center text-[13px] text-muted-foreground">{t("empty")}</div>}
         </ChartCard>
-        <Card className="p-5">
-          <SecTitle right={<Badge tone={healthTone} dot>{t(healthKey)}</Badge>}>{t("fiscal_health")}</SecTitle>
-          <div className="mt-1 flex items-center gap-3 rounded-[12px] bg-secondary/60 p-4">
+        <ChartCard title={t("fiscal_health")} action={<Badge tone={healthTone} dot>{t(healthKey)}</Badge>}>
+          <div className="flex items-center gap-3 rounded-[12px] bg-secondary/60 p-4">
             <div className={`grid size-11 shrink-0 place-items-center rounded-[12px] ${healthTone === "ok" ? "bg-success-soft text-success" : healthTone === "warn" ? "bg-warning-soft text-warning" : "bg-destructive-soft text-destructive"}`}>
               {healthTone === "ok" ? <ShieldCheck className="size-6" /> : <AlertTriangle className="size-6" />}
             </div>
@@ -568,7 +567,7 @@ export default function DashboardPage() {
               <div key={c} className="h-2 flex-1 rounded-full" style={{ background: c === health ? (c === "green" ? "var(--ok)" : c === "yellow" ? "var(--warn)" : "var(--danger)") : "var(--surface-2)" }} />
             ))}
           </div>
-        </Card>
+        </ChartCard>
       </div>
 
       <IncomeBreakdownModal open={showIncome} onClose={() => setShowIncome(false)} shopId={shopId} from={today} to={today} title={t("dash_cash_in")} />

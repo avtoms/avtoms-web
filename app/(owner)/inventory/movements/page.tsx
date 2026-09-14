@@ -169,6 +169,9 @@ export default function MovementsReportPage() {
     const x = data?.days.get(d);
     return x ? Math.max(x.in, -x.out, Math.abs(x.adj)) : 0;
   }));
+  // Millions read as "1.2 mln"; anything smaller is written out, so a quiet month does not show
+  // "1, 1, 0" up the side of the chart.
+  const axis = (v: number) => (v >= 1e6 ? compactMln(v, t("mln")) : money(Math.round(v)));
   const h = (v: number) => `${Math.max(v > 0 ? 2 : 0, (Math.abs(v) / maxDay) * 100)}%`;
   const labelEvery = Math.max(1, Math.ceil(dayList.length / 12));
 
@@ -228,7 +231,7 @@ export default function MovementsReportPage() {
             </div>
             <div className="flex gap-2">
               <div className="flex h-[150px] flex-col justify-between py-0.5 text-right font-mono text-[10.5px] text-muted-foreground">
-                <span>{compactMln(maxDay, t("mln"))}</span><span>{compactMln(maxDay / 2, t("mln"))}</span><span>0</span>
+                <span>{axis(maxDay)}</span><span>{axis(maxDay / 2)}</span><span>0</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="relative flex h-[150px] items-end gap-[2px] border-b border-border">

@@ -87,7 +87,7 @@ const itemActive = (pathname: string, it: NavItem) => isActive(pathname, it.rout
 // has to know at a glance which one is open. Until the shop has a name, the product's stands in.
 function Brand({ name, sub }: { name: string; sub: string }) {
   return (
-    <div className="flex items-center gap-3 px-5 pb-5 pt-5">
+    <div className="flex items-center gap-3 px-5 pb-4 pt-4">
       <div className="grid size-10 shrink-0 place-items-center rounded-[11px] bg-primary text-primary-foreground shadow-[var(--shadow)]">
         <Wrench className="size-5" strokeWidth={2.2} />
       </div>
@@ -127,20 +127,22 @@ function NavList({ pathname, t, groups, counts, onNavigate }: {
   pathname: string; t: (k: string) => string; groups: NavGroup[]; counts: NavCounts; onNavigate?: () => void;
 }) {
   return (
-    <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pb-2">
+    // Dense enough that every item fits a 900px-tall window without scrolling — the last item
+    // (Settings) used to be below the fold and looked like it did not exist.
+    <nav className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-3 pb-2">
       {groups.map((g) => (
         <div key={g.titleKey}>
-          <div className="px-3 pb-1.5 text-[11.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          <div className="px-3 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
             {t(g.titleKey)}
           </div>
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-px">
             {g.items.map((it) => {
               const on = itemActive(pathname, it);
               const Icon = it.icon;
               return (
                 <Link key={it.key} href={it.route} onClick={onNavigate} data-tour={`nav-${it.key}`}
                   className={cn(
-                    "flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 text-[14.5px] tracking-[-0.01em] transition-colors",
+                    "flex min-h-[38px] items-center gap-3 rounded-[10px] px-3 py-1.5 text-[14.5px] tracking-[-0.01em] transition-colors touch:min-h-11",
                     on ? "bg-primary-soft font-semibold text-primary-emphasis" : "font-medium text-ink-2 hover:bg-secondary hover:text-foreground",
                   )}>
                   <Icon className={cn("size-[18px] shrink-0", on ? "text-primary-emphasis" : "text-muted-foreground")} />
@@ -243,39 +245,56 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   // It can be taken as often as wanted — from the header on every screen, or the sidebar.
   const canLearn = can(session, "settings.manage");
   const tourButton = canLearn && (
-    <button onClick={() => { setDrawer(false); startTour(); }}
-      className="mx-3 mb-1 flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13.5px] font-semibold text-primary-emphasis transition-colors hover:bg-primary-soft">
-      <Sparkles className="size-[17px]" /> {t("tour_start_btn")}
-    </button>
+    <div className="mx-3 mt-auto border-t border-border pt-2">
+      <button onClick={() => { setDrawer(false); startTour(); }}
+        className="flex min-h-10 w-full items-center gap-3 rounded-[10px] px-3 py-2 text-[14px] font-semibold text-primary-emphasis transition-colors hover:bg-primary-soft">
+        <Sparkles className="size-[18px] shrink-0" /> {t("tour_start_btn")}
+      </button>
+    </div>
   );
 
+  // The header, in order of what must survive a narrow screen: the page's name is never cut
+  // ("O..." for Ombor was the first thing anyone saw), the page's own buttons come next, the
+  // search box gives way before either, and the line of context under the name is the first
+  // to go. On a phone the page's buttons take a row of their own and wrap rather than run off
+  // the right edge.
   const header = (mobile: boolean) => (
     <header className={cn(
-      "sticky top-0 z-30 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border bg-card",
-      mobile ? "px-4 py-3" : "min-h-[66px] px-7 py-3",
+      "sticky top-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-card",
+      mobile ? "px-4 py-2.5" : "min-h-[66px] px-7 py-3",
     )}>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className={cn("flex min-w-0 items-center gap-3", mobile ? "flex-1" : "min-w-0 flex-1")}>
         {mobile && <div className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-primary text-primary-foreground"><Wrench className="size-4" strokeWidth={2.2} /></div>}
-        {!customTitle && <h1 className={cn("truncate font-bold tracking-[-0.025em] text-foreground", mobile ? "text-[16px]" : "text-[19px]")}>{title}</h1>}
+        {!customTitle && <h1 className={cn("shrink-0 font-bold tracking-[-0.025em] text-foreground", mobile ? "truncate text-[16px]" : "text-[19px]")}>{title}</h1>}
         <div ref={setTitleEl} className="contents" />
-        <div ref={setMetaEl} className={cn("min-w-0 truncate text-[13px] text-muted-foreground", mobile && "hidden")} />
+        <div ref={setMetaEl} className={cn("min-w-0 flex-1 truncate text-[13px] text-muted-foreground", mobile && "hidden")} />
       </div>
-      {/* Outside the scrolling button row, which would clip its results panel. */}
+      {/* Outside the button row, which would clip its results panel. It shrinks first. */}
       {!mobile && (searchOrders || searchClients) && (
-        <GlobalSearch shopId={session.staff.shopId} canOrders={searchOrders} canCustomers={searchClients} className="w-[300px] shrink-0" />
+        <GlobalSearch shopId={session.staff.shopId} canOrders={searchOrders} canCustomers={searchClients} className="w-[260px] min-w-[150px] shrink" />
       )}
-      <div className="flex max-w-full items-center gap-2 overflow-x-auto">
-        <div ref={setActionsEl} className="flex items-center gap-2 empty:hidden" />
-        {!mobile && showNewWo && (
-          <Button data-tour="new-wo" onClick={() => setCreating(true)}><Plus />{t("new_wo")}</Button>
-        )}
-        {canLearn && (
-          <Button variant="secondary" size={mobile ? "icon" : "default"} onClick={startTour} aria-label={t("tour_learn")} title={t("tour_learn")}>
-            <GraduationCap />{!mobile && t("tour_learn")}
-          </Button>
-        )}
-        <LangMenu lang={lang} setLang={setLang} />
-      </div>
+      {mobile ? (
+        <>
+          <div className="flex shrink-0 items-center gap-2">
+            {canLearn && (
+              <Button variant="secondary" size="icon" onClick={startTour} aria-label={t("tour_learn")} title={t("tour_learn")}><GraduationCap /></Button>
+            )}
+            <LangMenu lang={lang} setLang={setLang} />
+          </div>
+          <div ref={setActionsEl} className="flex basis-full flex-wrap items-center gap-2 empty:hidden [&>*]:max-w-full" />
+        </>
+      ) : (
+        <div className="flex shrink-0 items-center gap-2">
+          <div ref={setActionsEl} className="flex items-center gap-2 empty:hidden" />
+          {showNewWo && (
+            <Button data-tour="new-wo" onClick={() => setCreating(true)}><Plus />{t("new_wo")}</Button>
+          )}
+          {canLearn && (
+            <Button variant="secondary" size="icon" onClick={startTour} aria-label={t("tour_learn")} title={t("tour_learn")}><GraduationCap /></Button>
+          )}
+          <LangMenu lang={lang} setLang={setLang} />
+        </div>
+      )}
     </header>
   );
 
@@ -286,7 +305,8 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       <PageHeaderProvider value={slots}>
         <div className="app-scope flex min-h-screen flex-col bg-background">
           {header(true)}
-          <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(84px+env(safe-area-inset-bottom))] pt-4">{children}</main>
+          {/* Room under the last card for the tab bar and the floating buttons over it. */}
+          <main className={cn("min-w-0 flex-1 overflow-x-hidden px-4 pt-4", hasChat ? "pb-[calc(168px+env(safe-area-inset-bottom))]" : "pb-[calc(110px+env(safe-area-inset-bottom))]")}>{children}</main>
 
           <nav className="fixed inset-x-0 bottom-0 z-45 flex border-t border-border bg-card px-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5">
             {primary.map((it) => {

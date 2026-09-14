@@ -347,7 +347,7 @@ export default function SchedulePage() {
       <PageHeader
         title={
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <h1 className="truncate text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_schedule")}</h1>
+            <h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_schedule")}</h1>
             <Tabs value={view} onValueChange={(v) => setView(v as View)}>
               <TabsList>
                 {!isMobile && <TabsTrigger value="day">{t("sch_day")}</TabsTrigger>}

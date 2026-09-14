@@ -266,10 +266,10 @@ export function SalesConsole() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={<h1 className="truncate text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_quick_sale")}</h1>}
+        title={<h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_quick_sale")}</h1>}
         meta={<span>{t("pos_sub")} · {t("pay_cashier")}: {session?.staff.name}</span>}
         actions={
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground max-sm:hidden">
             <span>{t("today")} <span className="font-mono font-bold text-foreground">{todays.length}</span> {t("pos_sales_n")} · <span className="font-mono font-bold text-foreground">{money(todaysSum)}</span></span>
             <button onClick={() => document.getElementById("pos-history")?.scrollIntoView({ behavior: "smooth" })} className="font-semibold text-primary-emphasis hover:underline">{t("sales_history")}</button>
             <Link href="/finances" className="font-semibold text-primary-emphasis hover:underline">{t("pos_day_report")}</Link>

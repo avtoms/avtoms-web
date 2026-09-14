@@ -266,10 +266,10 @@ export default function MenuPage() {
             emptyText={t("empty")}
             toolbar={
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+                <div className="inline-flex max-w-full flex-nowrap gap-0.5 overflow-x-auto rounded-[10px] bg-secondary p-1 [scrollbar-width:none]">
                   {[[ALL, t("all"), list.length] as const, ...categories.map(([c, n]) => [c, c, n] as const)].map(([key, label, n]) => (
                     <button key={key} onClick={() => setCat(key)} aria-pressed={cat === key}
-                      className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+                      className={cn("inline-flex min-h-8 items-center gap-1.5 shrink-0 whitespace-nowrap rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
                         cat === key ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground")}>
                       {label}<span className="font-mono text-[11.5px] text-muted-foreground">{n}</span>
                     </button>

@@ -30,11 +30,11 @@ export function FinanceTabs({ current, onTab }: { current: FinanceTab; onTab: (p
   // look at the figures is not offered a tab that would refuse them.
   const tabs = TABS.filter((x) => !x.manage || can(session, "finance.manage"));
   return (
-    <div className="inline-flex max-w-full flex-wrap gap-0.5 self-start rounded-[10px] bg-secondary p-1">
+    <div className="inline-flex max-w-full flex-nowrap gap-0.5 self-start overflow-x-auto rounded-[10px] bg-secondary p-1 [scrollbar-width:none]">
       {tabs.map((x) => (
         <button key={x.key} aria-pressed={current === x.key}
           onClick={() => (pathname === x.page ? onTab(x.tab) : router.push(`${x.page}?tab=${x.tab}`))}
-          className={cn("min-h-9 rounded-[8px] px-3.5 text-[13.5px] font-semibold transition-colors touch:min-h-11",
+          className={cn("min-h-9 shrink-0 whitespace-nowrap rounded-[8px] px-3.5 text-[13.5px] font-semibold transition-colors touch:min-h-11",
             current === x.key ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground")}>
           {t(x.labelKey)}
         </button>

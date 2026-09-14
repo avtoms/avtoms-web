@@ -211,20 +211,20 @@ export default function RemindersPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+        <div className="inline-flex max-w-full flex-nowrap gap-0.5 overflow-x-auto rounded-[10px] bg-secondary p-1 [scrollbar-width:none]">
           {BUCKETS.map(([k, label, n]) => (
             <button key={k} onClick={() => setBucket(k)} aria-pressed={bucket === k}
-              className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+              className={cn("inline-flex min-h-8 items-center gap-1.5 shrink-0 whitespace-nowrap rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
                 bucket === k ? "bg-card text-foreground shadow-[var(--shadow)]" : k === "overdue" && n ? "text-destructive" : "text-muted-foreground hover:text-foreground")}>
               {label}{n ? <span className="font-mono text-[11.5px] text-muted-foreground">{n}</span> : null}
             </button>
           ))}
         </div>
         {kinds.length > 1 && (
-          <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+          <div className="inline-flex max-w-full flex-nowrap gap-0.5 overflow-x-auto rounded-[10px] bg-secondary p-1 [scrollbar-width:none]">
             {[ALL, ...kinds].map((k) => (
               <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
-                className={cn("min-h-8 max-w-[180px] truncate rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+                className={cn("min-h-8 max-w-[180px] truncate shrink-0 whitespace-nowrap rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
                   kind === k ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground")}>
                 {k === ALL ? t("rem_all_types") : k}
               </button>

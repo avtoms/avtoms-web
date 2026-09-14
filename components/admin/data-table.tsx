@@ -138,7 +138,10 @@ export function DataTable<TData, TValue>({
             </button>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-2.5">
+        {/* On a phone the page's own filters take a full row of their own, and the sort menu
+            sits under the search box — the three used to land wherever the wrap put them. */}
+        <div className="ml-auto flex items-center gap-2.5 max-sm:w-full max-sm:flex-wrap">
+          {isMobile && toolbar && <div className="basis-full">{toolbar}</div>}
           {isMobile && sortable.length > 1 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -193,7 +196,7 @@ export function DataTable<TData, TValue>({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {toolbar}
+          {!isMobile && toolbar}
         </div>
       </div>
 
@@ -257,7 +260,9 @@ export function DataTable<TData, TValue>({
           })}
         </div>
       ) : (
-      <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-[var(--shadow)]">
+      // Sideways scroll rather than clipping: a table one column too wide used to lose its
+      // last column — the row's buttons — behind the card's edge.
+      <div className="overflow-x-auto rounded-[14px] border border-border bg-card shadow-[var(--shadow)]">
         <Table>
           <TableHeader className="bg-secondary/50">
             {table.getHeaderGroups().map((hg) => (

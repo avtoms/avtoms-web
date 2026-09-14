@@ -326,7 +326,7 @@ export default function WorkOrdersPage() {
       <PageHeader
         title={
           <div className="flex min-w-0 items-center gap-3">
-            <h1 className="truncate text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_workorders")}</h1>
+            <h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_workorders")}</h1>
             <Tabs value={view} onValueChange={(v) => setView(v as "board" | "list")}>
               <TabsList>
                 <TabsTrigger value="board">{t("view_board")}</TabsTrigger>
@@ -342,11 +342,11 @@ export default function WorkOrdersPage() {
 
       {/* window · mechanic ←→ what it is worth */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-        <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-secondary p-1">
+        <div className="inline-flex max-w-full flex-nowrap gap-0.5 overflow-x-auto rounded-[10px] bg-secondary p-1 [scrollbar-width:none]">
           {CHIPS.map((c) => (
             <button key={c.key} onClick={() => dates.setPreset(c.key === "active" ? "all" : c.key)} aria-pressed={chip === c.key}
               className={cn(
-                "min-h-9 rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
+                "min-h-9 shrink-0 whitespace-nowrap rounded-[8px] px-3 text-[13px] font-semibold transition-colors touch:min-h-11",
                 chip === c.key ? "bg-card text-foreground shadow-[var(--shadow)]" : "text-muted-foreground hover:text-foreground",
               )}>
               {t(c.labelKey)}
@@ -370,7 +370,7 @@ export default function WorkOrdersPage() {
           </Select>
         )}
         {list !== null && (
-          <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground touch:ml-0">
+          <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground touch:ml-0 touch:max-w-full touch:flex-nowrap touch:overflow-x-auto touch:whitespace-nowrap touch:[scrollbar-width:none]">
             {stripItem(t("wo_active_n"), String(totals.active))}
             {stripItem(t("ln_inprogress"), money(totals.openValue), "accent")}
             {stripItem(t("wo_expected_pay"), money(totals.expected), "warn")}
