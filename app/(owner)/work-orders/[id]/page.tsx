@@ -377,7 +377,7 @@ export default function WorkOrderDetailPage() {
         title={
           <div className="flex min-w-0 items-center gap-3">
             <Button variant="secondary" size="icon" onClick={() => router.push("/work-orders")} aria-label={t("back")}><ArrowLeft /></Button>
-            <h1 className="font-mono text-[21px] font-bold tracking-[-0.02em] text-foreground touch:text-[18px]">{orderLabel(wo)}</h1>
+            <h1 className="shrink-0 whitespace-nowrap font-mono text-[21px] font-bold tracking-[-0.02em] text-foreground touch:text-[18px]">{orderLabel(wo)}</h1>
             <StateBadge state={state} />
             {!isMobile && wo.createdAt && (
               <span className="truncate text-[13px] text-muted-foreground">
@@ -539,7 +539,7 @@ export default function WorkOrderDetailPage() {
       {/* phone: the actions sit where the thumb is */}
       {isMobile && (payable || primaryForward || state === "estimated" || state === "closed") && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card p-3" style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
-          <div className="flex flex-wrap items-center justify-end gap-2" style={{ paddingRight: 64 }}>{primaryButtons()}</div>
+          <div className="flex items-stretch gap-2 [&>button]:min-w-0 [&>button]:flex-1">{primaryButtons("lg")}</div>
         </div>
       )}
 

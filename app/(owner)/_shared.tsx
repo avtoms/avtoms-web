@@ -181,9 +181,12 @@ export function KpiCard({
       <div className="flex min-h-6 items-start justify-between gap-2">
         <span className={cn("line-clamp-2 min-w-0 pt-0.5 text-[11.5px] font-bold uppercase leading-tight tracking-[0.06em]", edge ? TONE_TEXT[edge] : "text-muted-foreground")}>{label}</span>
         {pill !== undefined && pill !== null && pill !== "" && (
-          <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-semibold", PILL[pillTone])}>{pill}</span>
+          <span className={cn("hidden shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-semibold sm:inline", PILL[pillTone])}>{pill}</span>
         )}
       </div>
+      {pill !== undefined && pill !== null && pill !== "" && (
+        <span className={cn("mt-2 w-fit rounded-full px-2.5 py-0.5 text-[12px] font-semibold sm:hidden", PILL[pillTone])}>{pill}</span>
+      )}
       <div className="mt-2.5 flex min-w-0 items-baseline gap-1.5">
         <span
           className={cn("min-w-0 truncate font-mono font-bold leading-none tracking-[-0.02em]", TONE_TEXT[tone])}

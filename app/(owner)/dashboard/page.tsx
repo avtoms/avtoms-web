@@ -273,7 +273,7 @@ export default function DashboardPage() {
           {updatedAt && <> · {t("dash_updated")} {hhmm(updatedAt)}</>}
         </span>
       }
-      actions={
+      actions={isMobile ? undefined :
         <>
           <button
             aria-label={t("dash_notifications")}
@@ -409,7 +409,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-end justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-[15px] font-bold text-foreground">{car(w) || orderLabel(w)}</div>
+                        <div className="truncate text-[15px] font-bold text-foreground">{car(w) || t("vehicle")}</div>
                         <div className="truncate text-[12.5px] text-muted-foreground">{[w.customerName, staffName(w.assignedMechanicId)].filter(Boolean).join(" · ")}</div>
                       </div>
                       <span className="shrink-0 font-mono text-[15px] font-bold text-foreground">{money(num(w.total))}</span>

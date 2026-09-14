@@ -251,7 +251,7 @@ export default function CustomerPage() {
               {orders.length === 0 ? <div className="p-5"><Empty icon="clipboard" text={t("empty")} /></div> : (
                 <>
                   {!isMobile && (
-                    <div className="grid grid-cols-[100px_76px_minmax(0,1fr)_120px_130px_110px_20px] gap-3 border-b border-border bg-secondary/40 px-5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                    <div className="grid grid-cols-[84px_68px_minmax(0,1fr)_104px_124px_96px_16px] gap-3 border-b border-border bg-secondary/40 px-5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                       <span>{t("date")}</span><span>№</span><span>{t("vehicle")} · {t("sum_works")}</span><span>{t("mechanic")}</span><span>{t("col_status")}</span><span className="text-right">{t("col_sum")}</span><span />
                     </div>
                   )}
@@ -269,7 +269,7 @@ export default function CustomerPage() {
                         <div className="flex flex-col items-end gap-1"><StateBadge state={woStateFromProto(w.state)} /><span className="font-mono text-[14px] font-bold">{money(num(w.total))}</span></div>
                       </Link>
                     ) : (
-                      <Link key={w.id} href={`/work-orders/${w.id}`} className="grid grid-cols-[100px_76px_minmax(0,1fr)_120px_130px_110px_20px] items-center gap-3 border-b border-border px-5 py-3 last:border-0 hover:bg-secondary/50">
+                      <Link key={w.id} href={`/work-orders/${w.id}`} className="grid grid-cols-[84px_68px_minmax(0,1fr)_104px_124px_96px_16px] items-center gap-3 border-b border-border px-5 py-3 last:border-0 hover:bg-secondary/50">
                         <span className="font-mono text-[13px] text-ink-2">{shortDate(w.createdAt)}</span>
                         <span className="font-mono text-[13px] font-semibold text-ink-2">{orderLabel(w)}</span>
                         <div className="min-w-0">

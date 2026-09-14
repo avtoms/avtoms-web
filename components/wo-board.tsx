@@ -406,7 +406,7 @@ export function WorkOrderBoard({ orders, cols, busyId, onMove, onOpen, hint, emp
   // board fit without scrolling at all.
   const template = mainCols.map((c) => {
     const empty = compactMenu && byState(c.key).length === 0 && addTo?.state !== c.key;
-    return empty ? "minmax(128px, 0.55fr)" : `minmax(${compactMenu ? 200 : 260}px, 1fr)`;
+    return empty ? "minmax(168px, 0.55fr)" : `minmax(${compactMenu ? 210 : 260}px, 1fr)`;
   }).join(" ") + (showRail ? " 44px" : "");
   const overflowing = edges.left || edges.right;
   const fade = (side: "left" | "right") => ({

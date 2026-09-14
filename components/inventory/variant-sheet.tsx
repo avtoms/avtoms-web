@@ -115,7 +115,7 @@ export function VariantSheet({
 
           {/* Several variants: pick one; everything below is about the one picked. */}
           {variants.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex shrink-0 flex-wrap gap-1.5">
               {variants.map((x) => {
                 const on = x.id === v?.id;
                 return (
@@ -139,7 +139,7 @@ export function VariantSheet({
               <Figures v={v} unit={product.unit} st={v.id ? stats.get(v.id) : undefined} />
 
               {(v.sku || v.barcode) && (
-                <div className="-mt-1 flex items-center gap-3 text-[12px] text-muted-foreground">
+                <div className="-mt-1 flex shrink-0 items-center gap-3 text-[12px] text-muted-foreground">
                   {v.sku && <span className="shrink-0 rounded-[6px] bg-white p-0.5"><QRCodeSVG value={v.sku} size={34} /></span>}
                   <span className="font-mono">
                     {v.sku && <>{t("art")} {v.sku}</>}
@@ -148,7 +148,7 @@ export function VariantSheet({
                 </div>
               )}
 
-              <div className="inline-flex w-full gap-0.5 rounded-[10px] bg-secondary p-1">
+              <div className="inline-flex w-full shrink-0 gap-0.5 rounded-[10px] bg-secondary p-1">
                 {([["in", t("receive")], ["out", t("consume")], ["adjust", t("whx_adjust_btn")]] as const).map(([k, lbl]) => (
                   <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k}
                     className={cn("min-h-9 flex-1 rounded-[8px] text-[13.5px] font-semibold transition-colors touch:min-h-11",
@@ -158,7 +158,7 @@ export function VariantSheet({
                 ))}
               </div>
 
-              <div className="rounded-[14px] border border-border p-4">
+              <div className="shrink-0 rounded-[14px] border border-border p-4">
                 {tab === "adjust"
                   ? <CountPanel key={`c${v.id}`} variant={v} unit={product.unit} onDone={done} />
                   : <AdjustPanel key={`${tab}${v.id}`} mode={tab === "in" ? "receive" : "consume"} variant={v} unit={product.unit} brand={product.brand}
@@ -198,7 +198,7 @@ function Figures({ v, unit, st }: { v: ProductVariant; unit?: string; st?: Varia
   const lbl = "text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground";
   const big = "truncate font-mono text-[21px] font-bold leading-tight tracking-[-0.02em]";
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-[14px] border border-border md:grid-cols-4 md:divide-x md:divide-border">
+    <div className="grid shrink-0 grid-cols-2 overflow-hidden rounded-[14px] border border-border md:grid-cols-4 md:divide-x md:divide-border">
       <div className={cell}>
         <span className={lbl}>{t("whx_stock")}</span>
         <span className={cn(big, out ? "text-destructive" : low ? "text-warning" : "text-foreground")}>{qtyUnit(t, q, unit)}</span>
@@ -460,7 +460,7 @@ function HistoryCard({ variantId, unit, contragents, staff, reload }: {
   });
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-border">
+    <div className="shrink-0 overflow-hidden rounded-[14px] border border-border">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <span className="text-[14.5px] font-bold text-foreground">{t("history")}</span>
         <div className="flex flex-wrap gap-0.5">

@@ -215,11 +215,11 @@ export function ReceiptDoc({ open, seed, shopId, products, contragents, balances
         <div className="flex items-center gap-3 border-b border-border px-6 py-4 pr-14">
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2">
-              <h2 className="text-[19px] font-bold tracking-[-0.02em] text-foreground">{t("whx_receipt_btn")}</h2>
+              <h2 className="whitespace-nowrap text-[19px] font-bold tracking-[-0.02em] text-foreground">{t("whx_receipt_btn")}</h2>
               <span className="font-mono text-[12.5px] text-muted-foreground">{restored ? t("whx_draft") : shortDate(new Date().toISOString())}</span>
             </div>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setScan(true)}><ScanBarcode /> {t("whx_scan_add")}</Button>
+          <Button variant="secondary" size="sm" onClick={() => setScan(true)}><ScanBarcode /> <span className="hidden sm:inline">{t("whx_scan_add")}</span></Button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-background px-6 py-5">
