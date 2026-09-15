@@ -207,6 +207,7 @@ function AddLineItemModal({ open, onClose, shopId, onAdd, t }: {
 /* ── order history ── */
 function Timeline({ entries, limit }: { entries: AuditEntry[]; limit?: number }) {
   const { t, lang } = useLang();
+  const { session } = useAuth();
   const shown = limit ? entries.slice(0, limit) : entries;
   if (shown.length === 0) return <div className="py-4 text-center text-[13px] text-muted-foreground">{t("no_history")}</div>;
   return (
@@ -218,8 +219,14 @@ function Timeline({ entries, limit }: { entries: AuditEntry[]; limit?: number })
           <div className="min-w-0 flex-1">
             <div className="text-[12.5px] font-bold text-foreground">
               {auditAction(lang, e.action)}
-              {auditDetail(lang, e.action, e.detail)
-                ? <span className="font-medium text-ink-2"> · {auditDetail(lang, e.action, e.detail)}</span> : null}
+              {(() => {
+                // An assignment's detail is a staff id. The mechanic's own is named; anyone
+                // else's is left out rather than shown as a uuid (this screen has no staff list).
+                const d = e.action === "mechanic_assigned" || e.action === "mechanic_unassigned"
+                  ? (e.detail && e.detail === session?.staff.id ? session.staff.name : "")
+                  : auditDetail(lang, e.action, e.detail);
+                return d ? <span className="font-medium text-ink-2"> · {d}</span> : null;
+              })()}
             </div>
             <div className="font-mono text-[11px] text-muted-foreground">{shortDateTime(e.createdAt)}</div>
           </div>
@@ -303,7 +310,7 @@ export default function MechanicWoDetailPage() {
     try {
       const r = await api.startTimer(wo.id, mechanicId);
       setRunningSince(r.startedAt || new Date().toISOString());
-      toast(t("start_timer"), { icon: "play" });
+      toast(t("timer_started"), { icon: "play" });
     } catch (e) {
       toast(errMsg(e), { tone: "danger", icon: "alert" });
     } finally {
@@ -317,7 +324,7 @@ export default function MechanicWoDetailPage() {
     try {
       await api.stopTimer(wo.id, mechanicId);
       setRunningSince(null);
-      toast(t("stop_timer"), { icon: "stop" });
+      toast(t("timer_stopped"), { icon: "stop" });
       await load();
     } catch (e) {
       toast(errMsg(e), { tone: "danger", icon: "alert" });
@@ -359,7 +366,8 @@ export default function MechanicWoDetailPage() {
       } else {
         await api.transition(wo.id, target);
       }
-      toast(label, { icon: "check" });
+      // The state the order is now in ("Bajarilmoqda"), not the button that was pressed.
+      toast(t(STATE_LABEL[target]) || label, { icon: "check" });
       await load();
     } catch (e) {
       toast(errMsg(e), { tone: "danger", icon: "alert" });

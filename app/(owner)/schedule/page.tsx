@@ -174,7 +174,7 @@ export default function SchedulePage() {
               <DropdownMenuItem disabled={busy} onClick={() => setState(a, "done")}><Check /> {t("mark_done")}</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" disabled={busy} onClick={() => setState(a, "canceled")}><X /> {t("cancel")}</DropdownMenuItem>
             </>
-          ) : <DropdownMenuItem disabled>{st === "done" ? t("st_done") : t("cancel")}</DropdownMenuItem>}
+          ) : <DropdownMenuItem disabled>{st === "done" ? t("st_done") : t("st_canceled")}</DropdownMenuItem>}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -335,7 +335,7 @@ export default function SchedulePage() {
                       <Button variant="soft" size="sm" disabled={busy} onClick={() => setState(a, "done")}><Check /> {t("mark_done")}</Button>
                       <Button variant="ghost" size="sm" disabled={busy} onClick={() => setState(a, "canceled")} className="text-destructive hover:text-destructive">{t("cancel")}</Button>
                     </div>
-                  ) : <Badge tone={st === "done" ? "ok" : "neutral"} dot>{st === "done" ? t("st_done") : t("cancel")}</Badge>}
+                  ) : <Badge tone={st === "done" ? "ok" : "neutral"} dot>{st === "done" ? t("st_done") : t("st_canceled")}</Badge>}
                 </div>
               );
             })}

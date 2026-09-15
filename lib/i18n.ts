@@ -794,6 +794,8 @@ export const STR: Record<string, Triple> = {
   decline: ["Rad etish", "Рад этиш", "Отклонить"],
   start_timer: ["Vaqtni boshlash", "Вақтни бошлаш", "Запустить таймер"],
   stop_timer: ["Vaqtni to'xtatish", "Вақтни тўхтатиш", "Остановить таймер"],
+  timer_started: ["Ish vaqti boshlandi", "Иш вақти бошланди", "Таймер запущен"],
+  timer_stopped: ["Ish vaqti to'xtatildi", "Иш вақти тўхтатилди", "Таймер остановлен"],
   timer_running: ["Ish vaqti ketmoqda", "Иш вақти кетмоқда", "Идёт работа"],
   time_entries: ["Vaqt yozuvlari", "Вақт ёзувлари", "Записи времени"],
   total_time: ["Umumiy vaqt", "Умумий вақт", "Всего времени"],
