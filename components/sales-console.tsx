@@ -267,7 +267,7 @@ export function SalesConsole() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={<h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_quick_sale")}</h1>}
-        meta={<span>{t("pos_sub")} · {t("pay_cashier")}: {session?.staff.name}</span>}
+        meta={<span>{t("pay_cashier")}: {session?.staff.name}</span>}
         actions={
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground max-sm:hidden">
             <span>{t("today")} <span className="font-mono font-bold text-foreground">{todays.length}</span> {t("pos_sales_n")} · <span className="font-mono font-bold text-foreground">{money(todaysSum)}</span></span>
@@ -306,7 +306,7 @@ export function SalesConsole() {
           ) : shown.length === 0 ? (
             <Card className="py-12 text-center text-[13.5px] text-muted-foreground">{t("empty")}</Card>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
               {shown.map((s) => {
                 const left = num(s.variant.quantityOnHand);
                 const out = left <= 0;
@@ -328,12 +328,12 @@ export function SalesConsole() {
                     </div>
                     <div className="line-clamp-2 min-h-[2.5em] text-[14px] font-bold leading-tight text-foreground">{s.product.name}</div>
                     {sub && <div className="truncate text-[12px] text-muted-foreground">{sub}</div>}
-                    <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-1">
                       <span className="font-mono text-[14.5px] font-bold text-foreground">{money(num(s.variant.unitPrice))}</span>
                       {line ? (
-                        <span className="rounded-full bg-primary px-2.5 py-1 text-[12px] font-semibold text-primary-foreground">{t("pos_in_cart")} · {qty(parseQty(line.qty))}</span>
+                        <span className="whitespace-nowrap rounded-full bg-primary px-2.5 py-1 text-[12px] font-semibold text-primary-foreground">{t("pos_in_cart")} · {qty(parseQty(line.qty))}</span>
                       ) : !out ? (
-                        <span className="rounded-[8px] border border-border px-2 py-1 text-[12px] font-semibold text-ink-2">+ {t("wo_add_draft")}</span>
+                        <span className="whitespace-nowrap rounded-[8px] border border-border px-2 py-1 text-[12px] font-semibold text-ink-2">+ {t("wo_add_draft")}</span>
                       ) : null}
                     </div>
                   </button>
@@ -392,25 +392,27 @@ export function SalesConsole() {
                 const over = parseQty(l.qty) > left;
                 const unit = unitLabel(t, l.item.product.unit) || t("unit_pcs");
                 return (
-                  <div key={l.key} className="flex flex-col gap-1.5 border-b border-border py-2.5 last:border-b-0">
+                  <div key={l.key} className="flex flex-col gap-2 border-b border-border py-2.5 last:border-b-0">
                     <div className="flex items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13.5px] font-bold text-foreground">{l.item.product.name}</div>
-                        <div className="flex items-center gap-1 text-[11.5px] text-muted-foreground">
-                          {variantLabel(l.item.variant) && <span className="truncate">{variantLabel(l.item.variant)} ·</span>}
-                          <span className="w-24 shrink-0"><MoneyInput value={l.price} onChange={(v) => setPrice(l.key, v)} hideHint style={{ height: 26, paddingTop: 0, paddingBottom: 0, fontSize: 12 }} /></span>
-                          <span className="shrink-0">/{unit}</span>
-                        </div>
+                      <div className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-foreground">
+                        {l.item.product.name}
+                        {variantLabel(l.item.variant) && <span className="font-medium text-muted-foreground"> · {variantLabel(l.item.variant)}</span>}
+                      </div>
+                      <span className="shrink-0 text-right font-mono text-[14px] font-bold text-foreground">{money(lineTotal(l))}</span>
+                      <button onClick={() => drop(l.key)} aria-label={t("delete")} className="grid size-7 shrink-0 place-items-center rounded-[7px] text-muted-foreground hover:bg-destructive-soft hover:text-destructive"><Trash2 className="size-4" /></button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+                        <span className="w-32 shrink-0"><MoneyInput value={l.price} onChange={(v) => setPrice(l.key, v)} hideHint style={{ height: 32, paddingTop: 0, paddingBottom: 0, fontSize: 13 }} /></span>
+                        <span className="shrink-0">/ {unit}</span>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <Button variant="secondary" size="icon-sm" aria-label="−" onClick={() => setQty(l.key, String(Math.max(0, parseQty(l.qty) - 1)))}><Minus /></Button>
                         {/* Decimal, not integer: half a litre is a real sale. */}
                         <Input value={l.qty} inputMode="decimal" onChange={(e) => setQty(l.key, e.target.value.replace(/[^\d.,]/g, ""))}
-                          className={cn("h-8 w-12 px-1 text-center font-mono text-[13px]", over && "border-destructive")} />
+                          className={cn("h-8 w-14 px-1 text-center font-mono text-[13px]", over && "border-destructive")} />
                         <Button variant="secondary" size="icon-sm" aria-label="+" onClick={() => setQty(l.key, String(parseQty(l.qty) + 1))}><Plus /></Button>
                       </div>
-                      <span className="w-[78px] shrink-0 text-right font-mono text-[13.5px] font-bold text-foreground">{money(lineTotal(l))}</span>
-                      <button onClick={() => drop(l.key)} aria-label={t("delete")} className="shrink-0 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
                     </div>
                     {over && <div className="text-[12px] font-semibold text-destructive">{t("only_n_left")}: {qty(left)} {unit}</div>}
                   </div>
