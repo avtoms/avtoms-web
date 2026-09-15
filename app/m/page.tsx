@@ -148,7 +148,7 @@ export default function MechanicBoardPage() {
   if (orders === null) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[70px] rounded-[14px]" />)}
         </div>
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
@@ -166,25 +166,27 @@ export default function MechanicBoardPage() {
           <h1 className="text-[24px] font-extrabold tracking-[-0.025em] text-foreground">{t("my_jobs")}</h1>
           <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">{session?.staff.name} · {t("role_mechanic")}</div>
         </div>
-        <div className="flex items-center gap-2.5">
-          <div className="relative">
+        {/* On a phone the search takes a row of its own and the two buttons share the next;
+            in one row the second button ran off the right edge. */}
+        <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto sm:flex-nowrap">
+          <div className="relative basis-full sm:basis-auto">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("search")}
-              className="h-9 w-[190px] pl-9 text-[13px]"
+              className="h-9 w-full pl-9 text-[13px] sm:w-[190px]"
             />
           </div>
           {/* The counter is the same permission as creating an order — a worker trusted with
               one is trusted with the other. */}
-          {canCreate && <Button variant="secondary" onClick={() => router.push("/m/sales")}><ShoppingCart />{t("nav_sales")}</Button>}
-          {canCreate && <Button onClick={() => setCreateOpen(true)}><Plus />{t("new_wo")}</Button>}
+          {canCreate && <Button variant="secondary" className="max-sm:flex-1" onClick={() => router.push("/m/sales")}><ShoppingCart />{t("nav_sales")}</Button>}
+          {canCreate && <Button className="max-sm:flex-1" onClick={() => setCreateOpen(true)}><Plus />{t("new_wo")}</Button>}
         </div>
       </div>
 
       {/* the day at a glance, over the board it summarises */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t("stat_my_orders")} value={String(onBoard.length)} />
         <Stat label={t("kb_in_progress")} value={String(byState("in_progress").length)} tone="warn" />
         <Stat label={t("kb_ready")} value={String(byState("ready").length)} tone="ok" />
