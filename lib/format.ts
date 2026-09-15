@@ -46,6 +46,11 @@ export function countVariants(n: number, t: (k: string) => string): string {
 
 // orderLabel renders a work order's human-friendly number ("Z-0001"), falling back to a
 // short id for any legacy order without a sequence number.
+// A counter sale's number as the shop reads it: "S-0001".
+export function saleLabel(s: { saleNo?: string | number }): string {
+  return "S-" + String(num(s.saleNo) || 0).padStart(4, "0");
+}
+
 export function orderLabel(wo: { orderNo?: string | number; id: string }): string {
   const n = num(wo.orderNo);
   return n > 0 ? "Z-" + String(n).padStart(4, "0") : wo.id.slice(0, 8);

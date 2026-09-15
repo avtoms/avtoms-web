@@ -57,11 +57,13 @@ export const CHECK_CSS = `
   }
 `;
 
-export function FiscalCheck({ invoice, wo, shop, innerRef }: {
+export function FiscalCheck({ invoice, wo, shop, innerRef, label }: {
   invoice: Invoice;
   wo: WorkOrder | null;
   shop: ShopProfile;
   innerRef?: React.Ref<HTMLDivElement>;
+  /** The number printed as the order's — "S-0002" for a counter sale. */
+  label?: string;
 }) {
   const { t } = useLang();
   const { session } = useAuth();
@@ -89,7 +91,7 @@ export function FiscalCheck({ invoice, wo, shop, innerRef }: {
   const fiscal = fiscalFromProto(invoice.fiscalStatus);
   const created = invoice.createdAt ? shortDateTime(invoice.createdAt) : "";
   const cashier = session?.staff?.name || "";
-  const orderNo = wo ? orderLabel(wo) : "";
+  const orderNo = label ?? (wo ? orderLabel(wo) : "");
   const vehicle = wo ? [wo.make, wo.model].filter(Boolean).join(" ") : "";
 
   return (

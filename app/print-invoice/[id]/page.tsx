@@ -6,10 +6,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError } from "@/lib/api";
-import { orderLabel } from "@/lib/format";
+import { orderLabel, saleLabel } from "@/lib/format";
 import { useShopProfile } from "@/lib/shop";
 import { FiscalCheck } from "@/components/fiscal-check";
-import type { Invoice, WorkOrder } from "@/lib/types";
+import type { Invoice, Sale, WorkOrder } from "@/lib/types";
 
 export default function PrintInvoicePage() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +22,7 @@ export default function PrintInvoicePage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [error, setError] = useState(false);
+  const [label, setLabel] = useState(""); // "S-0002" when the receipt is a counter sale's
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const paperRef = useRef<HTMLDivElement>(null);
@@ -35,8 +36,19 @@ export default function PrintInvoicePage() {
     (async () => {
       try {
         const inv = await api.getInvoice(id);
-        const order = inv.workOrderId ? await api.getWorkOrder(inv.workOrderId) : null;
-        if (!cancelled) { setInvoice(inv); setWo(order); }
+        // A counter sale's receipt carries the sale's id where an order's carries the order's.
+        // Asked for as an order it is a 404, and that threw the whole receipt away — no sale
+        // could be printed. The order, then the sale; neither found, the invoice alone.
+        let order: WorkOrder | null = null;
+        let no = "";
+        if (inv.workOrderId) {
+          order = await api.getWorkOrder(inv.workOrderId).catch(() => null);
+          if (!order) {
+            const sale = await api.getSale(inv.workOrderId).catch(() => null);
+            if (sale) { order = saleAsOrder(sale); no = saleLabel(sale); }
+          }
+        }
+        if (!cancelled) { setInvoice(inv); setWo(order); setLabel(no); }
       } catch { if (!cancelled) setError(true); }
     })();
     return () => { cancelled = true; };
@@ -45,7 +57,7 @@ export default function PrintInvoicePage() {
   if (error) return <Center>{t("error")}</Center>;
   if (!invoice) return <Center>…</Center>;
 
-  const orderNo = wo ? orderLabel(wo) : "";
+  const orderNo = label || (wo ? orderLabel(wo) : "");
 
   // Rasterize the receipt (exact on-screen layout, all scripts) into a single image and wrap
   // it in an A4 PDF, paginating if it runs taller than one page. The owner-only internal panel
@@ -128,9 +140,22 @@ export default function PrintInvoicePage() {
         <button className="primary" onClick={() => window.print()}>{t("print")}</button>
       </div>
 
-      <FiscalCheck invoice={invoice} wo={wo} shop={shop} innerRef={paperRef} />
+      <FiscalCheck invoice={invoice} wo={wo} shop={shop} innerRef={paperRef} label={label || undefined} />
     </div>
   );
+}
+
+// The receipt reads an order's lines and totals; a counter sale has the same parts under other
+// names. No car and no client, which the receipt already prints as "—".
+function saleAsOrder(s: Sale): WorkOrder {
+  return {
+    id: s.id, shopId: s.shopId, createdAt: s.createdAt,
+    lineItems: (s.items ?? []).map((it) => ({
+      id: it.id, kind: "LINE_ITEM_KIND_MATERIAL", description: it.description || it.sku || "",
+      unitPrice: it.unitPrice, quantity: it.quantity, cost: it.unitCost,
+    })),
+    subtotal: s.subtotal, total: s.total, discountAmount: s.discountAmount, totalCost: s.totalCost,
+  } as unknown as WorkOrder;
 }
 
 function Center({ children }: { children: React.ReactNode }) {

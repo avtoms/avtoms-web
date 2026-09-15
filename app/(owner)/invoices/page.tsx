@@ -19,12 +19,11 @@ import { useAuth, useLang, useToast } from "@/components/providers";
 import { api, ApiError, type PaymentPart } from "@/lib/api";
 import { useAutoRefresh } from "@/lib/use-refresh";
 import { cn } from "@/lib/utils";
-import { money, num, orderLabel, vehicleTitle } from "@/lib/format";
+import { money, num, orderLabel, vehicleTitle, saleLabel } from "@/lib/format";
 import { fiscalFromProto, paymentFromProto, paymentLabelKey, type PaymentMethod } from "@/lib/enums";
 import type { Invoice, WorkOrder, ShopCard, Sale } from "@/lib/types";
 import { Row, PaidBadge } from "../_shared";
 
-const saleLabel = (s: Sale) => "S-" + String(num(s.saleNo) || 0).padStart(4, "0");
 
 export default function InvoicesPage() {
   const { session } = useAuth();
