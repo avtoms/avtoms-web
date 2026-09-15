@@ -92,7 +92,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
       // order itself, where the car is identified and somebody can actually see the dash.
       // Asking for it in the plate search meant asking before the car had been chosen.
       const wo = await api.createWorkOrder(shopId, vehicleId, odometer);
-      toast(t("create_wo") + " · " + orderLabel(wo), { icon: "clipboard" });
+      toast(t("wo_created") + " · " + orderLabel(wo), { icon: "clipboard" });
       onClose();
       router.push(`${basePath}/${wo.id}`);
     } catch (e) {

@@ -63,8 +63,8 @@ export default function VehiclesPage() {
         return (
           <div className="flex items-center gap-3">
             <CarImage src={v.imageUrl} make={v.make} size={44} radius={11} />
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="truncate text-[14px] font-bold text-foreground">{car}{v.year ? ` (${v.year})` : ""}</span>
+            <div className="flex min-w-0 flex-col items-start gap-1 md:flex-row md:items-center md:gap-2.5">
+              <span className="max-w-full truncate text-[14px] font-bold text-foreground">{car}{v.year ? ` (${v.year})` : ""}</span>
               {v.plate && <PlatePreview plate={v.plate} size="sm" />}
             </div>
           </div>

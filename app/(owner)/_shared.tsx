@@ -86,7 +86,7 @@ export function StatCard({
         )}
       </div>
       <div
-        className={cn("min-w-0 truncate font-extrabold leading-none tracking-[-0.03em]", TONE_TEXT[tone], big ? "font-mono" : "")}
+        className={cn("min-w-0 truncate font-extrabold leading-none tracking-[-0.03em]", TONE_TEXT[tone])}
         style={{ fontSize: `clamp(15px, 4.4vw, ${statCap(value, big)}px)` }}
       >
         {value}

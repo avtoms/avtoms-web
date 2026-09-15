@@ -703,6 +703,7 @@ export const STR: Record<string, Triple> = {
   work_order: ["Ish buyurtmasi", "Иш буюртмаси", "Заказ-наряд"],
   new_wo: ["Yangi buyurtma", "Янги буюртма", "Новый заказ"],
   create_wo: ["Buyurtma yaratish", "Буюртма яратиш", "Создать заказ"],
+  wo_created: ["Buyurtma ochildi", "Буюртма очилди", "Заказ создан"],
   all: ["Hammasi", "Ҳаммаси", "Все"],
   search_plate: ["Davlat raqami bo'yicha qidirish", "Давлат рақами бўйича қидириш", "Поиск по госномеру"],
   search_plate_short: ["Raqam bo'yicha", "Рақам бўйича", "По номеру"],
