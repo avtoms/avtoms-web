@@ -46,7 +46,11 @@ export const CHECK_CSS = `
   .inv-qr { text-align: center; }
   .inv-qr .cap { font-size: 10.5px; color: #71717a; margin-top: 4px; max-width: 120px; }
   .inv-thanks { text-align: center; margin-top: 20px; font-size: 13.5px; color: #52525b; font-weight: 600; }
-  @media (max-width: 560px) { .inv-paper { padding: 22px; } .inv-tot, .inv-save { width: 100%; } }
+  /* A phone's receipt is ~270px inside: five columns at desktop padding pushed the total past
+     the paper's edge. Tighter cells, and amounts kept whole so only the description wraps. */
+  @media (max-width: 560px) { .inv-paper { padding: 22px; } .inv-tot, .inv-save { width: 100%; }
+    table.inv-t th, table.inv-t td { padding: 7px 4px; } table.inv-t th { font-size: 10px; }
+    table.inv-t td { font-size: 12.5px; } table.inv-t td.r { white-space: nowrap; } }
   @media print {
     .inv-noprint { display: none !important; }
     .inv-paper { box-shadow: none; border-radius: 0; max-width: none; padding: 24px; }

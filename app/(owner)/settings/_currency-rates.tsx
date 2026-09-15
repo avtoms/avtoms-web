@@ -76,7 +76,7 @@ function RateRow({ currency, onSaved }: { currency: Currency; onSaved: () => voi
         <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{currency.name}</span>
         {/* On a phone the rate, its button and the history share the next line, rather than
             cutting the currency's name to "AQS…" and pushing the history button under it. */}
-        <div className="flex items-center gap-2 max-sm:basis-full">
+        <div className="flex min-w-0 items-center gap-2 max-sm:grid max-sm:basis-full max-sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <Input
             value={rate}
             inputMode="decimal"
@@ -84,7 +84,7 @@ function RateRow({ currency, onSaved }: { currency: Currency; onSaved: () => voi
             // platform's 12 700" rather than as a rate of nothing.
             placeholder={platform || "0"}
             onChange={(e) => setRate(e.target.value.replace(/[^\d.,]/g, ""))}
-            className="w-28 text-right font-mono tabular-nums max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
+            className="w-28 text-right font-mono tabular-nums max-sm:w-full"
           />
           <Button variant={dirty ? "default" : "soft"} size="sm" disabled={!dirty || busy} onClick={save}>
             {busy ? <Spinner /> : t("save")}
