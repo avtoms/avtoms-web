@@ -74,21 +74,25 @@ function RateRow({ currency, onSaved }: { currency: Currency; onSaved: () => voi
           {currency.code}
         </Badge>
         <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{currency.name}</span>
-        <Input
-          value={rate}
-          inputMode="decimal"
-          // The published rate as the placeholder, so an empty box reads as "using the
-          // platform's 12 700" rather than as a rate of nothing.
-          placeholder={platform || "0"}
-          onChange={(e) => setRate(e.target.value.replace(/[^\d.,]/g, ""))}
-          className="w-28 text-right font-mono tabular-nums"
-        />
-        <Button variant={dirty ? "default" : "soft"} size="sm" disabled={!dirty || busy} onClick={save}>
-          {busy ? <Spinner /> : t("save")}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={toggle} title={t("cur_history")}>
-          <History />
-        </Button>
+        {/* On a phone the rate, its button and the history share the next line, rather than
+            cutting the currency's name to "AQS…" and pushing the history button under it. */}
+        <div className="flex items-center gap-2 max-sm:basis-full">
+          <Input
+            value={rate}
+            inputMode="decimal"
+            // The published rate as the placeholder, so an empty box reads as "using the
+            // platform's 12 700" rather than as a rate of nothing.
+            placeholder={platform || "0"}
+            onChange={(e) => setRate(e.target.value.replace(/[^\d.,]/g, ""))}
+            className="w-28 text-right font-mono tabular-nums max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
+          />
+          <Button variant={dirty ? "default" : "soft"} size="sm" disabled={!dirty || busy} onClick={save}>
+            {busy ? <Spinner /> : t("save")}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={toggle} title={t("cur_history")}>
+            <History />
+          </Button>
+        </div>
       </div>
 
       <div className="text-[11.5px] text-muted-foreground">

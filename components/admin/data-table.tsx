@@ -42,6 +42,9 @@ type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchPlaceholder?: string;
+  /** False when the page already has its own search over the same rows — two boxes that
+      filter the same list is one too many. */
+  searchable?: boolean;
   /** Extra controls rendered on the right of the toolbar (e.g. an "Add" button). */
   toolbar?: React.ReactNode;
   /** Optional left-of-search node (e.g. a Tabs view switcher). */
@@ -58,7 +61,7 @@ type DataTableProps<TData, TValue> = {
 
 export function DataTable<TData, TValue>({
   columns, data, searchPlaceholder, toolbar, leading, pageSize = 10, emptyText,
-  onRowClick, columnLabels = {}, enableColumnToggle = true, rowClassName,
+  onRowClick, columnLabels = {}, enableColumnToggle = true, rowClassName, searchable = true,
 }: DataTableProps<TData, TValue>) {
   const { t } = useLang();
   // Defaults live here rather than in the signature so they follow the language on screen.
@@ -119,7 +122,7 @@ export function DataTable<TData, TValue>({
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2.5">
         {leading}
-        <div className="relative min-w-0 flex-1 basis-full sm:basis-auto sm:min-w-[200px] sm:max-w-sm">
+        {searchable && <div className="relative min-w-0 flex-1 basis-full sm:basis-auto sm:min-w-[200px] sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={globalFilter}
@@ -137,7 +140,7 @@ export function DataTable<TData, TValue>({
               <X className="size-3.5" />
             </button>
           )}
-        </div>
+        </div>}
         {/* On a phone the page's own filters take a full row of their own, and the sort menu
             sits under the search box — the three used to land wherever the wrap put them. */}
         <div className="ml-auto flex items-center gap-2.5 max-sm:w-full max-sm:flex-wrap">

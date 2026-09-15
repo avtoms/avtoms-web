@@ -400,7 +400,7 @@ export default function WorkOrdersPage() {
         <DataTable
           columns={columns}
           data={visible}
-          searchPlaceholder={t("search")}
+          searchable={false}
           columnLabels={columnLabels}
           emptyText={t("no_orders_col")}
           onRowClick={(w) => router.push(`/work-orders/${w.id}`)}

@@ -52,7 +52,7 @@ export function ReorderSheet({ open, rows, shopName, onClose, onReceive }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent wide>
         <DialogHeader><DialogTitle>{t("whx_reorder_title")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto py-1">
+        <DialogBody className="flex flex-col gap-4 overflow-y-auto py-1">
           <p className="text-[13.5px] text-ink-2">{t("whx_reorder_hint")}</p>
           {groups.length === 0 && <p className="text-[13px] text-muted-foreground">{t("empty")}</p>}
           {groups.map((g) => (

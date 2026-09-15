@@ -640,7 +640,7 @@ export function ProductForm({
               hint={mode === "new" && prefill?.searchMxik ? t("mxik_gtin_miss") : undefined}
             />
           </Field>
-          <div className="grid grid-cols-[1fr_80px] gap-2.5">
+          <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2.5">
             <Field label={t("supplier")}>
               <SupplierField
                 value={supplierId}

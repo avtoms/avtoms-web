@@ -100,17 +100,17 @@ export function VariantSheet({
               {product ? `${product.brand ? product.brand + " · " : ""}${product.name}` : ""}
               {v && <span className="ml-2 text-[14px] font-medium text-muted-foreground">{label(v)}</span>}
             </DialogTitle>
-            {product && <Button variant="secondary" size="sm" onClick={() => onEdit(product)}><Pencil /> {t("whx_edit")}</Button>}
+            {product && <Button variant="secondary" size="sm" title={t("whx_edit")} onClick={() => onEdit(product)}><Pencil /><span className="max-sm:hidden">{t("whx_edit")}</span></Button>}
             {product && v && (
               <Button variant="secondary" size="sm" onClick={() => onLabel([{
                 name: `${product.brand ? product.brand + " " : ""}${product.name}`, variant: label(v),
                 sku: v.sku ?? "", barcode: v.barcode, price: num(v.unitPrice),
-              }])}><QrCode /> {t("whx_label")}</Button>
+              }])} title={t("whx_label")}><QrCode /><span className="max-sm:hidden">{t("whx_label")}</span></Button>
             )}
           </div>
         </DialogHeader>
 
-        <DialogBody className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto py-1">
+        <DialogBody className="flex flex-col gap-4 overflow-y-auto py-1">
           {product && variants.length === 0 && <p className="text-[13px] text-muted-foreground">{t("no_variants")}</p>}
 
           {/* Several variants: pick one; everything below is about the one picked. */}

@@ -102,7 +102,7 @@ export default function LoginPage() {
       setChallengeId(r.challengeId);
       setStep("otp");
       setOtp("");
-      toast(t("send_code"), { icon: "send" });
+      toast(t("code_sent"), { icon: "send" });
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("error"), { icon: "alert", tone: "danger" });
     } finally {

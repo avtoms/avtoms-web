@@ -91,9 +91,10 @@
 }
 
 /* Scoped reset — mimics the essentials of Tailwind preflight, but only inside the
-   admin console so the rest of the app is unaffected. Radix portals (dialogs,
-   menus, selects, tooltips) render at <body> and style themselves entirely with
-   utility classes, so they don't need this reset. */
+   admin console (.app-scope) and its Radix portals (.admin-portal: dialogs, drawers,
+   menus, selects, popovers), which render at <body>, outside it. Without the portal
+   half every plain <button> in a dialog kept the browser's grey box, and every link in
+   the phone menu came out underlined. */
 @layer base {
   .app-scope,
   .admin-portal {
@@ -116,17 +117,10 @@
     border-style: solid;
     border-color: var(--line);
   }
-  .app-scope h1,
-  .app-scope h2,
-  .app-scope h3,
-  .app-scope h4,
-  .app-scope h5,
-  .app-scope h6,
-  .app-scope p,
-  .app-scope figure {
+  :is(.app-scope, .admin-portal) :is(h1, h2, h3, h4, h5, h6, p, figure) {
     margin: 0;
   }
-  .app-scope button {
+  :is(.app-scope, .admin-portal) button {
     background: none;
     border: 0;
     padding: 0;
@@ -135,22 +129,20 @@
     color: inherit;
     cursor: pointer;
   }
-  .app-scope button:disabled {
+  :is(.app-scope, .admin-portal) button:disabled {
     cursor: not-allowed;
   }
-  .app-scope input,
-  .app-scope textarea,
-  .app-scope select {
+  :is(.app-scope, .admin-portal) :is(input, textarea, select) {
     font: inherit;
     color: inherit;
   }
-  .app-scope table {
+  :is(.app-scope, .admin-portal) table {
     border-collapse: collapse;
   }
-  .app-scope svg {
+  :is(.app-scope, .admin-portal) svg {
     display: block;
   }
-  .app-scope a {
+  :is(.app-scope, .admin-portal) a {
     color: inherit;
     text-decoration: none;
   }

@@ -18,6 +18,7 @@ export const STR: Record<string, Triple> = {
   login_phone_sub: ["Telefon raqamingizni kiriting", "Телефон рақамингизни киритинг", "Введите номер телефона"],
   phone: ["Telefon raqam", "Телефон рақам", "Номер телефона"],
   send_code: ["Kod yuborish", "Код юбориш", "Отправить код"],
+  code_sent: ["Kod yuborildi", "Код юборилди", "Код отправлен"],
   otp_title: ["Tasdiqlash kodi", "Тасдиқлаш коди", "Код подтверждения"],
   otp_sub: ["SMS orqali yuborilgan 6 xonali kodni kiriting", "СМС орқали юборилган 6 хонали кодни киритинг", "Введите 6-значный код из SMS"],
   account_pending_title: [

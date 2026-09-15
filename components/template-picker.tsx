@@ -168,7 +168,7 @@ export function TemplatePicker({
             onOk={() => toast(t("save"), { icon: "check" })}
           />
         ) : (
-        <DialogBody className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto py-1">
+        <DialogBody className="flex flex-col gap-3 overflow-y-auto py-1">
           {templates.length === 0 && (
             <div className="flex flex-col items-center gap-3 py-6">
               <p className="text-center text-[13px] text-muted-foreground">{t("tpl_empty_catalog")}</p>
@@ -209,7 +209,7 @@ export function TemplatePicker({
           )}
 
           {step === 2 && (
-            <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(160px,1fr))]">
+            <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]">
               {shown.length === 0 && <p className="text-[13px] text-muted-foreground">{t("empty")}</p>}
               {shown.map((tpl) => {
                 const owned = existingFor(tpl);
@@ -453,7 +453,7 @@ function StockStep({
 
   return (
     <>
-    <DialogBody className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto py-1">
+    <DialogBody className="flex flex-col gap-3 overflow-y-auto py-1">
       {existing && (
         <p className="rounded-[9px] bg-success-soft px-3 py-2 text-[12.5px] text-foreground">
           {t("tpl_already_note")}

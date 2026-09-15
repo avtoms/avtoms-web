@@ -371,11 +371,15 @@ export default function WorkOrderDetailPage() {
     </>
   );
 
+  // On a phone the actions sit in a bar at the thumb, the ⋯ menu with them; alone in the
+  // header it took a row of its own and still pushed the state badge into the icons.
+  const phoneBar = isMobile && !!(payable || primaryForward || state === "estimated" || state === "closed");
+
   return (
     <div className="flex flex-col gap-4" style={{ paddingBottom: isMobile ? 96 : 16 }}>
       <PageHeader
         title={
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3">
             <Button variant="secondary" size="icon" onClick={() => router.push("/work-orders")} aria-label={t("back")}><ArrowLeft /></Button>
             <h1 className="shrink-0 whitespace-nowrap font-mono text-[21px] font-bold tracking-[-0.02em] text-foreground touch:text-[18px]">{orderLabel(wo)}</h1>
             <StateBadge state={state} />
@@ -386,7 +390,7 @@ export default function WorkOrderDetailPage() {
             )}
           </div>
         }
-        actions={!isMobile ? <>{menu}{primaryButtons()}</> : menu}
+        actions={!isMobile ? <>{menu}{primaryButtons()}</> : phoneBar ? undefined : menu}
       />
 
       <Stepper state={state} enabled={enabled} audit={audit} done={servicesDone} total={services.length} compact={isMobile} />
@@ -537,9 +541,9 @@ export default function WorkOrderDetailPage() {
       </div>
 
       {/* phone: the actions sit where the thumb is */}
-      {isMobile && (payable || primaryForward || state === "estimated" || state === "closed") && (
+      {phoneBar && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card p-3" style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
-          <div className="flex items-stretch gap-2 [&>button]:min-w-0 [&>button]:flex-1">{primaryButtons("lg")}</div>
+          <div className="flex items-stretch gap-2 [&>button]:min-w-0 [&>button]:flex-1">{primaryButtons("lg")}<div className="shrink-0 [&_button]:h-full [&_button]:w-12">{menu}</div></div>
         </div>
       )}
 
@@ -983,7 +987,7 @@ function PaymentPanel({ open, onClose, wo, shopId, total, customer, onChange }: 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:grid md:grid-cols-[1fr_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden">
             {/* what the client will see */}
             <div className="flex flex-col gap-3 bg-secondary/60 p-5 md:min-h-0 md:overflow-y-auto">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 pr-10 md:pr-0">
                 <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("check_customer_sees")}</span>
                 <Badge tone="ok">{t("fiscal_badge")}</Badge>
               </div>

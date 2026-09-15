@@ -280,8 +280,13 @@ export default function SchedulePage() {
           const today = d === todayYMD();
           return (
             <Card key={d} className={cn("min-h-[220px] gap-1.5 p-2.5", today && "border-primary/50")}>
-              <button onClick={() => { setDay(d); setView("day"); }} className="flex items-baseline justify-between px-0.5 text-left">
-                <span className={cn("text-[13px] font-bold", today ? "text-primary-emphasis" : "text-foreground")}>{weekdayShort(lang, d)}, {formatDayMonth(lang, d)}</span>
+              <button onClick={() => { setDay(d); setView("day"); }} className="flex items-start justify-between gap-1 px-0.5 text-left">
+                {/* Weekday over the date: "Se, 15-sentabr" on one line broke in half in a
+                    phone's third-of-a-screen column. */}
+                <span className={cn("flex min-w-0 flex-col leading-tight", today ? "text-primary-emphasis" : "text-foreground")}>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.04em] opacity-75">{weekdayShort(lang, d)}</span>
+                  <span className="truncate text-[13px] font-bold">{formatDayMonth(lang, d)}</span>
+                </span>
                 <span className="font-mono text-[11.5px] text-muted-foreground">{items.length}</span>
               </button>
               {items.map((a) => {
@@ -470,7 +475,7 @@ function AddModal({ open, onClose, shopId, mechanics, titles, onCreated, preset 
           <Field label={t("description")}>
             <SuggestInput value={f.title} options={titles} onChange={(v) => setF({ ...f, title: v })} placeholder={t("service")} />
           </Field>
-          <div className="grid grid-cols-[1fr_90px] gap-2.5">
+          <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-2.5">
             <Field label={t("appt_when")}><Input type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} /></Field>
             <Field label={t("duration_min")}><Input value={f.duration} onChange={(e) => setF({ ...f, duration: e.target.value.replace(/\D/g, "") })} inputMode="numeric" className="font-mono" /></Field>
           </div>

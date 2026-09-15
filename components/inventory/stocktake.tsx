@@ -78,7 +78,7 @@ export function Stocktake({ open, products, onClose, onDone }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent wide>
         <DialogHeader><DialogTitle>{t("whx_stocktake_title")}</DialogTitle></DialogHeader>
-        <DialogBody className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto py-1">
+        <DialogBody className="flex flex-col gap-3 overflow-y-auto py-1">
           <p className="text-[13.5px] text-ink-2">{t("whx_stocktake_hint")}</p>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">

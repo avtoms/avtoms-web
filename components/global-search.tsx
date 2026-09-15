@@ -112,7 +112,7 @@ export function GlobalSearch({ shopId, canOrders, canCustomers, className }: {
         {isMac ? "⌘K" : "Ctrl K"}
       </kbd>
       {showPanel && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-[12px] border border-border bg-card shadow-[var(--shadow-lg)]">
+        <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[max(100%,420px)] max-w-[calc(100vw-32px)] overflow-hidden rounded-[12px] border border-border bg-card shadow-[var(--shadow-lg)]">
           {items.length === 0 && <div className="px-4 py-5 text-center text-[13px] text-muted-foreground">{t("search_none")}</div>}
           {hits.length > 0 && (
             <div className="p-1.5">

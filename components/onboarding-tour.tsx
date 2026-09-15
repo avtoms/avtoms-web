@@ -794,7 +794,7 @@ const FxCanvas = React.forwardRef<FxHandle>(function FxCanvas(_props, ref) {
   return <canvas ref={canvas} aria-hidden className="pointer-events-none fixed inset-0 z-[2] h-full w-full" />;
 });
 
-const HERO = "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 45%, #7c3aed))";
+const HERO = "linear-gradient(135deg, var(--accent), color-mix(in oklch, var(--accent) 45%, #7c3aed))";
 
 const TOUR_CSS = `
 @keyframes an-fade { from { opacity: 0 } to { opacity: 1 } }
@@ -802,14 +802,14 @@ const TOUR_CSS = `
 @keyframes an-rise { from { opacity: 0; transform: translateY(18px) scale(.96) } to { opacity: 1; transform: none } }
 @keyframes an-float { 0%, 100% { translate: 0 0 } 50% { translate: 0 -7px } }
 @keyframes an-twinkle { 0%, 100% { opacity: .25; transform: scale(.8) rotate(0) } 50% { opacity: 1; transform: scale(1.15) rotate(20deg) } }
-@keyframes an-ring { 0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 55%, transparent) } 75%, 100% { box-shadow: 0 0 0 16px transparent } }
+@keyframes an-ring { 0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 55%, transparent) } 75%, 100% { box-shadow: 0 0 0 16px transparent } }
 @keyframes an-draw { to { stroke-dashoffset: 0 } }
 @keyframes an-dust-out {
   0% { clip-path: inset(-40% -20% -40% 0); opacity: 1; transform: none; filter: none }
   15% { transform: translateX(-3px) rotate(-.4deg) }
   100% { clip-path: inset(-40% -20% -40% 100%); opacity: .85; transform: translateX(26px) rotate(.6deg); filter: blur(.6px) }
 }
-@keyframes an-row-glow { 0%, 100% { background-color: transparent } 25%, 65% { background-color: color-mix(in oklch, var(--primary) 16%, transparent) } }
-.an-row-hl { animation: an-row-glow 1.6s ease-in-out 3; box-shadow: inset 3px 0 0 var(--primary) }
+@keyframes an-row-glow { 0%, 100% { background-color: transparent } 25%, 65% { background-color: color-mix(in oklch, var(--accent) 16%, transparent) } }
+.an-row-hl { animation: an-row-glow 1.6s ease-in-out 3; box-shadow: inset 3px 0 0 var(--accent) }
 @media (prefers-reduced-motion: reduce) { .an-anim, .an-row-hl { animation: none !important } }
 `;

@@ -170,7 +170,7 @@ export default function ContragentsPage() {
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setAccount(row.original); }}><Wallet /> {t("cg_account")}</Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", item: row.original }); }}><Pencil /> {t("edit")}</Button>
+          <Button variant="ghost" size="icon" aria-label={t("edit")} title={t("edit")} onClick={(e) => { e.stopPropagation(); setEditing({ mode: "edit", item: row.original }); }}><Pencil /></Button>
         </div>
       ),
     },

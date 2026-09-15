@@ -264,7 +264,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       mobile ? "px-4 py-2.5" : "min-h-[66px] px-7 py-3",
     )}>
       <div className={cn("flex min-w-0 items-center gap-3", mobile ? "flex-1" : "min-w-0 flex-1")}>
-        {mobile && <div className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-primary text-primary-foreground"><Wrench className="size-4" strokeWidth={2.2} /></div>}
+        {mobile && !customTitle && <div className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-primary text-primary-foreground"><Wrench className="size-4" strokeWidth={2.2} /></div>}
         {!customTitle && <h1 className={cn("shrink-0 font-bold tracking-[-0.025em] text-foreground", mobile ? "truncate text-[16px]" : "text-[19px]")}>{title}</h1>}
         <div ref={setTitleEl} className="contents" />
         <div ref={setMetaEl} className={cn("min-w-0 flex-1 truncate text-[13px] text-muted-foreground", mobile && "hidden")} />
@@ -301,6 +301,11 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   // ── Mobile ──
   if (isMobile) {
     const primary = allowed.slice(0, 4);
+    // The menu behind "Yana" lists what the tab bar does not. Repeating the bar's four pages
+    // pushed Kontragentlar, Xodimlar and Sozlamalar below the fold — the ones it is opened for.
+    const drawerGroups = groups
+      .map((g) => ({ ...g, items: g.items.filter((it) => !primary.includes(it)) }))
+      .filter((g) => g.items.length > 0);
     return (
       <PageHeaderProvider value={slots}>
         <div className="app-scope flex min-h-screen flex-col bg-background">
@@ -338,7 +343,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           <Sheet open={drawer} onOpenChange={setDrawer}>
             <SheetContent side="left" className="flex flex-col p-0">
               <Brand name={shopName} sub={shopSub} />
-              <NavList pathname={pathname} t={t} groups={groups} counts={counts} onNavigate={() => setDrawer(false)} />
+              <NavList pathname={pathname} t={t} groups={drawerGroups} counts={counts} onNavigate={() => setDrawer(false)} />
               {tourButton}
               <div className="border-t border-border p-3">
                 <div className="mb-2 flex items-center gap-2.5 px-2">

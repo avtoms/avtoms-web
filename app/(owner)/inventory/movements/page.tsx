@@ -231,7 +231,7 @@ export default function MovementsReportPage() {
             </div>
             <div className="flex gap-2">
               <div className="flex h-[150px] flex-col justify-between py-0.5 text-right font-mono text-[10.5px] text-muted-foreground">
-                <span>{axis(maxDay)}</span><span>{axis(maxDay / 2)}</span><span>0</span>
+                {maxDay > 1 ? <><span>{axis(maxDay)}</span><span>{axis(maxDay / 2)}</span></> : <><span /><span /></>}<span>0</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="relative flex h-[150px] items-end gap-[2px] border-b border-border">
