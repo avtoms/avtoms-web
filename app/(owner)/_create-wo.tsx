@@ -130,7 +130,7 @@ export function CreateWOModal({ open, onClose, basePath = "/work-orders" }: { op
         <DialogBody className="py-1">
           <Tabs value={mode} onValueChange={(v) => setMode(v as "search" | "new")} className="mb-4">
             <TabsList className="w-full">
-              <TabsTrigger value="search" className="flex-1">{t("search_plate")}</TabsTrigger>
+              <TabsTrigger value="search" className="flex-1">{t("search_plate_short")}</TabsTrigger>
               <TabsTrigger value="new" className="flex-1">{t("new_customer")}</TabsTrigger>
             </TabsList>
           </Tabs>

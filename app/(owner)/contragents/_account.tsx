@@ -189,7 +189,7 @@ export function AccountPanel({ contragent, onChanged, onEdit }: {
   return (
     <div className="flex flex-col gap-4">
       {/* who they are */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
         <div className="flex min-w-0 items-center gap-3.5">
           <span className="grid size-12 shrink-0 place-items-center rounded-full text-[16px] font-bold text-white" style={{ background: staffColor(contragent.id) }}>{initials}</span>
           <div className="min-w-0">
@@ -211,7 +211,7 @@ export function AccountPanel({ contragent, onChanged, onEdit }: {
       </div>
 
       {/* the figures */}
-      <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+      <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
         <div className={cn("rounded-[12px] px-3.5 py-3", balance > 0 ? "bg-destructive-soft" : balance < 0 ? "bg-success-soft" : "bg-secondary")}>
           <div className={cn("text-[11px] font-bold uppercase tracking-[0.06em]", balance > 0 ? "text-destructive" : balance < 0 ? "text-success" : "text-muted-foreground")}>
             {balance === 0 ? t("cg_settled") : t(balance > 0 ? "cg_we_owe" : "cg_they_owe")}
@@ -238,7 +238,7 @@ export function AccountPanel({ contragent, onChanged, onEdit }: {
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => setFormOpen((v) => !v)}><Banknote /> {t("act_pay_supplier")}</Button>
         <Button variant="secondary" asChild><Link href="/inventory"><PackagePlus /> {t("act_restock")}</Link></Button>
-        <span className="ml-auto max-w-[360px] text-right text-[12px] leading-snug text-muted-foreground">{t("cg_not_expense")}</span>
+        <span className="basis-full text-[12px] leading-snug text-muted-foreground">{t("cg_not_expense")}</span>
       </div>
 
       {/* Where a transfer to them lands. Directly above the form that sends the money,

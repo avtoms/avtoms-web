@@ -221,18 +221,25 @@ export default function StaffPage() {
     },
   ], [t, deactivate, working, month, topRevenue]);
 
+  const tabs = (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as "people" | "roles")}>
+      <TabsList>
+        <TabsTrigger value="people">{t("nav_staff")} · {list.length}</TabsTrigger>
+        <TabsTrigger value="roles">{t("roles")} · {roles.length}</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+
   return (
     <div className="flex flex-col gap-4">
+      {/* On a phone the tabs take a row under the header; beside the title they ran under
+          the header's own buttons. (The header is portalled, so this still lands below it.) */}
+      <div className="min-[860px]:hidden">{tabs}</div>
       <PageHeader
         title={
           <div className="flex min-w-0 items-center gap-3">
             <h1 className="shrink-0 text-[19px] font-bold tracking-[-0.025em] text-foreground touch:text-[16px]">{t("nav_staff")}</h1>
-            <Tabs value={tab} onValueChange={(v) => setTab(v as "people" | "roles")}>
-              <TabsList>
-                <TabsTrigger value="people">{t("nav_staff")} · {list.length}</TabsTrigger>
-                <TabsTrigger value="roles">{t("roles")} · {roles.length}</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="max-[859px]:hidden">{tabs}</div>
           </div>
         }
         actions={

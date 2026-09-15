@@ -705,6 +705,7 @@ export const STR: Record<string, Triple> = {
   create_wo: ["Buyurtma yaratish", "Буюртма яратиш", "Создать заказ"],
   all: ["Hammasi", "Ҳаммаси", "Все"],
   search_plate: ["Davlat raqami bo'yicha qidirish", "Давлат рақами бўйича қидириш", "Поиск по госномеру"],
+  search_plate_short: ["Raqam bo'yicha", "Рақам бўйича", "По номеру"],
   vehicle: ["Avtomobil", "Автомобил", "Автомобиль"],
   customer: ["Mijoz", "Мижоз", "Клиент"],
   mechanic: ["Usta", "Уста", "Механик"],
