@@ -442,7 +442,7 @@ export default function DashboardPage() {
                             {w.customerName && <div className="max-w-[220px] truncate text-[12.5px] text-muted-foreground">{w.customerName}</div>}
                           </td>
                           <td className="px-3 py-3">
-                            {w.assignedMechanicId ? (
+                            {w.assignedMechanicId && mech ? (
                               <span className="inline-flex items-center gap-2 text-[13.5px] text-foreground">
                                 <StaffDot id={w.assignedMechanicId} name={mech} size={24} />{mech.split(" ")[0]}
                               </span>

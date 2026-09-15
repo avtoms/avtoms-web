@@ -105,7 +105,7 @@ export function SplitPayment({
           return (
             <div key={i} className="rounded-[11px] border border-border bg-card p-2.5">
               <div className="flex items-center gap-1.5">
-                <div className="grid flex-1 grid-cols-3 gap-1 min-[420px]:grid-cols-5">
+                <div className="flex flex-1 flex-wrap gap-1">
                   {ROW_METHODS.map((m) => {
                     const Icon = ICONS[m];
                     const off = m === "credit" && !allowCredit;
@@ -113,12 +113,12 @@ export function SplitPayment({
                       <button key={m} disabled={off || busy}
                         onClick={() => set(i, { method: m, cardId: "", cardNumber: "", transferRef: "" })}
                         className={cn(
-                          "flex items-center justify-center gap-1 rounded-[8px] border px-1.5 py-1.5 text-[12px] font-semibold transition-colors",
+                          "flex items-center justify-center gap-1 whitespace-nowrap rounded-[8px] border px-2 py-1.5 text-[12px] font-semibold transition-colors",
                           row.method === m ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-secondary",
                           off && "cursor-not-allowed opacity-40",
                         )}>
                         <Icon className="size-[15px]" />
-                        <span className="truncate">{t(LABEL[m])}</span>
+                        <span>{t(LABEL[m])}</span>
                       </button>
                     );
                   })}

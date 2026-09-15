@@ -102,7 +102,7 @@ export function Stocktake({ open, products, onClose, onDone }: {
           </div>
 
           <div className="overflow-hidden rounded-[12px] border border-border">
-            <div className="grid grid-cols-[minmax(0,1fr)_100px_110px_90px] gap-3 bg-secondary/50 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+            <div className="hidden grid-cols-[minmax(0,1fr)_100px_110px_90px] gap-3 bg-secondary/50 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground sm:grid">
               <span>{t("col_product_variant")}</span><span className="text-right">{t("whx_in_system")}</span>
               <span className="text-right">{t("whx_counted")}</span><span className="text-right">{t("whx_diff")}</span>
             </div>
@@ -111,15 +111,15 @@ export function Stocktake({ open, products, onClose, onDone }: {
               const sys = num(r.v.quantityOnHand);
               const d = diffOf(r.v.id!, sys);
               return (
-                <div key={r.v.id} className="grid grid-cols-[minmax(0,1fr)_100px_110px_90px] items-center gap-3 border-t border-border px-3.5 py-2">
-                  <div className="min-w-0">
+                <div key={r.v.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border px-3.5 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_100px_110px_90px]">
+                  <div className="min-w-0 basis-full sm:basis-auto">
                     <div className="truncate text-[13.5px] font-semibold text-foreground">{r.label}</div>
                     {(r.v.sku || r.p.category) && <div className="truncate text-[11.5px] text-muted-foreground">{[r.v.sku, r.p.category].filter(Boolean).join(" · ")}</div>}
                   </div>
-                  <span className="text-right font-mono text-[13.5px] text-foreground">{fmtQty(sys)}{r.p.unit ? <span className="text-[11px] text-muted-foreground"> {unitLabel(t, r.p.unit)}</span> : null}</span>
-                  <Input value={counted[r.v.id!] ?? ""} inputMode="decimal" placeholder="—" className="h-9 text-right font-mono"
+                  <span className="flex-1 text-right font-mono text-[13.5px] text-foreground sm:flex-none">{fmtQty(sys)}{r.p.unit ? <span className="text-[11px] text-muted-foreground"> {unitLabel(t, r.p.unit)}</span> : null}</span>
+                  <Input value={counted[r.v.id!] ?? ""} inputMode="decimal" placeholder="—" className="h-9 w-24 text-right font-mono sm:w-auto"
                     onChange={(e) => setCounted((c) => ({ ...c, [r.v.id!]: e.target.value.replace(/[^\d.]/g, "") }))} />
-                  <span className={cn("text-right font-mono text-[13.5px] font-bold",
+                  <span className={cn("w-16 text-right font-mono text-[13.5px] font-bold sm:w-auto",
                     d === null || d === 0 ? "text-muted-foreground" : d < 0 ? "text-destructive" : "text-success")}>
                     {d === null ? "" : `${d > 0 ? "+" : ""}${fmtQty(d)}`}
                   </span>

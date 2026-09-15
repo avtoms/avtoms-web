@@ -261,7 +261,7 @@ export default function WorkOrdersPage() {
       cell: ({ row }) => {
         const w = row.original;
         const name = staffName(w.assignedMechanicId);
-        return w.assignedMechanicId
+        return w.assignedMechanicId && name
           ? <span className="inline-flex items-center gap-2 text-[13.5px]"><StaffDot id={w.assignedMechanicId} name={name} size={22} />{name}</span>
           : <span className="text-[13px] text-muted-foreground">—</span>;
       },

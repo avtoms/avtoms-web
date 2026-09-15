@@ -980,9 +980,9 @@ function PaymentPanel({ open, onClose, wo, shopId, total, customer, onChange }: 
             <div className="flex flex-1 justify-center py-16"><Spinner className="size-6" /></div>
           </>
         ) : (
-          <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[1fr_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:grid md:grid-cols-[1fr_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden">
             {/* what the client will see */}
-            <div className="flex min-h-0 flex-col gap-3 bg-secondary/60 p-5 md:overflow-y-auto">
+            <div className="flex flex-col gap-3 bg-secondary/60 p-5 md:min-h-0 md:overflow-y-auto">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">{t("check_customer_sees")}</span>
                 <Badge tone="ok">{t("fiscal_badge")}</Badge>
@@ -996,7 +996,7 @@ function PaymentPanel({ open, onClose, wo, shopId, total, customer, onChange }: 
             </div>
 
             {/* taking it */}
-            <div className="flex min-h-0 flex-col gap-4 p-5 md:overflow-y-auto">
+            <div className="flex flex-col gap-4 p-5 md:min-h-0 md:overflow-y-auto">
               <div className="pr-10">
                 <DialogTitle>{inv.paid ? t("paid") : t("act_take_payment")}</DialogTitle>
                 <div className="mt-0.5 text-[13px] text-muted-foreground">

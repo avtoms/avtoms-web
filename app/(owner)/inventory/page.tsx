@@ -388,7 +388,7 @@ export default function InventoryPage() {
         const pct = Math.max(4, Math.min(100, (have / Math.max(min * 3, have, 1)) * 100));
         const d = stats.get(key)?.daysLeft;
         return (
-          <div className="flex w-[190px] max-w-full flex-col gap-1 max-md:ml-auto max-md:w-full max-md:max-w-[220px]">
+          <div className="flex w-[160px] max-w-full flex-col gap-1 max-md:ml-auto max-md:w-full max-md:max-w-[220px]">
             <div className="flex items-baseline justify-between gap-2">
               <span className={cn("font-mono text-[14px] font-bold", out ? "text-destructive" : low ? "text-warning" : "text-foreground")}>
                 {qtyUnit(t, have, p.unit)}

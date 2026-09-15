@@ -406,9 +406,9 @@ export function AddLineItemModal({ open, onClose, onAdd, shopId, lang, busy, ini
               )}
               {kind === "service" && (
                 <div className="flex flex-col gap-1.5 border-t border-border pt-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{t("materials_needed")}</span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <Button variant="ghost" size="sm" onClick={() => setCreating(true)}><Plus /> {t("new_product")}</Button>
                       <Button variant="soft" size="sm" onClick={addExtra}><Plus /> {t("add_material")}</Button>
                     </div>

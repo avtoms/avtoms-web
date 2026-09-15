@@ -175,7 +175,7 @@ function WOCard({ wo, col, targets, busy, dragging, t, onOpen, onMove, onDragSta
       <div className="flex min-h-6 items-center justify-between gap-2">
         <span className="shrink-0 font-mono text-[12.5px] font-semibold text-muted-foreground">{orderLabel(wo)}</span>
         <div className="flex min-w-0 items-center gap-1.5">
-          {extras?.mechanicId ? (
+          {extras?.mechanicId && mech ? (
             <span title={mech} className="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: staffColor(extras.mechanicId) }}>
               {(mech || "?").charAt(0).toUpperCase()}
             </span>
