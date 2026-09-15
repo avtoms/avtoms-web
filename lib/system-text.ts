@@ -91,6 +91,7 @@ const AUDIT_KEY: Record<string, string> = {
   line_removed: "audit_line_removed",
   line_updated: "audit_line_updated",
   mechanic_assigned: "audit_mechanic_assigned",
+  mechanic_unassigned: "audit_mechanic_unassigned",
   order_discount: "order_discount",
   materials_returned: "audit_materials_returned",
   approved: "audit_approved",

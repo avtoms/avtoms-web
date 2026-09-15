@@ -1224,6 +1224,8 @@ export const STR: Record<string, Triple> = {
   audit_line_added: ["Pozitsiya qo'shildi", "Позиция қўшилди", "Позиция добавлена"],
   audit_line_removed: ["Pozitsiya o'chirildi", "Позиция ўчирилди", "Позиция удалена"],
   audit_mechanic_assigned: ["Usta tayinlandi", "Уста тайинланди", "Назначен механик"],
+  audit_mechanic_unassigned: ["Usta olib tashlandi", "Уста олиб ташланди", "Механик снят"],
+  wo_unassign: ["Ustani olib tashlash", "Устани олиб ташлаш", "Снять механика"],
   audit_line_updated: ["Pozitsiya o'zgartirildi", "Позиция ўзгартирилди", "Позиция изменена"],
   audit_materials_returned: ["Materiallar qaytarildi", "Материаллар қайтарилди", "Материалы возвращены"],
   audit_approved: ["Mijoz tasdiqladi", "Мижоз тасдиқлади", "Клиент подтвердил"],

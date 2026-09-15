@@ -233,7 +233,7 @@ export default function WorkOrderDetailPage() {
   };
   const doAssign = async (mechanicId: string) => {
     if (busy) return; setBusy(true);
-    try { setWo(await api.assignMechanic(id, mechanicId)); setAssigning(false); toast(t("assign"), { icon: "check" }); }
+    try { setWo(await api.assignMechanic(id, mechanicId)); setAssigning(false); toast(mechanicId ? t("assign") : t("audit_mechanic_unassigned"), { icon: "check" }); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
   const doAssignLine = async (lineItemId: string, mechanicId: string) => {
@@ -808,7 +808,9 @@ function HistoryCard({ audit, lang, who }: { audit: AuditEntry[]; lang: string; 
       </div>
       <div className="flex flex-col gap-3">
         {shown.map((e) => {
-          const detail = auditDetail(lang as "uz", e.action, e.detail);
+          // An assignment's detail is a staff id; the reader wants the name.
+          const detail = e.action === "mechanic_assigned" || e.action === "mechanic_unassigned"
+            ? (who(e.detail ?? "") || "") : auditDetail(lang as "uz", e.action, e.detail);
           const actor = who(e.actorId);
           return (
             <div key={e.id} className="flex gap-2.5">

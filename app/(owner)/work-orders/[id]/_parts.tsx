@@ -4,7 +4,7 @@
 // service asked for at hand-back, and this visit's odometer reading. They live apart from the
 // page so that the page itself reads as the screen's layout.
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Send, Check, Bell, Gauge } from "lucide-react";
+import { Plus, Trash2, Send, Check, Bell, Gauge, X } from "lucide-react";
 import { QR, Empty } from "@/components/ui";
 import { Card } from "@/components/ui-kit/card";
 import { Button } from "@/components/ui-kit/button";
@@ -569,6 +569,12 @@ export function AssignModal({ open, onClose, mechanics, current, onPick }: { ope
                 {current === m.id && <Check className="size-[18px] text-primary-emphasis" />}
               </button>
             ))}
+            {/* Back to nobody: the order went to the wrong person, or the person is off. */}
+            {current && (
+              <button onClick={() => onPick("")} className="flex items-center gap-3 rounded-[9px] border border-dashed border-border px-3 py-2.5 text-left text-[14px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive">
+                <X className="size-[18px]" /> {t("wo_unassign")}
+              </button>
+            )}
           </div>
         </DialogBody>
       </DialogContent>
