@@ -63,6 +63,8 @@ export const config = {
   // Run on everything except Next internals, the fonts, and static assets. zxing/ is the barcode
   // decoder the camera scanner fetches on phones without a native one (iOS Safari): a file, not
   // a page, and role routing would answer it with a redirect the scanner can only report as
-  // "camera failed".
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|zxing/).*)"],
+  // "camera failed". demo/ holds the demo directory's photographs, served to the mobile app as
+  // well as to this site — a redirect to /login is not a photograph, and an app that gets one
+  // shows a broken tile with no clue why.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|zxing/|demo/).*)"],
 };
