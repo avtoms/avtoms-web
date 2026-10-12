@@ -17,6 +17,11 @@ export function middleware(req: NextRequest) {
   // staff scanning a check would be bounced to their own home and never see it.
   if (pathname.startsWith("/c/")) return NextResponse.next();
 
+  // A service centre's shareable page, the link the mobile app's share button sends. It is
+  // for whoever it was forwarded to, who is by definition not signed in — and a shop owner
+  // who opens their own page must see it, not be bounced to their dashboard.
+  if (pathname.startsWith("/s/")) return NextResponse.next();
+
   // Match areas by exact segment so "/menu" isn't caught by the "/m" prefix.
   const inMechanicArea = pathname === "/m" || pathname.startsWith("/m/");
 

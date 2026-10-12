@@ -31,3 +31,21 @@ export async function serverGet<T>(path: string): Promise<T | null> {
     return null;
   }
 }
+
+// publicGet fetches a public gateway endpoint with no session at all — the shareable
+// service-centre pages are opened by people who have never signed in, and attaching a
+// cookie-derived token would make them uncacheable for no benefit.
+//
+// Revalidated rather than no-store: a shared link can be opened by a hundred people in a
+// minute when somebody posts it in a group chat, and a shop's opening hours do not change
+// in that minute.
+export async function publicGet<T>(path: string, revalidateSeconds = 60): Promise<T | null> {
+  try {
+    const res = await fetch(SERVER_API_BASE + path, { next: { revalidate: revalidateSeconds } });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return (text ? JSON.parse(text) : {}) as T;
+  } catch {
+    return null;
+  }
+}
