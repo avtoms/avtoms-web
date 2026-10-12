@@ -132,6 +132,9 @@ export default async function ProviderPage({
   const address = (lang === "ru" ? provider.addressRu : provider.addressUz) || provider.addressUz || provider.addressRu;
   const about = (lang === "ru" ? provider.aboutRu : provider.aboutUz) || "";
   const today = new Date().getDay();
+  // A photograph may be given as a full address or as a path on this site; both appear in
+  // the directory, because the demo set is served from here and real shops upload theirs.
+  const photos = (provider.photoUrls ?? []).filter(Boolean);
   const mapHref = provider.latitude
     ? `https://yandex.uz/maps/?pt=${provider.longitude},${provider.latitude}&z=17&l=map`
     : `https://yandex.uz/maps/?text=${encodeURIComponent(provider.name + " " + address)}`;
@@ -142,10 +145,14 @@ export default async function ProviderPage({
 
       <header className="sp-hero">
         <div className="sp-hero-bg" aria-hidden="true" />
-        {provider.photoUrls?.length ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a remote photo of unknown
-          // origin; next/image would need every shop's host allow-listed up front.
-          <img className="sp-hero-photo" src={provider.photoUrls[0]} alt="" />
+        {photos.length > 0 ? (
+          <div className={`sp-gallery n${Math.min(photos.length, 3)}`}>
+            {photos.slice(0, 3).map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element -- a remote photograph of
+              // unknown origin; next/image would need every shop's host allow-listed up front.
+              <img key={src} src={src} alt="" loading={i === 0 ? "eager" : "lazy"} />
+            ))}
+          </div>
         ) : (
           <div className="sp-hero-mark" aria-hidden="true">{initials(provider.name)}</div>
         )}
@@ -170,20 +177,23 @@ export default async function ProviderPage({
         </div>
       </header>
 
-      <div className="sp-actions">
-        {provider.phone && (
-          <a className="sp-btn" href={`tel:${provider.phone.replace(/\s/g, "")}`}>{t("call", lang)}</a>
-        )}
-        <a className="sp-btn" href={mapHref} target="_blank" rel="noreferrer noopener">{t("route", lang)}</a>
-      </div>
+      <div className="sp-grid">
+        {/* On a phone this sits straight under the hero, where a thumb reaches it; on a
+            desktop the grid moves it into a column of its own beside the detail. */}
+        <aside className="sp-aside">
+          <div className="sp-actions">
+            {provider.phone && (
+              <a className="sp-btn" href={`tel:${provider.phone.replace(/\s/g, "")}`}>{t("call", lang)}</a>
+            )}
+            <a className="sp-btn" href={mapHref} target="_blank" rel="noreferrer noopener">{t("route", lang)}</a>
+          </div>
+          <section className="sp-cta">
+            <b>{t("book", lang)}</b>
+            <p>{t("bookNote", lang)}</p>
+          </section>
+        </aside>
 
-      <section className="sp-cta">
-        <div>
-          <b>{t("book", lang)}</b>
-          <p>{t("bookNote", lang)}</p>
-        </div>
-      </section>
-
+        <div className="sp-main">
       {services.length > 0 ? (
         <section className="sp-card">
           <h2>{t("services", lang)}</h2>
@@ -247,6 +257,9 @@ export default async function ProviderPage({
           ))}
         </section>
       )}
+
+        </div>
+      </div>
 
       <footer className="sp-footer">
         <a href="/">Auto-Garaj</a>

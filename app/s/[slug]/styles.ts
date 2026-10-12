@@ -22,7 +22,14 @@ export const PAGE_CSS = `
 .sp-hero { position: relative; background: var(--surface); overflow: hidden; }
 .sp-hero-bg { position: absolute; inset: 0 0 auto; height: 160px;
   background: linear-gradient(135deg, #2F5FD0, #1A367A); }
-.sp-hero-photo { position: relative; width: 100%; height: 200px; object-fit: cover; display: block; }
+.sp-gallery { position: relative; display: grid; gap: 2px; }
+.sp-gallery img { width: 100%; height: 200px; object-fit: cover; display: block; background: #E3E7EF; }
+/* On a phone the first photograph is the one that matters; the others follow it in a
+   strip, which is how a person looks at a place anyway — the front, then the inside. */
+.sp-gallery.n2 { grid-template-columns: 1fr 1fr; }
+.sp-gallery.n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 99px 99px; }
+.sp-gallery.n3 img:first-child { grid-row: 1 / 3; height: 200px; }
+.sp-gallery.n3 img { height: 99px; }
 .sp-hero-mark { position: relative; height: 160px; display: grid; place-items: center;
   font-size: 56px; font-weight: 800; color: rgba(255,255,255,.9); letter-spacing: 2px; }
 .sp-hero-body { position: relative; padding: 16px; }
@@ -42,13 +49,13 @@ export const PAGE_CSS = `
 .sp-rating small { color: var(--muted); font-weight: 500; }
 .sp-address { margin-top: 8px; color: var(--muted); font-size: 14px; }
 
-.sp-actions { display: grid; grid-auto-flow: column; gap: 8px; padding: 12px 16px; }
+.sp-actions { display: grid; grid-auto-flow: column; gap: 8px; padding: 12px 16px 0; }
 .sp-btn { display: block; text-align: center; padding: 11px 12px; border-radius: 12px;
   background: var(--surface); border: 1px solid var(--line); color: var(--ink);
   font-weight: 700; font-size: 14px; text-decoration: none; }
 .sp-btn:active { background: var(--ground); }
 
-.sp-cta { margin: 4px 16px 12px; padding: 14px 16px; border-radius: 16px;
+.sp-cta { margin: 12px 16px; padding: 14px 16px; border-radius: 16px;
   background: linear-gradient(135deg, #2F5FD0, #254CB0); color: #fff; }
 .sp-cta b { display: block; font-size: 15px; }
 .sp-cta p { font-size: 13px; opacity: .85; margin-top: 4px; }
@@ -85,6 +92,37 @@ export const PAGE_CSS = `
   color: var(--muted); font-size: 13px; }
 .sp-footer a { color: var(--brand); font-weight: 700; text-decoration: none; }
 .sp-footer .sp-lang { margin-left: auto; }
+
+/* ── Opened on a computer ───────────────────────────────────────────────────────────
+   The same page, given the room a browser window has: a wide gallery, the detail in one
+   column and the things you act on — call, route, book — held beside it where they stay
+   visible while you read the price list. Below 900px none of this applies and the phone
+   layout above stands. */
+@media (min-width: 900px) {
+  .sp { max-width: 1060px; padding-bottom: 64px; font-size: 16px; }
+  .sp-hero { border-radius: 0 0 20px 20px; }
+  .sp-gallery img { height: 320px; }
+  .sp-gallery.n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 159px 159px; }
+  .sp-gallery.n3 img:first-child { height: 320px; }
+  .sp-gallery.n3 img { height: 159px; }
+  .sp-hero-mark { height: 240px; font-size: 76px; }
+  .sp-hero-body { padding: 24px 28px; }
+  .sp h1 { font-size: 34px; }
+  .sp-address { font-size: 15px; }
+
+  .sp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px;
+    align-items: start; padding: 20px 12px 0; }
+  .sp-main { grid-column: 1; grid-row: 1; display: grid; gap: 16px; }
+  /* Held in view while the reader scrolls the price list: the three things they came to
+     do are the three things that must not scroll away. */
+  .sp-aside { grid-column: 2; grid-row: 1; position: sticky; top: 20px;
+    background: var(--surface); border-radius: 16px; padding: 4px 0 12px;
+    box-shadow: 0 1px 2px rgba(31,36,51,.06), 0 1px 6px rgba(31,36,51,.05); }
+  .sp-card { margin: 0; }
+  .sp-actions { padding: 12px 12px 0; }
+  .sp-cta { margin: 12px; }
+  .sp-footer { padding: 28px 16px 8px; }
+}
 
 @media (prefers-color-scheme: dark) {
   .sp { --ink: #ECEFF6; --muted: #9AA1B1; --line: #2A3142; --ground: #10141F;
