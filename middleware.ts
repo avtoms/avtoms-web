@@ -22,6 +22,10 @@ export function middleware(req: NextRequest) {
   // who opens their own page must see it, not be bounced to their dashboard.
   if (pathname.startsWith("/s/")) return NextResponse.next();
 
+  // The same for a shared promo code and a shared invitation: whoever opens one was sent
+  // it, and is by definition not signed in.
+  if (pathname.startsWith("/p/") || pathname.startsWith("/r/")) return NextResponse.next();
+
   // Match areas by exact segment so "/menu" isn't caught by the "/m" prefix.
   const inMechanicArea = pathname === "/m" || pathname.startsWith("/m/");
 

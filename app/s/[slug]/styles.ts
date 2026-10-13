@@ -4,7 +4,7 @@
 // console entirely, and the page should not drag the app's theme providers, fonts switcher
 // and layout chrome in behind it. The palette is the app's own so the page still looks like
 // Auto-Garaj to somebody who installs it afterwards.
-export const PAGE_CSS = `
+export const SHARE_CSS = `
 .sp {
   --brand: #2F5FD0; --ink: #1F2433; --muted: #6F7787; --line: #E3E7EF;
   --ground: #F4F6FA; --surface: #fff; --ok: #1E9E5A; --ok-soft: #E6F6EC;
@@ -130,5 +130,41 @@ export const PAGE_CSS = `
   .sp-list li, .sp-review { border-top-color: #222838; }
   .sp-badge { background: #222838; }
   .sp-badge.brand { background: #1B2740; }
+}
+
+/* ── The pages a promo code and an invitation land on ───────────────────────────────
+   Narrower than a service centre's page: there is one thing to read and one thing to do,
+   and a column the width of a paperback is easier to read than one the width of a desk. */
+.sp-narrow { max-width: 480px; }
+.sp-promo-hero { padding: 32px 20px 24px; text-align: center;
+  background: linear-gradient(135deg, #2F5FD0, #1A367A); color: #fff; }
+.sp-promo-hero h1 { font-size: 24px; margin-top: 8px; }
+.sp-promo-figure { font-size: 56px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+.sp-promo-until { margin-top: 8px; font-size: 14px; opacity: .85; }
+.sp-invite { padding-top: 40px; }
+.sp-kicker { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  opacity: .75; }
+
+/* The code itself: large, spaced, and selectable, because somebody is about to type it. */
+.sp-codecard { margin-top: 16px; text-align: center; }
+.sp-code { display: block; margin-top: 6px; font-family: var(--ff-mono, ui-monospace, Menlo, monospace);
+  font-size: 30px; font-weight: 700; letter-spacing: .14em; color: var(--brand);
+  user-select: all; }
+
+.sp-bullets, .sp-steps { margin: 0; padding-left: 20px; font-size: 14px; }
+.sp-bullets li, .sp-steps li { padding: 4px 0; }
+.sp-steps li::marker { color: var(--brand); font-weight: 700; }
+.sp-note { margin-top: 10px; font-size: 13px; }
+
+.sp-provider { display: block; text-decoration: none; color: inherit; }
+.sp-provider b { display: block; color: var(--brand); }
+.sp-provider span { font-size: 14px; }
+
+@media (min-width: 900px) {
+  .sp-narrow { max-width: 560px; }
+  .sp-narrow .sp-card { margin: 0 16px 12px; }
+  .sp-promo-hero { border-radius: 0 0 20px 20px; padding: 48px 24px 36px; }
+  .sp-promo-figure { font-size: 72px; }
+  .sp-promo-hero h1 { font-size: 30px; }
 }
 `;

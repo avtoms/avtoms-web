@@ -10,7 +10,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { publicGet } from "@/lib/server-api";
-import { PAGE_CSS } from "./styles";
+import { SHARE_CSS } from "./styles";
 
 export const revalidate = 60;
 
@@ -141,7 +141,7 @@ export default async function ProviderPage({
 
   return (
     <main className="sp">
-      <style>{PAGE_CSS}</style>
+      <style>{SHARE_CSS}</style>
 
       <header className="sp-hero">
         <div className="sp-hero-bg" aria-hidden="true" />
