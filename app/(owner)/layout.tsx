@@ -186,6 +186,10 @@ function Initials({ name, className }: { name: string; className?: string }) {
   return <span className={cn("grid shrink-0 place-items-center rounded-full bg-primary font-bold text-primary-foreground", className)}>{initials}</span>;
 }
 
+// Screens that are a table or a board rather than a page of text, and are better for
+// every pixel of width the window has.
+const WIDE = new Set(["/work-orders", "/inventory", "/inventory/movements"]);
+
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
   const { session, logout, ready } = useAuth();
   const { lang, setLang, t } = useLang();
@@ -393,9 +397,11 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
         <div className="flex min-w-0 flex-col">
           {header(false)}
-          {/* The order board is the one screen that is better for every extra column of width;
-              everything else reads better held to a comfortable measure. */}
-          <main className={cn("mx-auto w-full flex-1 px-7 py-6", pathname === "/work-orders" ? "max-w-none" : "max-w-[1280px]")}>{children}</main>
+          {/* Prose and forms read better held to a comfortable measure, so most screens are
+              capped. A dense table is not prose: every extra column of width is a column
+              the warehouse does not have to truncate, and the board is wider still with
+              every extra lane. Those screens take the window they are given. */}
+          <main className={cn("mx-auto w-full flex-1 px-7 py-6", WIDE.has(pathname) ? "max-w-none" : "max-w-[1280px]")}>{children}</main>
         </div>
         {modal}
         {hasChat && <ChatWidget />}
