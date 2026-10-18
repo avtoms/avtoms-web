@@ -377,6 +377,7 @@ export default function InventoryPage() {
     },
     {
       id: "stock",
+      size: 190,   // the bar inside is a fixed 160 plus the cell padding
       accessorFn: (r) => num(r.v.quantityOnHand),
       header: ({ column }) => <SortHeader column={column}>{t("col_stock")}</SortHeader>,
       cell: ({ row }) => {
@@ -407,6 +408,7 @@ export default function InventoryPage() {
     },
     {
       id: "cost",
+      size: 104,
       accessorFn: (r) => num(r.v.unitCost),
       header: ({ column }) => <SortHeader column={column}>{t("cost")}</SortHeader>,
       cell: ({ row }) => {
@@ -416,6 +418,7 @@ export default function InventoryPage() {
     },
     {
       id: "price",
+      size: 152,
       accessorFn: (r) => num(r.v.unitPrice),
       header: ({ column }) => <SortHeader column={column}>{t("sell_price")}</SortHeader>,
       // The shelf price, and under it what the stock on hand is worth at it.
@@ -433,6 +436,7 @@ export default function InventoryPage() {
     },
     {
       id: "margin",
+      size: 86,
       accessorFn: (r) => marginPct(num(r.v.unitCost), num(r.v.unitPrice)) ?? -9999,
       header: ({ column }) => <SortHeader column={column}>{t("whx_margin_word")}</SortHeader>,
       cell: ({ row }) => {
@@ -451,6 +455,7 @@ export default function InventoryPage() {
     },
     {
       id: "supplier",
+      size: 152,
       accessorFn: (r) => supplierOf(r).name,
       header: ({ column }) => <SortHeader column={column}>{t("supplier")}</SortHeader>,
       // Who supplies it, and the last time it came in: when, how much, at what.
@@ -472,6 +477,7 @@ export default function InventoryPage() {
     },
     {
       id: "actions",
+      size: 168,   // Receive or Order, and the menu beside it
       enableHiding: false,
       header: () => <span className="sr-only">{t("adjust_stock")}</span>,
       cell: ({ row }) => {
@@ -610,6 +616,11 @@ export default function InventoryPage() {
         <DataTable
           columns={columns}
           data={shown}
+          // Seven columns, and the widest of them is a product name that can run on for
+          // ever. Laid out to the sizes above, the name truncates and the rest keep their
+          // room; left to grow by content the table outran the card and the supplier
+          // ended up underneath the pinned buttons.
+          fixedLayout
           onRowClick={(r) => setDetail({ productId: r.p.id, variantId: r.key })}
           rowClassName={(r) => (num(r.v.quantityOnHand) <= 0 ? "bg-destructive-soft/40" : isLow(r.v) ? "bg-warning-soft/50" : undefined)}
           searchPlaceholder={t("whx_search_ph")}

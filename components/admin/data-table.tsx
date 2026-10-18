@@ -45,6 +45,11 @@ type DataTableProps<TData, TValue> = {
   /** False when the page already has its own search over the same rows — two boxes that
       filter the same list is one too many. */
   searchable?: boolean;
+  // Lay the columns out to the widths the caller gives rather than to their contents.
+  // For a table whose natural width overruns the card: the long column truncates and
+  // everything else keeps the room it needs, instead of the table growing until the last
+  // column is pushed under the pinned one.
+  fixedLayout?: boolean;
   /** Extra controls rendered on the right of the toolbar (e.g. an "Add" button). */
   toolbar?: React.ReactNode;
   /** Optional left-of-search node (e.g. a Tabs view switcher). */
@@ -74,6 +79,7 @@ const PINNED_HEAD = PINNED.replace("bg-inherit", "bg-[color-mix(in_oklab,var(--c
 export function DataTable<TData, TValue>({
   columns, data, searchPlaceholder, toolbar, leading, pageSize = 10, emptyText,
   onRowClick, columnLabels = {}, enableColumnToggle = true, rowClassName, searchable = true,
+  fixedLayout = false,
 }: DataTableProps<TData, TValue>) {
   const { t } = useLang();
   // Defaults live here rather than in the signature so they follow the language on screen.
@@ -282,7 +288,7 @@ export function DataTable<TData, TValue>({
       // at the bottom of the whole table, well below the fold on a list this long. So the
       // buttons were there and unreachable, which is worse than visibly missing.
       <div className="overflow-x-auto rounded-[14px] border border-border bg-card shadow-[var(--shadow)]">
-        <Table bare>
+        <Table bare className={cn(fixedLayout && "table-fixed")}>
           <TableHeader className="bg-secondary/50">
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className="hover:bg-transparent">
