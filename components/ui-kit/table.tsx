@@ -1,12 +1,14 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
-  return (
-    <div className="relative w-full overflow-x-auto">
-      <table data-slot="table" className={cn("w-full caption-bottom text-sm border-collapse", className)} {...props} />
-    </div>
-  );
+// `bare` renders the table without its own scrolling wrapper, for a table that already sits
+// inside one. Two nested scrollers look fine and behave badly: the inner one takes the
+// scroll, and its scrollbar sits at the bottom of the whole table — hundreds of pixels below
+// the fold on a long list — so the last column reads as clipped with no way to reach it.
+function Table({ className, bare, ...props }: React.ComponentProps<"table"> & { bare?: boolean }) {
+  const table = <table data-slot="table" className={cn("w-full caption-bottom text-sm border-collapse", className)} {...props} />;
+  if (bare) return table;
+  return <div className="relative w-full overflow-x-auto">{table}</div>;
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {

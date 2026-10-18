@@ -59,6 +59,18 @@ type DataTableProps<TData, TValue> = {
   enableColumnToggle?: boolean;
 };
 
+// PINNED holds a column against the right edge while the rest of the table scrolls under
+// it. bg-inherit rather than a colour of its own: the row owns the colour — white, hovered,
+// or the amber of a line that is running out — and the pinned cell must not break the row
+// in two by painting something else.
+const PINNED = "sticky right-0 z-10 bg-inherit before:absolute before:inset-y-0 before:-left-px " +
+  "before:w-px before:bg-border";
+
+// The header's own pinned cell cannot inherit: the header strip's colour is painted by the
+// <thead> at half opacity, and half of anything lets the columns scrolling underneath show
+// through. Mixing that same half explicitly gives an opaque colour that matches it exactly.
+const PINNED_HEAD = PINNED.replace("bg-inherit", "bg-[color-mix(in_oklab,var(--color-secondary)_50%,var(--color-card))]");
+
 export function DataTable<TData, TValue>({
   columns, data, searchPlaceholder, toolbar, leading, pageSize = 10, emptyText,
   onRowClick, columnLabels = {}, enableColumnToggle = true, rowClassName, searchable = true,
@@ -263,15 +275,23 @@ export function DataTable<TData, TValue>({
           })}
         </div>
       ) : (
-      // Sideways scroll rather than clipping: a table one column too wide used to lose its
-      // last column — the row's buttons — behind the card's edge.
+      // One scroller, on the card, and the row's actions pinned to its right edge.
+      //
+      // A wide table used to lose its last column behind the card's edge. Scrolling was
+      // offered, but by the inner wrapper the Table primitive adds — whose scrollbar sits
+      // at the bottom of the whole table, well below the fold on a list this long. So the
+      // buttons were there and unreachable, which is worse than visibly missing.
       <div className="overflow-x-auto rounded-[14px] border border-border bg-card shadow-[var(--shadow)]">
-        <Table>
+        <Table bare>
           <TableHeader className="bg-secondary/50">
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className="hover:bg-transparent">
                 {hg.headers.map((header) => (
-                  <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
+                  <TableHead
+                    key={header.id}
+                    className={cn(header.column.id === "actions" && PINNED_HEAD)}
+                    style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                  >
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
@@ -286,10 +306,12 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                   data-row-id={rowIdOf(row.original) || undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                  className={cn(onRowClick && "cursor-pointer", rowClassName?.(row.original), hl && rowIdOf(row.original) === hl && "an-row-hl")}
+                  className={cn("bg-card", onRowClick && "cursor-pointer", rowClassName?.(row.original), hl && rowIdOf(row.original) === hl && "an-row-hl")}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} className={cn(cell.column.id === "actions" && PINNED)}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
