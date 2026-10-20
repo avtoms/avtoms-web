@@ -70,5 +70,5 @@ export const config = {
   // "camera failed". demo/ holds the demo directory's photographs, served to the mobile app as
   // well as to this site — a redirect to /login is not a photograph, and an app that gets one
   // shows a broken tile with no clue why.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|zxing/|demo/).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|zxing/|demo/|.well-known/).*)"],
 };
