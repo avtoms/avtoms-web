@@ -26,6 +26,10 @@ export function middleware(req: NextRequest) {
   // it, and is by definition not signed in.
   if (pathname.startsWith("/p/") || pathname.startsWith("/r/")) return NextResponse.next();
 
+  // The terms, linked from the app's welcome screen and from the store listing: read by
+  // people who have not signed in and, in the store's case, by a reviewer who never will.
+  if (pathname === "/terms") return NextResponse.next();
+
   // Match areas by exact segment so "/menu" isn't caught by the "/m" prefix.
   const inMechanicArea = pathname === "/m" || pathname.startsWith("/m/");
 

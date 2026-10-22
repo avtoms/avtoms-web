@@ -167,4 +167,14 @@ export const SHARE_CSS = `
   .sp-promo-figure { font-size: 72px; }
   .sp-promo-hero h1 { font-size: 30px; }
 }
+
+/* A document to read rather than a card to glance at: clauses numbered, set in a column
+   narrow enough to follow line to line. */
+.sp-doc .sp-card { padding: 20px 18px; }
+.sp-clause { padding: 14px 0; border-top: 1px solid #EEF1F6; }
+.sp-clause:first-child { border-top: 0; padding-top: 0; }
+.sp-clause h2 { font-size: 15px; margin-bottom: 8px; }
+.sp-clause p { font-size: 14px; line-height: 1.6; color: var(--muted); }
+.sp-clause p + p { margin-top: 8px; }
+@media (prefers-color-scheme: dark) { .sp-clause { border-top-color: #222838; } }
 `;
