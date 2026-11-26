@@ -249,6 +249,18 @@ const qs = (params: Record<string, string | undefined>) => {
   return s ? `?${s}` : "";
 };
 
+export type AiActionValue = string | number | boolean | null | AiActionValue[] | AiActionFields;
+export type AiActionFields = { [key: string]: AiActionValue };
+export type AiActionDraft = {
+  id: string;
+  kind: string;
+  target: string;
+  before?: AiActionFields;
+  after: AiActionFields;
+  fields: AiActionFields;
+  expiresAt: string;
+};
+
 // A product create/update payload, with each variant's money fields as numbers (tiyin).
 export type ProductInput = {
   name: string;
@@ -1091,12 +1103,10 @@ export const api = {
   platformServiceStats: () => call<Report>("GET", "/v1/admin/reports/services"),
 
   // ── AI assistant ──
-  // One assistant turn. The gateway runs an OpenAI tool-calling loop against a strictly
-  // read-only, shop-scoped tool registry (same tools the MCP endpoint exposes) and returns
-  // an HTML fragment to render in the chat. Owners are scoped to their shop; super-admins
-  // see all shops.
-  aiChat: (messages: { role: "user" | "assistant"; content: string }[], conversationId?: string) =>
-    call<{ reply?: string; conversationId?: string; error?: string }>("POST", "/v1/ai/chat", { conversationId, messages }),
+  aiChat: (messages: { role: "user" | "assistant"; content: string }[], conversationId?: string, draftId?: string) =>
+    call<{ reply?: string; conversationId?: string; draft?: AiActionDraft }>("POST", "/v1/ai/chat", { conversationId, draftId, messages }),
+  aiAction: (id: string, operation: "revise" | "confirm" | "discard", fields?: AiActionFields) =>
+    call<{ ok?: boolean; recordId?: string; draft?: AiActionDraft }>("POST", "/v1/ai/actions", { id, operation, fields }),
   // Saved chat threads (scoped to the caller server-side).
   listConversations: () =>
     call<{ conversations?: AiConversation[] }>("GET", "/v1/ai/conversations").then((r) => r.conversations ?? []),

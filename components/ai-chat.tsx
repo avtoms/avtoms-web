@@ -1,29 +1,28 @@
 "use client";
-// Floating AI assistant available to shop owners and the super-admin. It talks to
-// the gateway's /v1/ai/chat, which runs an OpenAI tool-calling loop over a strictly
-// READ-ONLY, shop-scoped tool registry (the same tools the MCP endpoint exposes).
-//
-// The assistant replies with a small HTML fragment. We sanitize it against a strict
-// tag/attribute allowlist (no script/style/iframe/event handlers) and render it in the
-// chat. Buttons carrying a data-nav="/path" attribute navigate the app in-place via the
-// Next router — so the assistant can build clickable, navigable answers.
+// Assistant text is sanitized separately from trusted AvtoMS action cards.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, IconBtn, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type AiActionDraft } from "@/lib/api";
+import { AiActionCard, actionPath } from "@/components/ai-action-card";
 import type { AiConversation } from "@/lib/types";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  draft?: AiActionDraft;
+  resultPath?: string;
+};
 
 // ── HTML sanitizer ─────────────────────────────────────────────────────────
 const ALLOWED_TAGS = new Set([
   "div", "span", "p", "h3", "h4", "ul", "ol", "li", "table", "thead", "tbody",
   "tr", "th", "td", "strong", "em", "b", "i", "br", "hr", "small", "code", "button", "a",
 ]);
-// Only these attributes survive. class for styling; data-nav/data-action for interactivity.
-const ALLOWED_ATTRS = new Set(["class", "data-nav", "data-action"]);
+// Only these attributes survive. class for styling and data-nav for navigation.
+const ALLOWED_ATTRS = new Set(["class", "data-nav"]);
 // Elements whose CONTENT must never leak into the chat as text (raw JS/CSS is not an answer).
 const DROP_WITH_CONTENT = new Set(["script", "style", "iframe", "object", "embed", "link", "meta", "title", "noscript", "head"]);
 
@@ -38,144 +37,52 @@ function stripFence(s: string): string {
 // attributes. data-nav values must be in-app absolute paths ("/..."), never javascript: etc.
 function sanitizeHtml(html: string): string {
   if (typeof document === "undefined") return "";
-  const doc = new DOMParser().parseFromString(stripFence(html), "text/html");
+  const template = document.createElement("template");
+  template.innerHTML = stripFence(html);
 
-  const walk = (node: Node) => {
-    // Iterate over a static copy since we mutate children.
-    Array.from(node.childNodes).forEach((child) => {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        const el = child as HTMLElement;
-        const tag = el.tagName.toLowerCase();
-        if (!ALLOWED_TAGS.has(tag)) {
-          if (DROP_WITH_CONTENT.has(tag)) { el.remove(); return; } // never show raw code as text
-          // Unknown-but-harmless tag (section, article, h1…): unwrap it, keeping its
-          // sanitized children, so the answer's structure survives.
-          walk(el);
-          while (el.firstChild) el.parentNode?.insertBefore(el.firstChild, el);
-          el.remove();
-          return;
-        }
-        // Strip every attribute except the allowlist.
-        Array.from(el.attributes).forEach((attr) => {
-          const name = attr.name.toLowerCase();
-          if (!ALLOWED_ATTRS.has(name)) { el.removeAttribute(attr.name); return; }
-          if (name === "data-nav" && !attr.value.startsWith("/")) { el.removeAttribute(attr.name); }
-        });
-        // Anchors never do real navigation — neutralize href, keep as styled text.
-        if (tag === "a") el.removeAttribute("href");
-        walk(el);
-      } else if (child.nodeType !== Node.TEXT_NODE) {
-        // Comments, etc. — remove.
-        child.remove();
+  const safe = document.createElement("div");
+  const copy = (node: Node, parent: HTMLElement) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parent.append(document.createTextNode(node.textContent ?? ""));
+      return;
+    }
+    if (!(node instanceof Element) || node.namespaceURI !== "http://www.w3.org/1999/xhtml") return;
+    const tag = node.tagName.toLowerCase();
+    if (DROP_WITH_CONTENT.has(tag)) return;
+    if (!ALLOWED_TAGS.has(tag)) {
+      node.childNodes.forEach((child) => copy(child, parent));
+      return;
+    }
+    const el = document.createElement(tag);
+    for (const attr of Array.from(node.attributes)) {
+      if (!ALLOWED_ATTRS.has(attr.name)) continue;
+      if (attr.name === "class") {
+        const allowed = attr.value.split(/\s+/).filter((name) => /^ai-[a-z-]+$/.test(name));
+        if (allowed.length) el.className = allowed.join(" ");
+      } else if (tag === "button" && safeNav(attr.value)) {
+        el.setAttribute("data-nav", attr.value);
       }
-    });
+    }
+    if (el instanceof HTMLButtonElement) el.type = "button";
+    node.childNodes.forEach((child) => copy(child, el));
+    parent.append(el);
   };
-  walk(doc.body);
+  template.content.childNodes.forEach((child) => copy(child, safe));
+
   // Wrap every table so a wide one scrolls inside its own container instead of
   // shattering the chat layout.
-  doc.body.querySelectorAll("table").forEach((tbl) => {
+  safe.querySelectorAll("table").forEach((tbl) => {
     if (!tbl.classList.contains("ai-table")) tbl.classList.add("ai-table");
-    const wrap = doc.createElement("div");
+    const wrap = document.createElement("div");
     wrap.className = "ai-tablewrap";
     tbl.replaceWith(wrap);
     wrap.appendChild(tbl);
   });
-  return doc.body.innerHTML;
+  return safe.innerHTML;
 }
 
-// ── interactive "app" mode (games, simulations, calculators, drawings…) ──────
-// When the assistant returns rich content (script/canvas/style/svg/inputs or a
-// full document), we render it in a sandboxed iframe: allow-scripts WITHOUT
-// allow-same-origin, so the code runs in a null origin and can never read the
-// session token, cookies, or the parent DOM. The only channel back to the app is
-// postMessage (navigation + auto-height), handled by the bridge injected below.
-const THEME_VARS = [
-  "--bg", "--surface", "--surface-2", "--surface-3", "--ink", "--ink-2", "--ink-3",
-  "--line", "--line-2", "--accent", "--accent-2", "--accent-ink", "--accent-soft",
-  "--ok", "--ok-soft", "--warn", "--warn-soft", "--danger", "--danger-soft",
-  "--info", "--info-soft", "--radius", "--radius-sm", "--radius-lg", "--font-sans", "--font-mono",
-];
-
-function isInteractiveApp(html: string): boolean {
-  const t = stripFence(html);
-  // Any executable/app-shaped content routes to the sandboxed iframe: script tags
-  // (even escaped or fenced), inline event handlers, form controls, canvas/svg, a
-  // style block, or a full document. The inline path must NEVER receive code.
-  return /<script\b|&lt;script\b|<canvas\b|<style\b|<svg\b|<input\b|<form\b|<textarea\b|<select\b|<!doctype|<html\b|requestAnimationFrame|addEventListener|\son[a-z]+\s*=\s*["']/i.test(t);
-}
-
-// extractAppContent normalizes either a fragment or a full document into body-level
-// content (preserving any <style> the model put in <head>). If the model HTML-escaped
-// its whole reply (&lt;div&gt;…), decode it first so the app actually runs.
-function extractAppContent(html: string): string {
-  if (typeof document === "undefined") return "";
-  if (!/</.test(html) && /&lt;/.test(html)) {
-    const ta = document.createElement("textarea");
-    ta.innerHTML = html;
-    html = ta.value;
-  }
-  if (!/<html|<!doctype/i.test(html)) return html;
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const headStyles = Array.from(doc.head.querySelectorAll("style")).map((s) => s.outerHTML).join("");
-  return headStyles + doc.body.innerHTML;
-}
-
-// buildAppDoc wraps the model's interactive content in a self-contained srcdoc:
-// current theme variables + a base stylesheet + a bridge script (id-tagged so the
-// host can size each app iframe independently and follow its navigation).
-function buildAppDoc(html: string, id: number): string {
-  if (typeof document === "undefined") return "";
-  const root = getComputedStyle(document.documentElement);
-  const vars = THEME_VARS.map((v) => `${v}:${root.getPropertyValue(v).trim()}`).join(";");
-  const content = extractAppContent(stripFence(html));
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-:root{${vars}}
-*{box-sizing:border-box}
-html,body{margin:0}
-body{padding:12px;background:var(--bg);color:var(--ink);font-family:var(--font-sans,system-ui),sans-serif;font-size:14px;line-height:1.5}
-h3{font-size:16px;font-weight:800;margin:2px 0 8px;letter-spacing:-.02em}
-h4{font-size:13.5px;font-weight:700;margin:8px 0 5px}
-p{margin:6px 0}
-hr{border:none;border-top:1px solid var(--line);margin:10px 0}
-small,.ai-muted{color:var(--ink-3);font-size:11.5px}
-code{font-family:var(--font-mono,monospace);background:var(--surface-2);padding:1px 5px;border-radius:5px;font-size:.92em}
-a{color:var(--accent-2)}
-canvas{max-width:100%;display:block}
-input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;outline:none;max-width:100%}
-input:focus,select:focus,textarea:focus{border-color:var(--accent)}
-button{font-family:inherit;cursor:pointer}
-button:not([class]),.ai-btn{display:inline-flex;align-items:center;gap:6px;margin:4px 6px 4px 0;padding:8px 14px;border:1px solid var(--line-2);border-radius:8px;background:var(--accent);color:var(--accent-ink,#fff);font-weight:700;font-size:13px}
-button:not([class]):hover,.ai-btn:hover{filter:brightness(1.06)}
-.ai-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0;background:var(--surface)}
-.ai-title{font-weight:700;margin-bottom:4px}
-.ai-kpi{font-size:22px;font-weight:800;letter-spacing:-.02em}
-.ai-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--ink-2)}
-.ai-badge.ai-ok{background:var(--ok-soft);color:var(--ok)}
-.ai-badge.ai-warn{background:var(--warn-soft);color:var(--warn)}
-.ai-badge.ai-danger{background:var(--danger-soft);color:var(--danger)}
-.ai-tablewrap{margin:9px 0;overflow-x:auto;border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch;background:var(--surface)}
-table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--surface)}
-th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
-thead th{position:sticky;top:0;background:var(--surface-2);color:var(--ink-3);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-tbody tr:nth-child(even) td{background:color-mix(in oklch,var(--surface-2),transparent 55%)}
-tbody tr:last-child td{border-bottom:none}
-td:not(:first-child),th:not(:first-child){white-space:nowrap}
-::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px}
-</style></head><body>${content}
-<script>(function(){
-function send(m){parent.postMessage(Object.assign({__aichat:1,id:${id}},m),'*');}
-document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-nav]');if(el){e.preventDefault();send({type:'nav',path:el.getAttribute('data-nav')});}});
-// Give every bare table its own scrolling, bordered container so wide data never
-// shatters the layout inside apps either.
-document.querySelectorAll('table').forEach(function(t){
-  if(t.parentElement&&t.parentElement.classList.contains('ai-tablewrap'))return;
-  var w=document.createElement('div');w.className='ai-tablewrap';
-  t.parentNode.insertBefore(w,t);w.appendChild(t);
-});
-function h(){send({type:'height',height:document.documentElement.scrollHeight});}
-window.addEventListener('load',h);try{new ResizeObserver(h).observe(document.body);}catch(_){}
-setTimeout(h,60);setTimeout(h,400);setTimeout(h,1200);
-})();</script></body></html>`;
+function safeNav(path: string) {
+  return /^\/(dashboard|work-orders(?:\/[a-f0-9-]{36})?|customers|vehicles|invoices|reports|finances|reminders|menu|inventory|staff|settings)$/.test(path);
 }
 
 // ── styling for the assistant's rendered HTML ────────────────────────────────
@@ -221,32 +128,16 @@ export function ChatWidget() {
   const [threads, setThreads] = useState<AiConversation[]>([]);
   const [showThreads, setShowThreads] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
-  const [heights, setHeights] = useState<Record<number, number>>({}); // per-message app-iframe heights
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const isMobile = useIsMobile();
 
   // Navigate the app. The admin console is a separate app on its own domain, so every
   // path the assistant can offer here is a shop path.
   const navTo = useCallback((path: string) => {
-    if (!path.startsWith("/")) return;
+    if (!safeNav(path)) return;
     router.push(path);
     setOpen(false);
   }, [router]);
-
-  // Bridge from sandboxed app iframes: in-app navigation + per-iframe auto-height.
-  useEffect(() => {
-    function onMsg(e: MessageEvent) {
-      const d = e.data as { __aichat?: number; type?: string; path?: string; id?: number; height?: number } | null;
-      if (!d || d.__aichat !== 1) return;
-      if (d.type === "nav" && typeof d.path === "string") navTo(d.path);
-      else if (d.type === "height" && typeof d.id === "number" && typeof d.height === "number") {
-        const h = Math.max(120, Math.min(Math.round(d.height) + 4, 2000));
-        setHeights((cur) => (cur[d.id!] === h ? cur : { ...cur, [d.id!]: h }));
-      }
-    }
-    window.addEventListener("message", onMsg);
-    return () => window.removeEventListener("message", onMsg);
-  }, [navTo]);
 
   // Auto-scroll to the newest message.
   useEffect(() => {
@@ -260,12 +151,11 @@ export function ChatWidget() {
   // Load saved threads when the panel first opens.
   useEffect(() => { if (open) refreshThreads(); }, [open, refreshThreads]);
 
-  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setInput(""); setHeights({}); };
+  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setInput(""); };
 
   const openThread = async (id: string) => {
     setShowThreads(false);
     setLoadingThread(true);
-    setHeights({});
     try {
       const r = await api.getConversation(id);
       setMsgs((r.messages ?? []).map((m) => ({ role: m.role, content: m.content })));
@@ -293,8 +183,13 @@ export function ChatWidget() {
     setSending(true);
     const wasNew = !conversationId;
     try {
-      const r = await api.aiChat(next.map((m) => ({ role: m.role, content: m.content })), conversationId ?? undefined);
-      setMsgs((cur) => [...cur, { role: "assistant", content: r.reply || t("ai_no_reply") }]);
+      const previous = [...msgs].reverse().find((m) => m.draft)?.draft;
+      const r = await api.aiChat(next.map((m) => ({ role: m.role, content: m.content })), conversationId ?? undefined, previous?.id);
+      setMsgs((cur) => {
+        const history = r.draft ? cur.map((m) => m.draft && m.draft.id === previous?.id
+          ? { ...m, draft: undefined, content: t("ai_draft_replaced") } : m) : cur;
+        return [...history, { role: "assistant", content: r.reply || t("ai_no_reply"), draft: r.draft }];
+      });
       if (r.conversationId) {
         setConversationId(r.conversationId);
         if (wasNew) refreshThreads(); // surface the freshly created thread in the list
@@ -481,18 +376,23 @@ export function ChatWidget() {
                 <div key={i} style={{ alignSelf: "flex-end", maxWidth: "85%", padding: "9px 13px", borderRadius: "14px 14px 3px 14px", background: "var(--accent)", color: "var(--accent-ink)", fontSize: "calc(13.5px * var(--scale))", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {m.content}
                 </div>
-              ) : isInteractiveApp(m.content) ? (
-                // Rich/interactive content (games, simulations, calculators…) runs in a
-                // sandboxed iframe — isolated from the app's origin, session and cookies.
-                <iframe key={i} title={t("ai_assistant")} sandbox="allow-scripts allow-pointer-lock"
-                  srcDoc={buildAppDoc(m.content, i)}
-                  style={{ alignSelf: "stretch", width: "100%", border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", height: heights[i] ?? 320, maxHeight: "76vh" }}
+              ) : m.draft ? (
+                <AiActionCard key={m.draft.id} draft={m.draft} disabled={sending}
+                  onRevise={(draft) => setMsgs((cur) => cur.map((entry) => entry.draft?.id === m.draft?.id ? { ...entry, draft } : entry))}
+                  onFinish={(status, recordId) => setMsgs((cur) => cur.map((entry) =>
+                    entry.draft?.id === m.draft?.id ? {
+                      role: "assistant",
+                      content: t(status === "saved" ? "ai_draft_saved" : "ai_draft_discarded"),
+                      resultPath: status === "saved" ? actionPath(m.draft!.kind, recordId) : undefined,
+                    } : entry))}
+                  onOpen={navTo}
                 />
               ) : (
                 <div key={i} className="ai-html" onClick={onHtmlClick}
-                  style={{ alignSelf: "flex-start", maxWidth: m.content.includes("<table") ? "100%" : "94%", width: m.content.includes("<table") ? "100%" : undefined, padding: "10px 13px", borderRadius: "14px 14px 14px 3px", background: "var(--surface)", border: "1px solid var(--line)", wordBreak: "break-word" }}
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.content) }}
-                />
+                  style={{ alignSelf: "flex-start", maxWidth: m.content.includes("<table") ? "100%" : "94%", width: m.content.includes("<table") ? "100%" : undefined, padding: "10px 13px", borderRadius: "14px 14px 14px 3px", background: "var(--surface)", border: "1px solid var(--line)", wordBreak: "break-word" }}>
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.content) }} />
+                  {m.resultPath && <Btn onClick={() => navTo(m.resultPath!)}>{t("ai_draft_open")}</Btn>}
+                </div>
               )
             ))}
 
