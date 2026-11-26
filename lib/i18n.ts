@@ -1317,7 +1317,7 @@ export const STR: Record<string, Triple> = {
   // AI assistant
   send: ["Yuborish", "Юбориш", "Отправить"],
   ai_assistant: ["AI yordamchi", "AI ёрдамчи", "AI-помощник"],
-  ai_readonly_note: ["Faqat o'qish — sizning ma'lumotlaringiz", "Фақат ўқиш — сизнинг маълумотларингиз", "Только чтение — ваши данные"],
+  ai_review_note: ["O'zgarishlar sizning tasdig'ingiz bilan saqlanadi", "Ўзгаришлар сизнинг тасдиғингиз билан сақланади", "Изменения сохраняются с вашего подтверждения"],
   ai_greeting: ["Nima bilan yordam beray?", "Нима билан ёрдам берай?", "Чем могу помочь?"],
   ai_greeting_sub: ["Ombor, xizmatlar va buyurtmalar haqida so'rang. O'zgarishlarni tasdiqlashdan oldin ko'rib chiqing.", "Омбор, хизматлар ва буюртмалар ҳақида сўранг. Ўзгаришларни тасдиқлашдан олдин кўриб чиқинг.", "Спросите о складе, услугах и заказах. Проверяйте изменения перед подтверждением."],
   ai_placeholder: ["Savol yozing…", "Савол ёзинг…", "Напишите вопрос…"],

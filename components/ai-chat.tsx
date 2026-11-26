@@ -307,7 +307,7 @@ export function ChatWidget() {
             position: "fixed", zIndex: 210, background: "var(--surface)",
             border: isMobile ? "none" : "1px solid var(--line)", boxShadow: "var(--shadow-lg)",
             display: "flex", flexDirection: "column", overflow: "hidden",
-            // Mobile: true full-screen sheet — games and tables need every pixel.
+            // Mobile uses a full-screen sheet to fit draft forms and tables.
             // Desktop: a roomy floating card bottom-right.
             ...(isMobile
               ? { inset: 0, borderRadius: 0 }
@@ -328,7 +328,7 @@ export function ChatWidget() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", letterSpacing: "-0.01em" }}>{t("ai_assistant")}</div>
-              <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{t("ai_readonly_note")}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{t("ai_review_note")}</div>
             </div>
             <IconBtn icon="history" size={16} active={showThreads} onClick={() => setShowThreads((v) => !v)} aria-label={t("ai_threads")} style={{ width: 34, height: 34 }} />
             <IconBtn icon="plus" size={17} onClick={newChat} aria-label={t("ai_new_chat")} style={{ width: 34, height: 34 }} />
