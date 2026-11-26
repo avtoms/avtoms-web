@@ -5,14 +5,17 @@ import { useRouter } from "next/navigation";
 import { Btn, IconBtn, Spinner, useIsMobile } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { useAuth, useLang, useToast } from "@/components/providers";
-import { api, ApiError, type AiActionDraft } from "@/lib/api";
+import { api, ApiError, type AiActionDraft, type AiActionIntake as Intake } from "@/lib/api";
 import { AiActionCard, actionPath } from "@/components/ai-action-card";
+import { AiActionIntake } from "@/components/ai-action-intake";
+import { AiWorkflowProfile } from "@/components/ai-workflow-profile";
 import type { AiConversation } from "@/lib/types";
 
 type Msg = {
   role: "user" | "assistant";
   content: string;
   draft?: AiActionDraft;
+  intake?: Intake;
   resultPath?: string;
 };
 
@@ -127,6 +130,7 @@ export function ChatWidget() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [threads, setThreads] = useState<AiConversation[]>([]);
   const [showThreads, setShowThreads] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const isMobile = useIsMobile();
@@ -139,10 +143,21 @@ export function ChatWidget() {
     setOpen(false);
   }, [router]);
 
-  // Auto-scroll to the newest message.
+  // Put the top of an interactive review in view, including its title and target.
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [msgs, sending, open]);
+    const scroll = scrollRef.current;
+    if (!scroll || showThreads || showProfile) return;
+    const latest = msgs[msgs.length - 1];
+    if ((latest?.draft || latest?.intake) && !sending) {
+      const cards = scroll.querySelectorAll("[data-chat-review]");
+      const card = cards[cards.length - 1];
+      if (card) {
+        scroll.scrollTop += card.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 14;
+        return;
+      }
+    }
+    scroll.scrollTop = scroll.scrollHeight;
+  }, [msgs, sending, open, showThreads, showProfile]);
 
   const refreshThreads = useCallback(async () => {
     try { setThreads(await api.listConversations()); } catch { /* ignore */ }
@@ -151,7 +166,7 @@ export function ChatWidget() {
   // Load saved threads when the panel first opens.
   useEffect(() => { if (open) refreshThreads(); }, [open, refreshThreads]);
 
-  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setInput(""); };
+  const newChat = () => { setMsgs([]); setConversationId(null); setShowThreads(false); setShowProfile(false); setInput(""); };
 
   const openThread = async (id: string) => {
     setShowThreads(false);
@@ -188,7 +203,7 @@ export function ChatWidget() {
       setMsgs((cur) => {
         const history = r.draft ? cur.map((m) => m.draft && m.draft.id === previous?.id
           ? { ...m, draft: undefined, content: t("ai_draft_replaced") } : m) : cur;
-        return [...history, { role: "assistant", content: r.reply || t("ai_no_reply"), draft: r.draft }];
+        return [...history, { role: "assistant", content: r.reply || t("ai_no_reply"), draft: r.draft, intake: r.intake }];
       });
       if (r.conversationId) {
         setConversationId(r.conversationId);
@@ -330,14 +345,16 @@ export function ChatWidget() {
               <div style={{ fontWeight: 800, color: "var(--ink)", fontSize: "calc(14.5px * var(--scale))", letterSpacing: "-0.01em" }}>{t("ai_assistant")}</div>
               <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{t("ai_review_note")}</div>
             </div>
-            <IconBtn icon="history" size={16} active={showThreads} onClick={() => setShowThreads((v) => !v)} aria-label={t("ai_threads")} style={{ width: 34, height: 34 }} />
+            <IconBtn icon="settings" size={16} active={showProfile} onClick={() => { setShowThreads(false); setShowProfile((v) => !v); }}
+              aria-label={t("ai_memory")} style={{ width: 34, height: 34 }} />
+            <IconBtn icon="history" size={16} active={showThreads} onClick={() => { setShowProfile(false); setShowThreads((v) => !v); }} aria-label={t("ai_threads")} style={{ width: 34, height: 34 }} />
             <IconBtn icon="plus" size={17} onClick={newChat} aria-label={t("ai_new_chat")} style={{ width: 34, height: 34 }} />
             <IconBtn icon="x" size={17} onClick={() => setOpen(false)} aria-label={t("close")} style={{ width: 34, height: 34 }} />
           </div>
 
           {/* Messages */}
           <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 12, background: "var(--bg)" }}>
-            {showThreads ? (
+            {showProfile ? <AiWorkflowProfile /> : showThreads ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-3)", padding: "2px 2px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("ai_threads")}</div>
                 {threads.length === 0 && <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 2px" }}>{t("ai_no_threads")}</div>}
@@ -376,6 +393,8 @@ export function ChatWidget() {
                 <div key={i} style={{ alignSelf: "flex-end", maxWidth: "85%", padding: "9px 13px", borderRadius: "14px 14px 3px 14px", background: "var(--accent)", color: "var(--accent-ink)", fontSize: "calc(13.5px * var(--scale))", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {m.content}
                 </div>
+              ) : m.intake ? (
+                <AiActionIntake key={i} intake={m.intake} disabled={sending} answered={i < msgs.length - 1} onSend={(answer) => { void send(answer); }} />
               ) : m.draft ? (
                 <AiActionCard key={m.draft.id} draft={m.draft} disabled={sending}
                   onRevise={(draft) => setMsgs((cur) => cur.map((entry) => entry.draft?.id === m.draft?.id ? { ...entry, draft } : entry))}
@@ -405,7 +424,7 @@ export function ChatWidget() {
           </div>
 
           {/* Composer */}
-          {!showThreads && (
+          {!showThreads && !showProfile && (
           <div style={{ borderTop: "1px solid var(--line)", padding: 10, background: "var(--surface)" }}>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
               <textarea

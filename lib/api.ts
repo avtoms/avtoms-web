@@ -251,6 +251,14 @@ const qs = (params: Record<string, string | undefined>) => {
 
 export type AiActionValue = string | number | boolean | null | AiActionValue[] | AiActionFields;
 export type AiActionFields = { [key: string]: AiActionValue };
+export type AiActionIntake = { action: string; questions: string[] };
+export type AiWorkflowProfile = {
+  enabled: boolean;
+  preferredUnit?: string;
+  suggestedUnit?: string;
+  responseStyle?: "concise" | "detailed";
+  actionCounts: Record<string, number>;
+};
 export type AiActionDraft = {
   id: string;
   kind: string;
@@ -1103,8 +1111,15 @@ export const api = {
   platformServiceStats: () => call<Report>("GET", "/v1/admin/reports/services"),
 
   // ── AI assistant ──
+  getGarageAiActions: () =>
+    call<{ actions: Record<string, boolean> }>("GET", "/v1/shop/ai-actions"),
+  setGarageAiAction: (action: string, enabled: boolean) =>
+    call<{ enabled: boolean }>("POST", "/v1/shop/ai-actions", { action, enabled }),
   aiChat: (messages: { role: "user" | "assistant"; content: string }[], conversationId?: string, draftId?: string) =>
-    call<{ reply?: string; conversationId?: string; draft?: AiActionDraft }>("POST", "/v1/ai/chat", { conversationId, draftId, messages }),
+    call<{ reply?: string; conversationId?: string; draft?: AiActionDraft; intake?: AiActionIntake }>("POST", "/v1/ai/chat", { conversationId, draftId, messages }),
+  getAiWorkflowProfile: () => call<AiWorkflowProfile>("GET", "/v1/ai/workflow-profile"),
+  updateAiWorkflowProfile: (operation: "enable" | "disable" | "clear") =>
+    call<AiWorkflowProfile>("POST", "/v1/ai/workflow-profile", { operation }),
   aiAction: (id: string, operation: "revise" | "confirm" | "discard", fields?: AiActionFields) =>
     call<{ ok?: boolean; recordId?: string; draft?: AiActionDraft }>("POST", "/v1/ai/actions", { id, operation, fields }),
   // Saved chat threads (scoped to the caller server-side).

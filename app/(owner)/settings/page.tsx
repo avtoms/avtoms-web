@@ -30,13 +30,15 @@ import { loadShopProfile, mergeShopProfile, SHOP_PROFILE_CHANGED } from "@/lib/s
 import { SecTitle } from "../_shared";
 import { CurrencyRates } from "./_currency-rates";
 import { BankAccountsCard } from "./_bank-accounts";
+import { GarageAiActions } from "./_ai-actions";
 
-type Section = "profile" | "flow" | "payments" | "receipt" | "look" | "danger";
+type Section = "profile" | "flow" | "payments" | "receipt" | "ai" | "look" | "danger";
 const SECTIONS: { key: Section; labelKey: string }[] = [
   { key: "profile", labelKey: "shop_profile" },
   { key: "flow", labelKey: "status_flow" },
   { key: "payments", labelKey: "set_payments" },
   { key: "receipt", labelKey: "set_receipt" },
+  { key: "ai", labelKey: "set_ai_actions" },
   { key: "look", labelKey: "set_look" },
   { key: "danger", labelKey: "set_danger" },
 ];
@@ -210,7 +212,7 @@ export default function SettingsPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         {/* the sections */}
         <nav className={cn("flex gap-1", isMobile ? "overflow-x-auto pb-1" : "sticky top-[84px] flex-col")}>
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => s.key !== "ai" || session?.role === "owner").map((s) => (
             <button key={s.key} onClick={() => go(s.key)}
               className={cn("min-h-10 shrink-0 rounded-[9px] px-3.5 text-left text-[14px] font-semibold transition-colors",
                 section === s.key ? "bg-primary-soft text-primary-emphasis" : s.key === "danger" ? "text-destructive hover:bg-destructive-soft" : "text-ink-2 hover:bg-secondary")}>
@@ -323,6 +325,12 @@ export default function SettingsPage() {
               </div>
             </Card>
           </div>
+
+          {session?.role === "owner" && (
+            <div ref={anchor("ai")} className="scroll-mt-24">
+              <GarageAiActions key={session.staff.shopId} />
+            </div>
+          )}
 
           {/* language and look */}
           <div ref={anchor("look")} className="scroll-mt-24">

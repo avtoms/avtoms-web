@@ -3,16 +3,18 @@
 import { useRef, useState } from "react";
 import { api, ApiError, type AiActionDraft, type AiActionFields, type AiActionValue } from "@/lib/api";
 import { useLang } from "@/components/providers";
-import { Btn } from "@/components/ui";
+import { Btn, Spinner } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import styles from "./ai-action-card.module.css";
 
-const titles: Record<string, string> = {
+export const actionTitleKeys: Record<string, string> = {
   create_product: "ai_create_product", edit_product: "ai_edit_product", adjust_stock: "ai_adjust_stock",
   create_service: "ai_create_service", edit_service: "ai_edit_service", create_order: "ai_create_order",
   edit_order_notes: "ai_edit_order_notes", add_order_line: "ai_add_order_line",
 };
 
 const fieldLabels: Record<string, string> = {
-  name: "name", brand: "brand", description: "description", category: "category", unit: "unit",
+  name: "ai_field_title", brand: "brand", description: "description", category: "category", unit: "unit",
   active: "ai_field_active", properties: "ai_field_properties", variants: "ai_field_variants",
   variantEdits: "ai_field_variants", newVariants: "ai_field_new_variants", sku: "ai_field_sku",
   barcode: "ai_field_barcode", attributes: "ai_field_attributes", property: "ai_field_property",
@@ -33,17 +35,28 @@ function rows(fields: AiActionFields) {
   return Object.entries(fields).filter(([key]) => !isID(key));
 }
 
-function Values({ fields, label }: { fields: AiActionFields; label: Label }) {
+const isGroup = (value: AiActionValue) => value !== null && typeof value === "object";
+const numericFields = new Set(["quantityOnHand", "reorderLevel", "delta", "estimatedMinutes", "quantity"]);
+
+function Values({ fields, previous, label }: { fields: AiActionFields; previous?: AiActionFields; label: Label }) {
+  const entries = rows(fields).filter(([key, value]) => previous?.[key] !== undefined || (value !== "" && value !== null && !(Array.isArray(value) && !value.length)));
   return (
-    <dl style={{ margin: 0, display: "grid", gap: 5 }}>
-      {rows(fields).map(([key, value]) => (
-        <div key={key} style={{ minWidth: 0 }}>
-          <dt style={{ color: "var(--ink-3)", fontSize: 12 }}>{label(fieldLabels[key] || key)}</dt>
-          <dd style={{ margin: 0, overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
-            <Value value={value} label={label} money={isMoney(key)} />
-          </dd>
-        </div>
-      ))}
+    <dl className={styles.fields}>
+      {entries.map(([key, value]) => {
+        const old = previous?.[key];
+        const labelKey = fieldLabels[key] || key;
+        return (
+          <div key={key} className={isGroup(value) ? `${styles.field} ${styles.group}` : styles.field}>
+            <dt>{label(labelKey)}</dt>
+            <dd>
+              {old !== undefined && !isGroup(old) && !isGroup(value) && (
+                <del className={styles.previous}><Value value={old} label={label} money={isMoney(key)} /></del>
+              )}
+              <Value value={value} label={label} money={isMoney(key)} />
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }
@@ -55,23 +68,19 @@ function Value({ value, label, money }: { value: AiActionValue; label: Label; mo
     if (!value.length) return <>—</>;
     if (value.every((item) => typeof item === "string")) return <>{value.join(", ")}</>;
     return (
-      <ol style={{ margin: "4px 0", paddingInlineStart: 22 }}>
-        {value.map((item, index) => <li key={index}><Value value={item} label={label} /></li>)}
-      </ol>
+      <ul className={styles.rows}>
+        {value.map((item, index) => <li key={index} className={styles.row}><Value value={item} label={label} /></li>)}
+      </ul>
     );
   }
   if (typeof value === "object") return <Values fields={value} label={label} />;
-  return <>{String(value)}{money ? " soʻm" : ""}</>;
+  const display = String(value);
+  return <>{money ? `${display.replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f")} soʻm` : display}</>;
 }
-
-const inputStyle = {
-  boxSizing: "border-box" as const, width: "100%", padding: "6px 8px", border: "1px solid var(--line-2)",
-  borderRadius: "var(--radius-sm)", color: "var(--ink)", background: "var(--bg)", font: "inherit",
-};
 
 function EditFields({ fields, label, change }: { fields: AiActionFields; label: Label; change: (next: AiActionFields) => void }) {
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div className={styles.editor}>
       {rows(fields).map(([key, value]) => (
         <EditValue key={key} name={key} value={value} label={label} change={(v) => change({ ...fields, [key]: v })} />
       ))}
@@ -91,10 +100,10 @@ function EditValue({ name, value, label, change }: { name: string; value: AiActi
   const title = label(fieldLabels[name] || name);
   if (Array.isArray(value)) {
     return (
-      <fieldset style={{ border: "1px solid var(--line)", borderRadius: 8, minWidth: 0, margin: 0 }}>
+      <fieldset className={styles.editorField}>
         <legend>{title}</legend>
         {value.map((item, index) => (
-          <div key={index} style={{ marginBlock: 5 }}>
+          <div key={index} className={styles.editorRow}>
             <EditValue name={String(index + 1)} value={item} label={label}
               change={(next) => change(value.map((v, i) => i === index ? next : v))} />
             {newListEntry[name] && <Btn size="sm" onClick={() => change(value.filter((_, i) => i !== index))}>{label("ai_draft_remove_row")}</Btn>}
@@ -108,7 +117,7 @@ function EditValue({ name, value, label, change }: { name: string; value: AiActi
   }
   if (value !== null && typeof value === "object") {
     return (
-      <fieldset style={{ border: "1px solid var(--line)", borderRadius: 8, minWidth: 0, margin: "4px 0" }}>
+      <fieldset className={styles.editorField}>
         <legend>{title}</legend>
         <EditFields fields={value} label={label} change={change} />
       </fieldset>
@@ -118,12 +127,12 @@ function EditValue({ name, value, label, change }: { name: string; value: AiActi
     return <label><input type="checkbox" checked={value} onChange={(e) => change(e.target.checked)} /> {title}</label>;
   }
   return (
-    <label style={{ display: "grid", gap: 4 }}>
+    <label className={styles.label}>
       {title}
       {name === "notes" || name === "description" ? (
-        <textarea style={inputStyle} value={String(value ?? "")} onChange={(e) => change(e.target.value)} />
+        <textarea className={styles.input} value={String(value ?? "")} onChange={(e) => change(e.target.value)} />
       ) : (
-        <input style={inputStyle} value={String(value ?? "")} type={typeof value === "number" ? "number" : "text"}
+        <input className={styles.input} value={String(value ?? "")} type={numericFields.has(name) || typeof value === "number" ? "number" : "text"}
           step="any" inputMode={isMoney(name) ? "numeric" : undefined}
           onChange={(e) => change(e.target.type === "number" ? (Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : null) : e.target.value)} />
       )}
@@ -165,43 +174,58 @@ export function AiActionCard({ draft, onRevise, onFinish, onOpen, disabled }: {
     }
   };
 
+  const beforeGroups = Object.fromEntries(
+    Object.entries(draft.before ?? {}).filter(([, value]) => isGroup(value)),
+  );
+  const icon = draft.kind.includes("order") ? "list" : draft.kind.endsWith("service") ? "wrench" : "clipboard";
+
   return (
-    <section style={{ border: "1px solid var(--line-2)", borderRadius: 12, background: "var(--surface)", padding: 12, fontSize: 13, display: "grid", gap: 10 }}>
-      <header>
-        <strong>{t(titles[draft.kind] || "ai_draft_review")}</strong>
-        <div style={{ color: "var(--ink-2)", overflowWrap: "anywhere" }}>{draft.target}</div>
+    <section className={styles.card} data-chat-review aria-label={t("ai_draft_review")} aria-busy={pending}>
+      <header className={styles.header}>
+        <div className={styles.icon}><Icon name={icon} size={19} /></div>
+        <div className={styles.headerCopy}>
+          <div className={styles.eyebrow}>{t("ai_draft_review")}</div>
+          <h3 className={styles.title}>{t(actionTitleKeys[draft.kind] || "ai_draft_review")}</h3>
+          {draft.target && <div className={styles.target}>{draft.target}</div>}
+        </div>
       </header>
-      {editing ? (
-        <EditFields fields={fields} label={t} change={setFields} />
-      ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          {draft.before && (
-            <details>
-              <summary>{t("ai_draft_before")}</summary>
-              <Values fields={draft.before} label={t} />
-            </details>
-          )}
-          <div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>{t("ai_draft_after")}</div>
-            <Values fields={draft.after} label={t} />
-          </div>
-        </div>
-      )}
-      {error && <div role="alert" style={{ color: "var(--danger)" }}>{error}</div>}
-      {!closed && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <Btn variant="primary" disabled={pending || disabled} onClick={() => run(editing ? "revise" : "confirm")}>
-            {t(editing ? "ai_draft_preview" : "ai_draft_confirm")}
-          </Btn>
-          {rows(draft.fields).length > 0 && (
-            <Btn disabled={pending || disabled} onClick={() => { setFields(draft.fields); setEditing(!editing); }}>
-              {t(editing ? "cancel" : "edit")}
+      <div className={styles.body}>
+        {editing ? (
+          <EditFields fields={fields} label={t} change={setFields} />
+        ) : (
+          <>
+            <Values fields={draft.after} previous={draft.before} label={t} />
+            {Object.keys(beforeGroups).length > 0 && (
+              <details className={styles.details}>
+                <summary>{t("ai_draft_before")}</summary>
+                <Values fields={beforeGroups} label={t} />
+              </details>
+            )}
+          </>
+        )}
+      </div>
+      {error && <p role="alert" className={styles.error}>{error}</p>}
+      <footer className={styles.footer}>
+        {closed ? (
+          <Btn onClick={() => onOpen(actionPath(draft.kind))}>{t("ai_draft_open")}</Btn>
+        ) : (
+          <>
+            <div className={styles.controls}>
+              {rows(draft.fields).length > 0 && (
+                <Btn size="sm" disabled={pending || disabled} onClick={() => { setFields(draft.fields); setEditing(!editing); }}>
+                  {t(editing ? "cancel" : "edit")}
+                </Btn>
+              )}
+              {!editing && <Btn size="sm" variant="ghost" disabled={pending || disabled} onClick={() => run("discard")}>{t("ai_draft_discard")}</Btn>}
+            </div>
+            <Btn size="sm" variant="primary" icon={!editing && !pending ? "check" : undefined}
+              disabled={pending || disabled} onClick={() => run(editing ? "revise" : "confirm")}>
+              {pending && <Spinner size={13} />}
+              {t(editing ? "ai_draft_preview" : "ai_draft_confirm")}
             </Btn>
-          )}
-          {!editing && <Btn disabled={pending || disabled} onClick={() => run("discard")}>{t("ai_draft_discard")}</Btn>}
-        </div>
-      )}
-      {closed && <Btn onClick={() => onOpen(actionPath(draft.kind))}>{t("ai_draft_open")}</Btn>}
+          </>
+        )}
+      </footer>
     </section>
   );
 }
